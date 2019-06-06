@@ -32,12 +32,10 @@ bool Copter::Mode::do_user_takeoff(float takeoff_alt_cm, bool must_navigate)
         return false;
     }
 
-#if FRAME_CONFIG == HELI_FRAME
     // Helicopters should return false if MAVlink takeoff command is received while the rotor is not spinning
-    if (!copter.motors->rotor_runup_complete()) {
+    if (motors->get_spool_state() != AP_Motors::SpoolState::THROTTLE_UNLIMITED && ap.using_interlock) {
         return false;
     }
-#endif
 
     if (!do_user_takeoff_start(takeoff_alt_cm)) {
         return false;
@@ -50,11 +48,16 @@ bool Copter::Mode::do_user_takeoff(float takeoff_alt_cm, bool must_navigate)
 // start takeoff to specified altitude above home in centimeters
 void Copter::Mode::_TakeOff::start(float alt_cm)
 {
+    // indicate we are taking off
+    copter.set_land_complete(false);
+    // tell position controller to reset alt target and reset I terms
+    copter.set_throttle_takeoff();
+
     // calculate climb rate
     const float speed = MIN(copter.wp_nav->get_default_speed_up(), MAX(copter.g.pilot_speed_up*2.0f/3.0f, copter.g.pilot_speed_up-50.0f));
 
     // sanity check speed and target
-    if (running() || speed <= 0.0f || alt_cm <= 0.0f) {
+    if (speed <= 0.0f || alt_cm <= 0.0f) {
         return;
     }
 
@@ -140,7 +143,7 @@ void Copter::Mode::auto_takeoff_set_start_alt(void)
     // start with our current altitude
     auto_takeoff_no_nav_alt_cm = inertial_nav.get_altitude();
     
-    if (!motors->armed() || !ap.auto_armed || !motors->get_interlock() || ap.land_complete) {
+    if (is_disarmed_or_landed() || !motors->get_interlock()) {
         // we are not flying, add the wp_navalt_min
         auto_takeoff_no_nav_alt_cm += g2.wp_navalt_min * 100;
     }
@@ -159,10 +162,6 @@ void Copter::Mode::auto_takeoff_attitude_run(float target_yaw_rate)
         // we haven't reached the takeoff navigation altitude yet
         nav_roll = 0;
         nav_pitch = 0;
-#if FRAME_CONFIG == HELI_FRAME
-        // prevent hover roll starting till past specified altitude
-        copter.hover_roll_trim_scalar_slew = 0;        
-#endif
         // tell the position controller that we have limited roll/pitch demand to prevent integrator buildup
         pos_control->set_limit_accel_xy();
     } else {
@@ -172,4 +171,18 @@ void Copter::Mode::auto_takeoff_attitude_run(float target_yaw_rate)
     
     // roll & pitch from waypoint controller, yaw rate from pilot
     attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(nav_roll, nav_pitch, target_yaw_rate);
+}
+
+bool Copter::Mode::is_taking_off() const
+{
+    if (!has_user_takeoff(false)) {
+        return false;
+    }
+    if (ap.land_complete) {
+        return false;
+    }
+    if (takeoff.running()) {
+        return true;
+    }
+    return false;
 }

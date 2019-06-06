@@ -15,16 +15,12 @@ void Copter::read_inertia()
         return;
     }
 
-    // without home return alt above the EKF origin
-    if (!ahrs.home_is_set()) {
-        // with inertial nav we can update the altitude and climb rate at 50hz
-        current_loc.alt = inertial_nav.get_altitude();
+    if (ahrs.home_is_set()) {
+        current_loc.set_alt_cm(inertial_nav.get_altitude(),
+                               Location::AltFrame::ABOVE_HOME);
     } else {
-        // with inertial nav we can update the altitude and climb rate at 50hz
-        current_loc.alt = pv_alt_above_home(inertial_nav.get_altitude());
+        // without home use alt above the EKF origin
+        current_loc.set_alt_cm(inertial_nav.get_altitude(),
+                               Location::AltFrame::ABOVE_ORIGIN);
     }
-
-    // set flags and get velocity
-    current_loc.relative_alt = true;
-    climb_rate = inertial_nav.get_velocity_z();
 }

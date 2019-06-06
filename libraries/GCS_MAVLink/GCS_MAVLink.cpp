@@ -78,20 +78,20 @@ void GCS_MAVLINK::set_channel_private(mavlink_channel_t _chan)
     mavlink_active &= ~mask;
 }
 
-// return a MAVLink variable type given a AP_Param type
-uint8_t mav_var_type(enum ap_var_type t)
+// return a MAVLink parameter type given a AP_Param type
+MAV_PARAM_TYPE mav_param_type(enum ap_var_type t)
 {
     if (t == AP_PARAM_INT8) {
-	    return MAVLINK_TYPE_INT8_T;
+	    return MAV_PARAM_TYPE_INT8;
     }
     if (t == AP_PARAM_INT16) {
-	    return MAVLINK_TYPE_INT16_T;
+	    return MAV_PARAM_TYPE_INT16;
     }
     if (t == AP_PARAM_INT32) {
-	    return MAVLINK_TYPE_INT32_T;
+	    return MAV_PARAM_TYPE_INT32;
     }
     // treat any others as float
-    return MAVLINK_TYPE_FLOAT;
+    return MAV_PARAM_TYPE_REAL32;
 }
 
 
@@ -145,7 +145,14 @@ void comm_send_buffer(mavlink_channel_t chan, const uint8_t *buf, uint8_t len)
         // an alternative protocol is active
         return;
     }
-    mavlink_comm_port[chan]->write(buf, len);
+    const size_t written = mavlink_comm_port[chan]->write(buf, len);
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    if (written < len) {
+        AP_HAL::panic("Short write on UART: %d < %u", written, len);
+    }
+#else
+    (void)written;
+#endif
 }
 
 /*

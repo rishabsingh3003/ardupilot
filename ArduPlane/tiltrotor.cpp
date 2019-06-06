@@ -19,7 +19,7 @@ float QuadPlane::tilt_max_change(bool up)
     }
     if (tilt.tilt_type != TILT_TYPE_BINARY && !up) {
         bool fast_tilt = false;
-        if (plane.control_mode == MANUAL) {
+        if (plane.control_mode == &plane.mode_manual) {
             fast_tilt = true;
         }
         if (hal.util->get_soft_armed() && !in_vtol_mode() && !assisted_flight) {
@@ -44,9 +44,6 @@ void QuadPlane::tiltrotor_slew(float newtilt)
 
     // translate to 0..1000 range and output
     SRV_Channels::set_output_scaled(SRV_Channel::k_motor_tilt, 1000 * tilt.current_tilt);
-
-    // setup tilt compensation
-    motors->set_thrust_compensation_callback(FUNCTOR_BIND_MEMBER(&QuadPlane::tilt_compensate, void, float *, uint8_t));
 }
 
 /*
@@ -109,9 +106,9 @@ void QuadPlane::tiltrotor_continuous_update(void)
       3) if we are in TRANSITION_TIMER mode then we are transitioning
          to forward flight and should put the rotors all the way forward
     */
-    if (plane.control_mode == QSTABILIZE ||
-        plane.control_mode == QHOVER ||
-        plane.control_mode == QAUTOTUNE) {
+    if (plane.control_mode == &plane.mode_qstabilize ||
+        plane.control_mode == &plane.mode_qhover ||
+        plane.control_mode == &plane.mode_qautotune) {
         tiltrotor_slew(0);
         return;
     }
@@ -137,17 +134,16 @@ void QuadPlane::tiltrotor_continuous_update(void)
  */
 void QuadPlane::tiltrotor_binary_slew(bool forward)
 {
+    // The servo output is binary, not slew rate limited
     SRV_Channels::set_output_scaled(SRV_Channel::k_motor_tilt, forward?1000:0);
 
+    // rate limiting current_tilt has the effect of delaying throttle in tiltrotor_binary_update
     float max_change = tilt_max_change(!forward);
     if (forward) {
         tilt.current_tilt = constrain_float(tilt.current_tilt+max_change, 0, 1);
     } else {
         tilt.current_tilt = constrain_float(tilt.current_tilt-max_change, 0, 1);
     }
-
-    // setup tilt compensation
-    motors->set_thrust_compensation_callback(FUNCTOR_BIND_MEMBER(&QuadPlane::tilt_compensate, void, float *, uint8_t));
 }
 
 /*

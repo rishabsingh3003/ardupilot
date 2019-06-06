@@ -45,6 +45,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_SerialManager',
     'AP_Terrain',
     'AP_Vehicle',
+    'AP_InternalError',
     'AP_Logger',
     'Filter',
     'GCS_MAVLink',
@@ -65,6 +66,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_Volz_Protocol',
     'AP_SBusOut',
     'AP_IOMCU',
+    'AP_Parachute',
     'AP_RAMTRON',
     'AP_RCProtocol',
     'AP_Radio',
@@ -81,6 +83,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_LandingGear',
     'AP_RobotisServo',
     'AP_ToshibaCAN',
+    'AP_NMEA_Output',
 ]
 
 def get_legacy_defines(sketch_name):
@@ -200,6 +203,7 @@ def ap_common_vehicle_libraries(bld):
     if bld.env.DEST_BINFMT == 'pe':
         libraries += [
             'AC_Fence',
+            'AC_AttitudeControl',
         ]
 
     return libraries

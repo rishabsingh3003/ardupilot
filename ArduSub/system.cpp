@@ -27,8 +27,6 @@ void Sub::init_ardupilot()
                         AP::fwversion().fw_string,
                         (unsigned)hal.util->available_memory());
 
-    init_capabilities();
-
     // load parameters from EEPROM
     load_parameters();
 
@@ -106,9 +104,8 @@ void Sub::init_ardupilot()
     gps.set_log_gps_bit(MASK_LOG_GPS);
     gps.init(serial_manager);
 
-    if (g.compass_enabled) {
-        init_compass();
-    }
+    AP::compass().set_log_bit(MASK_LOG_COMPASS);
+    AP::compass().init();
 
 #if OPTFLOW == ENABLED
     // make optflow available to AHRS
@@ -119,11 +116,6 @@ void Sub::init_ardupilot()
 #if AP_TERRAIN_AVAILABLE && AC_TERRAIN
     Location::set_terrain(&terrain);
     wp_nav.set_terrain(&terrain);
-#endif
-
-#if AVOIDANCE_ENABLED == ENABLED
-    wp_nav.set_avoidance(&avoid);
-    loiter_nav.set_avoidance(&avoid);
 #endif
 
     pos_control.set_dt(MAIN_LOOP_SECONDS);
@@ -191,6 +183,12 @@ void Sub::init_ardupilot()
 #endif
 
     startup_INS_ground();
+
+#ifdef ENABLE_SCRIPTING
+    if (!g2.scripting.init()) {
+        gcs().send_text(MAV_SEVERITY_ERROR, "Scripting failed to start");
+    }
+#endif // ENABLE_SCRIPTING
 
     // we don't want writes to the serial port to cause us to pause
     // mid-flight, so set the serial ports non-blocking once we are

@@ -54,7 +54,9 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
     SCHED_TASK_CLASS(AP_Beacon,           &rover.g2.beacon,        update,         50,  200),
     SCHED_TASK_CLASS(AP_Proximity,        &rover.g2.proximity,     update,         50,  200),
     SCHED_TASK_CLASS(AP_WindVane,         &rover.g2.windvane,      update,         20,  100),
-    SCHED_TASK(update_visual_odom,     50,    200),
+#if VISUAL_ODOMETRY_ENABLED == ENABLED
+    SCHED_TASK_CLASS(AP_VisualOdom,       &rover.g2.visual_odom,   update,         50,  200),
+#endif
     SCHED_TASK(update_wheel_encoder,   50,    200),
     SCHED_TASK(update_compass,         10,    200),
     SCHED_TASK(update_mission,         50,    200),
@@ -83,7 +85,7 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
     SCHED_TASK_CLASS(AP_Notify,           &rover.notify,           update,         50,  300),
     SCHED_TASK(one_second_loop,         1,   1500),
     SCHED_TASK_CLASS(AC_Sprayer,          &rover.g2.sprayer,           update,      3,  90),
-    SCHED_TASK(compass_cal_update,     50,    200),
+    SCHED_TASK_CLASS(Compass,          &rover.compass,              cal_update, 50, 200),
     SCHED_TASK(compass_save,           0.1,   200),
     SCHED_TASK(accel_cal_update,       10,    200),
 #if LOGGING_ENABLED == ENABLED
@@ -139,17 +141,10 @@ void Rover::loop()
     G_Dt = scheduler.get_last_loop_time_s();
 }
 
-void Rover::update_soft_armed()
-{
-    hal.util->set_soft_armed(arming.is_armed() &&
-                             hal.util->safety_switch_state() != AP_HAL::Util::SAFETY_DISARMED);
-    logger.set_vehicle_armed(hal.util->get_soft_armed());
-}
-
 // update AHRS system
 void Rover::ahrs_update()
 {
-    update_soft_armed();
+    arming.update_soft_armed();
 
 #if HIL_MODE != HIL_MODE_DISABLED
     // update hil before AHRS update
@@ -164,8 +159,12 @@ void Rover::ahrs_update()
     // update position
     have_position = ahrs.get_position(current_loc);
 
-    // update home from EKF if necessary
-    update_home_from_EKF();
+    // set home from EKF if necessary and possible
+    if (!ahrs.home_is_set()) {
+        if (!set_home_to_current_location(false)) {
+            // ignore this failure
+        }
+    }
 
     // if using the EKF get a speed update now (from accelerometers)
     Vector3f velocity;
@@ -197,20 +196,6 @@ void Rover::gcs_failsafe_check(void)
 
     // check for updates from GCS within 2 seconds
     failsafe_trigger(FAILSAFE_EVENT_GCS, failsafe.last_heartbeat_ms != 0 && (millis() - failsafe.last_heartbeat_ms) > 2000);
-}
-
-/*
-  check for new compass data - 10Hz
- */
-void Rover::update_compass(void)
-{
-    if (g.compass_enabled && compass.read()) {
-        ahrs.set_compass(&compass);
-        // update offsets
-        if (should_log(MASK_LOG_COMPASS)) {
-            logger.Write_Compass();
-        }
-    }
 }
 
 /*
@@ -258,41 +243,29 @@ void Rover::update_logging2(void)
 
 
 /*
-  update aux servo mappings
- */
-void Rover::update_aux(void)
-{
-    SRV_Channels::enable_aux_servos();
-}
-
-/*
   once a second events
  */
 void Rover::one_second_loop(void)
 {
-    // send a heartbeat
-    gcs().send_message(MSG_HEARTBEAT);
-
     // allow orientation change at runtime to aid config
-    ahrs.set_orientation();
+    ahrs.update_orientation();
 
     set_control_channels();
 
     // cope with changes to aux functions
-    update_aux();
+    SRV_Channels::enable_aux_servos();
 
     // update notify flags
     AP_Notify::flags.pre_arm_check = arming.pre_arm_checks(false);
     AP_Notify::flags.pre_arm_gps_check = true;
-    AP_Notify::flags.armed = arming.is_armed() || arming.arming_required() == AP_Arming::NO;
+    AP_Notify::flags.armed = arming.is_armed() || arming.arming_required() == AP_Arming::Required::NO;
+    AP_Notify::flags.flying = hal.util->get_soft_armed();
 
     // cope with changes to mavlink system ID
     mavlink_system.sysid = g.sysid_this_mav;
 
-    // update home position if not soft armed and gps position has
-    // changed. Update every 1s at most
-    if (!hal.util->get_soft_armed() &&
-        gps.status() >= AP_GPS::GPS_OK_FIX_3D) {
+    // attempt to update home position and baro calibration if not armed:
+    if (!hal.util->get_soft_armed()) {
         update_home();
     }
 
@@ -303,11 +276,14 @@ void Rover::one_second_loop(void)
     // MAV_SYS_STATUS_* values from mavlink. If a bit is set then it
     // indicates that the sensor or subsystem is present but not
     // functioning correctly
-    update_sensor_status_flags();
+    gcs().update_sensor_status_flags();
 
     // need to set "likely flying" when armed to allow for compass
     // learning to run
     ahrs.set_likely_flying(hal.util->get_soft_armed());
+
+    // send latest param values to wp_nav
+    g2.wp_nav.set_turn_params(g.turn_max_g, g2.turn_radius, g2.motors.have_skid_steering());
 }
 
 void Rover::update_GPS(void)
@@ -324,7 +300,23 @@ void Rover::update_GPS(void)
 
 void Rover::update_current_mode(void)
 {
+    // check for emergency stop
+    if (SRV_Channels::get_emergency_stop()) {
+        // relax controllers, motor stopping done at output level
+        g2.attitude_control.relax_I();
+    }
+
     control_mode->update();
+}
+
+// update mission including starting or stopping commands. called by scheduler at 10Hz
+void Rover::update_mission(void)
+{
+    if (control_mode == &mode_auto) {
+        if (ahrs.home_is_set() && mode_auto.mission.num_commands() > 1) {
+            mode_auto.mission.update();
+        }
+    }
 }
 
 AP_HAL_MAIN_CALLBACKS(&rover);

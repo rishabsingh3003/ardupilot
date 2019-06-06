@@ -16,6 +16,7 @@
 /*
   control of internal combustion engines (starter, ignition and choke)
  */
+#pragma once
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_RPM/AP_RPM.h>
@@ -47,7 +48,11 @@ public:
     // handle DO_ENGINE_CONTROL messages via MAVLink or mission
     bool engine_control(float start_control, float cold_start, float height_delay);
     
+    static AP_ICEngine *get_singleton() { return _singleton; }
+
 private:
+    static AP_ICEngine *_singleton;
+
     const AP_RPM &rpm;
 
     enum ICE_State state;
@@ -85,6 +90,9 @@ private:
     // throttle percentage for engine start
     AP_Int8 start_percent;
 
+    // throttle percentage for engine idle
+    AP_Int8 idle_percent;
+
     // height when we enter ICE_START_HEIGHT_DELAY
     float initial_height;
 
@@ -95,3 +103,7 @@ private:
     bool height_pending:1;
 };
 
+
+namespace AP {
+    AP_ICEngine *ice();
+};

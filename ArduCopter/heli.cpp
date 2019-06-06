@@ -23,7 +23,7 @@ void Copter::heli_init()
 // should be called at 50hz
 void Copter::check_dynamic_flight(void)
 {
-    if (!motors->armed() || !motors->rotor_runup_complete() ||
+    if (motors->get_spool_state() != AP_Motors::SpoolState::THROTTLE_UNLIMITED ||
         control_mode == LAND || (control_mode==RTL && mode_rtl.state() == RTL_Land) || (control_mode == AUTO && mode_auto.mode() == Auto_Land)) {
         heli_dynamic_flight_counter = 0;
         heli_flags.dynamic_flight = false;
@@ -140,13 +140,13 @@ void Copter::heli_update_rotor_speed_targets()
     // get rotor control method
     uint8_t rsc_control_mode = motors->get_rsc_mode();
     float rsc_control_deglitched = 0.0f;
-    RC_Channel *rc_ptr = rc().find_channel_for_option(RC_Channel::aux_func::MOTOR_INTERLOCK);
+    RC_Channel *rc_ptr = rc().find_channel_for_option(RC_Channel::AUX_FUNC::MOTOR_INTERLOCK);
     if (rc_ptr != nullptr) {
         rsc_control_deglitched = rotor_speed_deglitch_filter.apply((float)rc_ptr->get_control_in()) * 0.001f;
     }
     switch (rsc_control_mode) {
         case ROTOR_CONTROL_MODE_SPEED_PASSTHROUGH:
-            // pass through pilot desired rotor speed if control input is higher than 10, creating a deadband at the bottom
+            // pass through pilot desired rotor speed from the RC
             if (motors->get_interlock()) {
                 motors->set_desired_rotor_speed(rsc_control_deglitched);
             } else {
@@ -156,9 +156,14 @@ void Copter::heli_update_rotor_speed_targets()
         case ROTOR_CONTROL_MODE_SPEED_SETPOINT:
         case ROTOR_CONTROL_MODE_OPEN_LOOP_POWER_OUTPUT:
         case ROTOR_CONTROL_MODE_CLOSED_LOOP_POWER_OUTPUT:
-            // pass setpoint through as desired rotor speed, this is almost pointless as the Setpoint serves no function in this mode
-            // other than being used to create a crude estimate of rotor speed
+            // pass setpoint through as desired rotor speed. Needs work, this is pointless as it is
+            // not used by closed loop control. Being used as a catch-all for other modes regardless
+            // of whether or not they actually use it
+            // set rpm from rotor speed sensor
             if (motors->get_interlock()) {
+#if RPM_ENABLED == ENABLED
+                motors->set_rpm(rpm_sensor.get_rpm(0));
+#endif
                 motors->set_desired_rotor_speed(motors->get_rsc_setpoint());
             }else{
                 motors->set_desired_rotor_speed(0.0f);

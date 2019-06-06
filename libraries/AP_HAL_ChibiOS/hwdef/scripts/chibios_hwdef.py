@@ -74,6 +74,11 @@ env_vars = {}
 # build flags for ChibiOS makefiles
 build_flags = []
 
+# sensor lists
+imu_list = []
+compass_list = []
+baro_list = []
+
 mcu_type = None
 
 
@@ -188,6 +193,16 @@ class generic_pin(object):
         if mcu_series == "STM32F100" and self.label is not None:
             self.f1_pin_setup()
 
+        # check that labels and pin types are consistent
+        for prefix in ['USART', 'UART', 'TIM']:
+            if label is None or type is None:
+                continue
+            if type.startswith(prefix):
+                a1 = label.split('_')
+                a2 = type.split('_')
+                if a1[0] != a2[0]:
+                    error("Peripheral prefix mismatch for %s %s %s" % (self.portpin, label, type))
+
     def f1_pin_setup(self):
         for l in af_labels:
             if self.label.startswith(l):
@@ -280,12 +295,22 @@ class generic_pin(object):
         v = 'FLOATING'
         if self.is_CS():
             v = "PULLUP"
+        # generate pullups for UARTs
         if (self.type.startswith('USART') or
             self.type.startswith('UART')) and (
             (self.label.endswith('_TX') or
              self.label.endswith('_RX') or
              self.label.endswith('_CTS') or
              self.label.endswith('_RTS'))):
+                v = "PULLUP"
+        # generate pullups for SDIO and SDMMC
+        if (self.type.startswith('SDIO') or
+            self.type.startswith('SDMMC')) and (
+            (self.label.endswith('_D0') or
+             self.label.endswith('_D1') or
+             self.label.endswith('_D2') or
+             self.label.endswith('_D3') or
+             self.label.endswith('_CMD'))):
                 v = "PULLUP"
         for e in self.extra:
             if e in values:
@@ -483,7 +508,10 @@ def write_mcu_config(f):
     '''write MCU config defines'''
     f.write('// MCU type (ChibiOS define)\n')
     f.write('#define %s_MCUCONF\n' % get_config('MCU'))
-    f.write('#define %s\n\n' % get_config('MCU', 1))
+    mcu_subtype = get_config('MCU', 1)
+    if mcu_subtype.endswith('xx'):
+        f.write('#define %s_MCUCONF\n\n' % mcu_subtype[:-2])
+    f.write('#define %s\n\n' % mcu_subtype)
     f.write('// crystal frequency\n')
     f.write('#define STM32_HSECLK %sU\n\n' % get_config('OSCILLATOR_HZ'))
     f.write('// UART used for stdout (printf)\n')
@@ -546,31 +574,20 @@ def write_mcu_config(f):
     f.write('#define BOARD_FLASH_SIZE %u\n' % flash_size)
     f.write('#define CRT1_AREAS_NUMBER 1\n')
 
-    # get core-coupled-memory if available (not be DMA capable)
-    ccm_size = get_mcu_config('CCM_RAM_SIZE_KB')
-    if ccm_size is not None:
-        f.write('\n// core-coupled memory\n')
-        f.write('#define CCM_RAM_SIZE_KB %u\n' % ccm_size)
-        f.write('#define CCM_BASE_ADDRESS 0x%08x\n' % get_mcu_config('CCM_BASE_ADDRESS', True))
-
-    # get DTCM memory if available (DMA-capable with no cache flush/invalidate)
-    dtcm_size = get_mcu_config('DTCM_RAM_SIZE_KB')
-    if dtcm_size is not None:
-        f.write('\n// DTCM memory\n')
-        f.write('#define DTCM_RAM_SIZE_KB %u\n' % dtcm_size)
-        f.write('#define DTCM_BASE_ADDRESS 0x%08x\n' % get_mcu_config('DTCM_BASE_ADDRESS', True))
-        
     flash_reserve_start = get_config(
         'FLASH_RESERVE_START_KB', default=16, type=int)
     f.write('\n// location of loaded firmware\n')
     f.write('#define FLASH_LOAD_ADDRESS 0x%08x\n' % (0x08000000 + flash_reserve_start*1024))
+    if args.bootloader:
+        f.write('#define FLASH_BOOTLOADER_LOAD_KB %u\n' % get_config('FLASH_BOOTLOADER_LOAD_KB', type=int))
     f.write('\n')
 
-    ram_size_kb = get_mcu_config('RAM_SIZE_KB', True)
-    ram_base_address = get_mcu_config('RAM_BASE_ADDRESS', True)
-    f.write('// main memory size and address\n')
-    f.write('#define HAL_RAM_SIZE_KB %uU\n' % ram_size_kb)
-    f.write('#define HAL_RAM_BASE_ADDRESS 0x%08x\n' % ram_base_address)
+    ram_map = get_mcu_config('RAM_MAP', True)
+    f.write('// memory regions\n')
+    regions = []
+    for (address, size, flags) in ram_map:
+        regions.append('{(void*)0x%08x, 0x%08x, 0x%02x }' % (address, size*1024, flags))
+    f.write('#define HAL_MEMORY_REGIONS %s\n' % ', '.join(regions))
 
     f.write('\n// CPU serial number (12 bytes)\n')
     f.write('#define UDID_START 0x%08x\n\n' % get_mcu_config('UDID_START', True))
@@ -643,12 +660,15 @@ def write_ldscript(fname):
     # space to reserve for storage at end of flash
     flash_reserve_end = get_config('FLASH_RESERVE_END_KB', default=0, type=int)
 
-    # ram size
-    ram_size = get_mcu_config('RAM_SIZE_KB', True)
-    ram_base = get_mcu_config('RAM_BASE_ADDRESS', True)
+    # ram layout
+    ram_map = get_mcu_config('RAM_MAP', True)
 
     flash_base = 0x08000000 + flash_reserve_start * 1024
-    flash_length = flash_size - (flash_reserve_start + flash_reserve_end)
+
+    if not args.bootloader:
+        flash_length = flash_size - (flash_reserve_start + flash_reserve_end)
+    else:
+        flash_length = get_config('FLASH_BOOTLOADER_LOAD_KB', type=int)
 
     print("Generating ldscript.ld")
     f = open(fname, 'w')
@@ -660,7 +680,7 @@ MEMORY
 }
 
 INCLUDE common.ld
-''' % (flash_base, flash_length, ram_base, ram_size))
+''' % (flash_base, flash_length, ram_map[0][0], ram_map[0][1]))
 
 def copy_common_linkerscript(outdir, hwdef):
     dirpath = os.path.dirname(hwdef)
@@ -739,12 +759,105 @@ def write_SPI_config(f):
         n = int(dev[3:])
         devlist.append('HAL_SPI%u_CONFIG' % n)
         f.write(
-            '#define HAL_SPI%u_CONFIG { &SPID%u, %u, STM32_SPI_SPI%u_TX_DMA_STREAM, STM32_SPI_SPI%u_RX_DMA_STREAM }\n'
-            % (n, n, n, n, n))
+            '#define HAL_SPI%u_CONFIG { &SPID%u, %u, STM32_SPI_SPI%u_DMA_STREAMS }\n'
+            % (n, n, n, n))
     f.write('#define HAL_SPI_BUS_LIST %s\n\n' % ','.join(devlist))
     write_SPI_table(f)
 
+def parse_spi_device(dev):
+    '''parse a SPI:xxx device item'''
+    a = dev.split(':')
+    if len(a) != 2:
+        error("Bad SPI device: %s" % dev)
+    return 'hal.spi->get_device("%s")' % a[1]
 
+def parse_i2c_device(dev):
+    '''parse a I2C:xxx:xxx device item'''
+    a = dev.split(':')
+    if len(a) != 3:
+        error("Bad I2C device: %s" % dev)
+    busaddr = int(a[2],base=0)
+    if a[1] == 'ALL_EXTERNAL':
+        return ('FOREACH_I2C_EXTERNAL(b)', 'hal.i2c_mgr->get_device(b,0x%02x)' % (busaddr))
+    elif a[1] == 'ALL_INTERNAL':
+        return ('FOREACH_I2C_INTERNAL(b)', 'hal.i2c_mgr->get_device(b,0x%02x)' % (busaddr))
+    elif a[1] == 'ALL':
+        return ('FOREACH_I2C(b)', 'hal.i2c_mgr->get_device(b,0x%02x)' % (busaddr))
+    busnum = int(a[1])
+    return ('', 'hal.i2c_mgr->get_device(%u,0x%02x)' % (busnum, busaddr))
+
+def write_IMU_config(f):
+    '''write IMU config defines'''
+    global imu_list
+    devlist = []
+    wrapper = ''
+    for dev in imu_list:
+        driver = dev[0]
+        for i in range(1,len(dev)):
+            if dev[i].startswith("SPI:"):
+                dev[i] = parse_spi_device(dev[i])
+            elif dev[i].startswith("I2C:"):
+                (wrapper, dev[i]) = parse_i2c_device(dev[i])
+        n = len(devlist)+1
+        devlist.append('HAL_INS_PROBE%u' % n)
+        f.write(
+            '#define HAL_INS_PROBE%u %s ADD_BACKEND(AP_InertialSensor_%s::probe(*this,%s))\n'
+            % (n, wrapper, driver, ','.join(dev[1:])))
+    if len(devlist) > 0:
+        f.write('#define HAL_INS_PROBE_LIST %s\n\n' % ';'.join(devlist))
+
+def write_MAG_config(f):
+    '''write IMU config defines'''
+    global compass_list
+    devlist = []
+    for dev in compass_list:
+        driver = dev[0]
+        probe = 'probe'
+        wrapper = ''
+        a = driver.split(':')
+        driver = a[0]
+        if len(a) > 1 and a[1].startswith('probe'):
+            probe = a[1]
+        for i in range(1,len(dev)):
+            if dev[i].startswith("SPI:"):
+                dev[i] = parse_spi_device(dev[i])
+            elif dev[i].startswith("I2C:"):
+                (wrapper, dev[i]) = parse_i2c_device(dev[i])
+        n = len(devlist)+1
+        devlist.append('HAL_MAG_PROBE%u' % n)
+        f.write(
+            '#define HAL_MAG_PROBE%u %s ADD_BACKEND(DRIVER_%s, AP_Compass_%s::%s(%s))\n'
+            % (n, wrapper, driver, driver, probe, ','.join(dev[1:])))
+    if len(devlist) > 0:
+        f.write('#define HAL_MAG_PROBE_LIST %s\n\n' % ';'.join(devlist))
+
+def write_BARO_config(f):
+    '''write barometer config defines'''
+    global baro_list
+    devlist = []
+    for dev in baro_list:
+        driver = dev[0]
+        probe = 'probe'
+        wrapper = ''
+        a = driver.split(':')
+        driver = a[0]
+        if len(a) > 1 and a[1].startswith('probe'):
+            probe = a[1]
+        for i in range(1,len(dev)):
+            if dev[i].startswith("SPI:"):
+                dev[i] = parse_spi_device(dev[i])
+            elif dev[i].startswith("I2C:"):
+                (wrapper, dev[i]) = parse_i2c_device(dev[i])
+                if dev[i].startswith('hal.i2c_mgr'):
+                    dev[i] = 'std::move(%s)' % dev[i]
+        n = len(devlist)+1
+        devlist.append('HAL_BARO_PROBE%u' % n)
+        f.write(
+            '#define HAL_BARO_PROBE%u %s ADD_BACKEND(AP_Baro_%s::%s(*this,%s))\n'
+            % (n, wrapper, driver, probe, ','.join(dev[1:])))
+    if len(devlist) > 0:
+        f.write('#define HAL_BARO_PROBE_LIST %s\n\n' % ';'.join(devlist))
+    
 def get_gpio_bylabel(label):
     '''get GPIO(n) setting on a pin label, or -1'''
     p = bylabel.get(label)
@@ -837,7 +950,7 @@ def write_UART_config(f):
     if not need_uart_driver and not args.bootloader:
         f.write('''
 #ifndef HAL_USE_SERIAL
-#define HAL_USE_SERIAL FALSE
+#define HAL_USE_SERIAL HAL_USE_SERIAL_USB
 #endif
 ''')
 
@@ -857,7 +970,11 @@ def write_UART_config_bootloader(f):
             have_uart = True
     f.write('#define BOOTLOADER_DEV_LIST %s\n' % ','.join(devlist))
     if not have_uart:
-        f.write('#define HAL_USE_SERIAL FALSE\n')
+        f.write('''
+#ifndef HAL_USE_SERIAL
+#define HAL_USE_SERIAL FALSE
+#endif
+''')
 
 def write_I2C_config(f):
     '''write I2C config defines'''
@@ -926,7 +1043,11 @@ def write_PWM_config(f):
 
     if not pwm_out:
         print("No PWM output defined")
-        f.write('#define HAL_USE_PWM FALSE\n')
+        f.write('''
+#ifndef HAL_USE_PWM
+#define HAL_USE_PWM FALSE
+#endif
+''')
         
     if rc_in is not None:
         (n, chan, compl) = parse_timer(rc_in.label)
@@ -1037,11 +1158,11 @@ def write_PWM_config(f):
             advanced_timer = 'false'
         pwm_clock = 1000000
         period = 20000 * pwm_clock / 1000000
-        f.write('''#ifdef STM32_TIM_TIM%u_UP_DMA_STREAM
+        f.write('''#if defined(STM32_TIM_TIM%u_UP_DMA_STREAM) && defined(STM32_TIM_TIM%u_UP_DMA_CHAN)
 # define HAL_PWM%u_DMA_CONFIG true, STM32_TIM_TIM%u_UP_DMA_STREAM, STM32_TIM_TIM%u_UP_DMA_CHAN
 #else
 # define HAL_PWM%u_DMA_CONFIG false, 0, 0
-#endif\n''' % (n, n, n, n, n))
+#endif\n''' % (n, n, n, n, n, n))
         f.write('''#define HAL_PWM_GROUP%u { %s, \\
         {%u, %u, %u, %u}, \\
         /* Group Initial Config */ \\
@@ -1224,6 +1345,9 @@ def write_hwdef_header(outfilename):
     write_SPI_config(f)
     write_ADC_config(f)
     write_GPIO_config(f)
+    write_IMU_config(f)
+    write_MAG_config(f)
+    write_BARO_config(f)
 
     write_peripheral_enable(f)
     setup_apj_IDs()
@@ -1352,7 +1476,8 @@ def build_peripheral_list():
         if type.startswith('ADC'):
             peripherals.append(type)
         if type.startswith('SDIO') or type.startswith('SDMMC'):
-            peripherals.append(type)
+            if not mcu_series.startswith("STM32H7"):
+                peripherals.append(type)
         if type.startswith('TIM'):
             if p.has_extra('RCIN'):
                 label = p.label
@@ -1395,7 +1520,7 @@ def romfs_wildcard(pattern):
     
 def process_line(line):
     '''process one line of pin definition file'''
-    global allpins
+    global allpins, imu_list, compass_list, baro_list
     a = shlex.split(line)
     # keep all config lines for later use
     alllines.append(line)
@@ -1433,6 +1558,12 @@ def process_line(line):
             p.af = af
     if a[0] == 'SPIDEV':
         spidev.append(a[1:])
+    if a[0] == 'IMU':
+        imu_list.append(a[1:])
+    if a[0] == 'COMPASS':
+        compass_list.append(a[1:])
+    if a[0] == 'BARO':
+        baro_list.append(a[1:])
     if a[0] == 'ROMFS':
         romfs_add(a[1],a[2])
     if a[0] == 'ROMFS_WILDCARD':
@@ -1456,6 +1587,12 @@ def process_line(line):
                 continue
             newpins.append(pin)
         allpins = newpins
+        if a[1] == 'IMU':
+            imu_list = []
+        if a[1] == 'COMPASS':
+            compass_list = []
+        if a[1] == 'BARO':
+            baro_list = []
     if a[0] == 'env':
         print("Adding environment %s" % ' '.join(a[1:]))
         if len(a[1:]) < 2:

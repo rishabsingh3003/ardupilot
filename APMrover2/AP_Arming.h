@@ -17,13 +17,18 @@ public:
     AP_Arming_Rover &operator=(const AP_Arming_Rover&) = delete;
 
     bool pre_arm_checks(bool report) override;
+    bool arm_checks(AP_Arming::Method method) override;
     bool pre_arm_rc_checks(const bool display_failure);
     bool gps_checks(bool display_failure) override;
 
+    bool disarm() override;
+    bool arm(AP_Arming::Method method, bool do_arming_checks=true) override;
+
+    void update_soft_armed();
+
 protected:
-    bool fence_checks(bool report);
-    bool proximity_check(bool report);
 
 private:
 
+    void change_arm_state(void);
 };

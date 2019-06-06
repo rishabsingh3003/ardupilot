@@ -31,6 +31,7 @@
 #include "DiscoLED.h"
 #include "Led_Sysfs.h"
 #include "UAVCAN_RGB_LED.h"
+#include "SITL_SFML_LED.h"
 #include <stdio.h>
 #include "AP_BoardLED2.h"
 
@@ -109,9 +110,9 @@ const AP_Param::GroupInfo AP_Notify::var_info[] = {
     AP_GROUPINFO("BUZZ_ENABLE", 1, AP_Notify, _buzzer_enable, BUZZER_ENABLE_DEFAULT),
 
     // @Param: LED_OVERRIDE
-    // @DisplayName: Setup for MAVLink LED override
-    // @Description: This sets up the board RGB LED for override by MAVLink. Normal notify LED control is disabled
-    // @Values: 0:Disable,1:Enable
+    // @DisplayName: Specifies colour source for the RGBLed
+    // @Description: Specifies the source for the colours and brightness for the LED.  OutbackChallenge conforms to the MedicalExpress (https://uavchallenge.org/medical-express/) rules, essentially "Green" is disarmed (safe-to-approach), "Red" is armed (not safe-to-approach).
+    // @Values: 0:Standard,1:MAVLink,2:OutbackChallenge
     // @User: Advanced
     AP_GROUPINFO("LED_OVERRIDE", 2, AP_Notify, _rgb_led_override, 0),
 
@@ -146,6 +147,15 @@ const AP_Param::GroupInfo AP_Notify::var_info[] = {
     // @Bitmask: 0:Build in LED, 1:Internal ToshibaLED, 2:External ToshibaLED, 3:External PCA9685, 4:Oreo LED, 5:UAVCAN, 6:NCP5623 External, 7:NCP5623 Internal
     // @User: Advanced
     AP_GROUPINFO("LED_TYPES", 6, AP_Notify, _led_type, BUILD_DEFAULT_LED_TYPE),
+
+#if !defined(HAL_BUZZER_PIN)
+    // @Param: BUZZ_ON_LVL
+    // @DisplayName: Buzzer-on pin logic level
+    // @Description: Specifies pin level that indicates buzzer should play
+    // @Values: 0:LowIsOn,1:HighIsOn
+    // @User: Advanced
+    AP_GROUPINFO("BUZZ_ON_LVL", 7, AP_Notify, _buzzer_level, 1),
+#endif
 
     AP_GROUPEND
 };
@@ -263,9 +273,7 @@ void AP_Notify::add_backends(void)
 
 // ChibiOS noise makers
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-#ifdef HAL_BUZZER_PIN
     ADD_BACKEND(new Buzzer());
-#endif
 #ifdef HAL_PWM_ALARM
     ADD_BACKEND(new AP_ToneAlarm());
 #endif
@@ -289,6 +297,11 @@ void AP_Notify::add_backends(void)
     ADD_BACKEND(new AP_ToneAlarm());
   #endif
 
+#elif CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    ADD_BACKEND(new AP_ToneAlarm());
+#ifdef WITH_SITL_RGBLED
+    ADD_BACKEND(new SITL_SFML_LED());
+#endif
 #endif // Noise makers
 
 }
@@ -337,6 +350,15 @@ void AP_Notify::handle_play_tune(mavlink_message_t *msg)
     }
 }
 
+void AP_Notify::play_tune(const char *tune)
+{
+    for (uint8_t i = 0; i < _num_devices; i++) {
+        if (_devices[i] != nullptr) {
+            _devices[i]->play_tune(tune);
+        }
+    }
+}
+
 // set flight mode string
 void AP_Notify::set_flight_mode_str(const char *str)
 {
@@ -350,3 +372,12 @@ void AP_Notify::send_text(const char *str)
     _send_text[sizeof(_send_text)-1] = 0;
     _send_text_updated_millis = AP_HAL::millis();
 }
+
+namespace AP {
+
+AP_Notify &notify()
+{
+    return *AP_Notify::get_singleton();
+}
+
+};

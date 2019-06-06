@@ -4,6 +4,7 @@
 
 #include "Plane.h"
 
+#if ADVANCED_FAILSAFE == ENABLED
 // Constructor
 AP_AdvancedFailsafe_Plane::AP_AdvancedFailsafe_Plane(AP_Mission &_mission, const AP_GPS &_gps) :
     AP_AdvancedFailsafe(_mission, _gps)
@@ -46,7 +47,7 @@ void AP_AdvancedFailsafe_Plane::terminate_vehicle(void)
     plane.quadplane.afs_terminate();
     
     // also disarm to ensure that ignition is cut
-    plane.disarm_motors();
+    plane.arming.disarm();
 }
 
 void AP_AdvancedFailsafe_Plane::setup_IO_failsafe(void)
@@ -86,8 +87,9 @@ AP_AdvancedFailsafe::control_mode AP_AdvancedFailsafe_Plane::afs_mode(void)
     if (plane.auto_throttle_mode) {
         return AP_AdvancedFailsafe::AFS_AUTO;
     }
-    if (plane.control_mode == MANUAL) {
+    if (plane.control_mode == &plane.mode_manual) {
         return AP_AdvancedFailsafe::AFS_MANUAL;
     }
     return AP_AdvancedFailsafe::AFS_STABILIZED;
 }
+#endif // ADVANCED_FAILSAFE

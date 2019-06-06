@@ -19,7 +19,7 @@ MAV_RESULT Copter::mavlink_compassmot(mavlink_channel_t chan)
     float    throttle_pct;              // throttle as a percentage 0.0 ~ 1.0
     float    throttle_pct_max = 0.0f;   // maximum throttle reached (as a percentage 0~1.0)
     float    current_amps_max = 0.0f;   // maximum current reached
-    float    interference_pct[COMPASS_MAX_INSTANCES];       // interference as a percentage of total mag field (for reporting purposes only)
+    float    interference_pct[COMPASS_MAX_INSTANCES]{};       // interference as a percentage of total mag field (for reporting purposes only)
     uint32_t last_run_time;
     uint32_t last_send_time;
     bool     updated = false;           // have we updated the compensation vector at least once
@@ -33,15 +33,10 @@ MAV_RESULT Copter::mavlink_compassmot(mavlink_channel_t chan)
         ap.compass_mot = true;
     }
 
-    // initialise output
-    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
-        interference_pct[i] = 0.0f;
-    }
-
     GCS_MAVLINK_Copter &gcs_chan = gcs().chan(chan-MAVLINK_COMM_0);
 
     // check compass is enabled
-    if (!g.compass_enabled) {
+    if (!AP::compass().enabled()) {
         gcs_chan.send_text(MAV_SEVERITY_CRITICAL, "Compass disabled");
         ap.compass_mot = false;
         return MAV_RESULT_TEMPORARILY_REJECTED;
@@ -124,6 +119,8 @@ MAV_RESULT Copter::mavlink_compassmot(mavlink_channel_t chan)
         interference_pct[i] = 0.0f;
     }
 
+    EXPECT_DELAY_MS(5000);
+
     // enable motors and pass through throttle
     init_rc_out();
     enable_motor_output();
@@ -135,6 +132,8 @@ MAV_RESULT Copter::mavlink_compassmot(mavlink_channel_t chan)
 
     // main run while there is no user input and the compass is healthy
     while (command_ack_start == command_ack_counter && compass.healthy() && motors->armed()) {
+        EXPECT_DELAY_MS(5000);
+
         // 50hz loop
         if (millis() - last_run_time < 20) {
             hal.scheduler->delay(5);

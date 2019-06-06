@@ -12,7 +12,7 @@ public:
     {
         // default REQUIRE parameter to 1 (Copter does not have an
         // actual ARMING_REQUIRE parameter)
-        require.set_default(YES_MIN_PWM);
+        require.set_default((uint8_t)Required::YES_MIN_PWM);
     }
 
     /* Do not allow copies */
@@ -20,17 +20,19 @@ public:
     AP_Arming_Copter &operator=(const AP_Arming_Copter&) = delete;
 
     void update(void);
-    bool all_checks_passing(ArmingMethod method);
 
     bool rc_calibration_checks(bool display_failure) override;
+
+    bool disarm() override;
+    bool arm(AP_Arming::Method method, bool do_arming_checks=true) override;
 
 protected:
 
     bool pre_arm_checks(bool display_failure) override;
     bool pre_arm_ekf_attitude_check();
     bool pre_arm_terrain_check(bool display_failure);
-    bool pre_arm_proximity_check(bool display_failure);
-    bool arm_checks(bool display_failure, AP_Arming::ArmingMethod method);
+    bool proximity_checks(bool display_failure) const override;
+    bool arm_checks(AP_Arming::Method method) override;
 
     // NOTE! the following check functions *DO* call into AP_Arming:
     bool ins_checks(bool display_failure) override;
@@ -40,7 +42,6 @@ protected:
     bool board_voltage_checks(bool display_failure) override;
 
     // NOTE! the following check functions *DO NOT* call into AP_Arming!
-    bool fence_checks(bool display_failure);
     bool parameter_checks(bool display_failure);
     bool motor_checks(bool display_failure);
     bool pilot_throttle_checks(bool display_failure);
@@ -49,5 +50,8 @@ protected:
 
 private:
 
-    void parameter_checks_pid_warning_message(bool display_failure, const char *error_msg);
+    // actually contains the pre-arm checks.  This is wrapped so that
+    // we can store away success/failure of the checks.
+    bool run_pre_arm_checks(bool display_failure);
+
 };

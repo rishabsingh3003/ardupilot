@@ -29,6 +29,7 @@
 #include <AP_RSSI/AP_RSSI.h>
 #include <AP_Notify/AP_Notify.h>
 #include <AP_Stats/AP_Stats.h>
+#include <AP_Common/Location.h>
 
 #include <ctype.h>
 #include <GCS_MAVLink/GCS.h>
@@ -426,7 +427,9 @@ float AP_OSD_Screen::u_scale(enum unit_type unit, float value)
 void AP_OSD_Screen::draw_altitude(uint8_t x, uint8_t y)
 {
     float alt;
-    AP::ahrs().get_relative_position_D_home(alt);
+    AP_AHRS &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
+    ahrs.get_relative_position_D_home(alt);
     alt = -alt;
     backend->write(x, y, false, "%4d%c", (int)u_scale(ALTITUDE, alt), u_icon(ALTITUDE));
 }
@@ -555,6 +558,7 @@ void AP_OSD_Screen::draw_speed_vector(uint8_t x, uint8_t y,Vector2f v, int32_t y
 void AP_OSD_Screen::draw_gspeed(uint8_t x, uint8_t y)
 {
     AP_AHRS &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
     Vector2f v = ahrs.groundspeed_vector();
     backend->write(x, y, false, "%c", SYM_GSPD);
     draw_speed_vector(x + 1, y, v, ahrs.yaw_sensor);
@@ -564,6 +568,7 @@ void AP_OSD_Screen::draw_gspeed(uint8_t x, uint8_t y)
 void AP_OSD_Screen::draw_horizon(uint8_t x, uint8_t y)
 {
     AP_AHRS &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
     float roll = ahrs.roll;
     float pitch = -ahrs.pitch;
 
@@ -626,11 +631,12 @@ void AP_OSD_Screen::draw_distance(uint8_t x, uint8_t y, float distance)
 void AP_OSD_Screen::draw_home(uint8_t x, uint8_t y)
 {
     AP_AHRS &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
     Location loc;
     if (ahrs.get_position(loc) && ahrs.home_is_set()) {
         const Location &home_loc = ahrs.get_home();
-        float distance = get_distance(home_loc, loc);
-        int32_t angle = wrap_360_cd(get_bearing_cd(loc, home_loc) - ahrs.yaw_sensor);
+        float distance = home_loc.get_distance(loc);
+        int32_t angle = wrap_360_cd(loc.get_bearing_to(home_loc) - ahrs.yaw_sensor);
         int32_t interval = 36000 / SYM_ARROW_COUNT;
         if (distance < 2.0f) {
             //avoid fast rotating arrow at small distances
@@ -692,6 +698,7 @@ void AP_OSD_Screen::draw_compass(uint8_t x, uint8_t y)
 void AP_OSD_Screen::draw_wind(uint8_t x, uint8_t y)
 {
     AP_AHRS &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
     Vector3f v = ahrs.wind_estimate();
     if (check_option(AP_OSD::OPTION_INVERTED_WIND)) {
         v = -v;
@@ -703,7 +710,9 @@ void AP_OSD_Screen::draw_wind(uint8_t x, uint8_t y)
 void AP_OSD_Screen::draw_aspeed(uint8_t x, uint8_t y)
 {
     float aspd = 0.0f;
-    bool have_estimate = AP::ahrs().airspeed_estimate(&aspd);
+    AP_AHRS &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
+    bool have_estimate = ahrs.airspeed_estimate(&aspd);
     if (have_estimate) {
         backend->write(x, y, false, "%c%4d%c", SYM_ASPD, (int)u_scale(SPEED, aspd), u_icon(SPEED));
     } else {
@@ -715,10 +724,14 @@ void AP_OSD_Screen::draw_vspeed(uint8_t x, uint8_t y)
 {
     Vector3f v;
     float vspd;
-    if (AP::ahrs().get_velocity_NED(v)) {
+    AP_AHRS &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
+    if (ahrs.get_velocity_NED(v)) {
         vspd = -v.z;
     } else {
-        vspd = AP::baro().get_climb_rate();
+        auto &baro = AP::baro();
+        WITH_SEMAPHORE(baro.get_semaphore());
+        vspd = baro.get_climb_rate();
     }
     char sym;
     if (vspd > 3.0f) {
@@ -903,6 +916,7 @@ void AP_OSD_Screen::draw_eff(uint8_t x, uint8_t y)
 {
     AP_BattMonitor &battery = AP::battery();
     AP_AHRS &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
     Vector2f v = ahrs.groundspeed_vector();
     float speed = u_scale(SPEED,v.length());
     if (speed > 2.0){
@@ -917,10 +931,14 @@ void AP_OSD_Screen::draw_climbeff(uint8_t x, uint8_t y)
     char unit_icon = u_icon(DISTANCE);
     Vector3f v;
     float vspd;
-    if (AP::ahrs().get_velocity_NED(v)) {
+    auto &ahrs = AP::ahrs();
+    WITH_SEMAPHORE(ahrs.get_semaphore());
+    if (ahrs.get_velocity_NED(v)) {
         vspd = -v.z;
     } else {
-        vspd = AP::baro().get_climb_rate();
+        auto &baro = AP::baro();
+        WITH_SEMAPHORE(baro.get_semaphore());
+        vspd = baro.get_climb_rate();
     }
     if (vspd < 0.0) vspd = 0.0;
     AP_BattMonitor &battery = AP::battery();

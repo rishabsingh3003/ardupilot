@@ -45,20 +45,20 @@ void Rover::crash_check()
     }
 
     if (crashed) {
-        // log an error in the dataflash
-        Log_Write_Error(ERROR_SUBSYSTEM_CRASH_CHECK, ERROR_CODE_CRASH_CHECK_CRASH);
+        AP::logger().Write_Error(LogErrorSubsystem::CRASH_CHECK,
+                                 LogErrorCode::CRASH_CHECK_CRASH);
 
         if (is_balancebot()) {
             // send message to gcs
             gcs().send_text(MAV_SEVERITY_EMERGENCY, "Crash: Disarming");
-            disarm_motors();
+            arming.disarm();
         } else {
             // send message to gcs
             gcs().send_text(MAV_SEVERITY_EMERGENCY, "Crash: Going to HOLD");
             // change mode to hold and disarm
             set_mode(mode_hold, MODE_REASON_CRASH_FAILSAFE);
             if (g.fs_crash_check == FS_CRASH_HOLD_AND_DISARM) {
-                disarm_motors();
+                arming.disarm();
             }
         }
     }

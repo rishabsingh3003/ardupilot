@@ -4,8 +4,7 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
-#include <GCS_MAVLink/GCS_MAVLink.h>
-#include <AP_AHRS/AP_AHRS.h>
+#include <GCS_MAVLink/GCS.h>
 #include <AC_Fence/AC_PolyFence_loader.h>
 #include <AP_Common/Location.h>
 
@@ -101,7 +100,7 @@ public:
     ///
 
     /// returns pointer to array of polygon points and num_points is filled in with the total number
-    Vector2f* get_polygon_points(uint16_t& num_points) const;
+    Vector2f* get_boundary_points(uint16_t& num_points) const;
 
     /// returns true if we've breached the polygon boundary.  simple passthrough to underlying _poly_loader object
     bool boundary_breached(const Vector2f& location, uint16_t num_points, const Vector2f* points) const;
@@ -143,7 +142,10 @@ private:
     bool pre_arm_check_alt(const char* &fail_msg) const;
 
     /// load polygon points stored in eeprom into boundary array and perform validation.  returns true if load successfully completed
-    bool load_polygon_from_eeprom(bool force_reload = false);
+    bool load_polygon_from_eeprom();
+
+    // returns true if we have breached the fence:
+    bool polygon_fence_is_breached();
 
     // parameters
     AP_Int8         _enabled;               // top level enable/disable control
@@ -180,7 +182,6 @@ private:
     Vector2f        *_boundary = nullptr;           // array of boundary points.  Note: point 0 is the return point
     uint8_t         _boundary_num_points = 0;       // number of points in the boundary array (should equal _total parameter after load has completed)
     bool            _boundary_create_attempted = false; // true if we have attempted to create the boundary array
-    bool            _boundary_loaded = false;       // true if boundary array has been loaded from eeprom
     bool            _boundary_valid = false;        // true if boundary forms a closed polygon
 };
 

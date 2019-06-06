@@ -40,27 +40,27 @@ public:
 private:
 
     AP_Int32 log_bitmask;
-    AP_Logger dataflash{log_bitmask};
+    AP_Logger logger{log_bitmask};
 
 };
 
-static AP_LoggerTest dataflashtest;
+static AP_LoggerTest loggertest;
 
 void AP_LoggerTest::setup(void)
 {
-    hal.console->printf("Dataflash Log Test 1.0\n");
+    hal.console->printf("Logger Log Test 1.0\n");
 
     log_bitmask = (uint32_t)-1;
-    dataflash.Init(log_structure, ARRAY_SIZE(log_structure));
-    dataflash.set_vehicle_armed(true);
-    dataflash.Write_Message("AP_Logger Test");
+    logger.Init(log_structure, ARRAY_SIZE(log_structure));
+    logger.set_vehicle_armed(true);
+    logger.Write_Message("AP_Logger Test");
 
     // Test
     hal.scheduler->delay(20);
 
     // We start to write some info (sequentialy) starting from page 1
     // This is similar to what we will do...
-    log_num = dataflash.find_last_log();
+    log_num = logger.find_last_log();
     hal.console->printf("Using log number %u\n", log_num);
     hal.console->printf("Writing to flash... wait...\n");
 
@@ -80,7 +80,7 @@ void AP_LoggerTest::setup(void)
             l1    : (int32_t)(i * 5000),
             l2    : (int32_t)(i * 16268)
         };
-        dataflash.WriteBlock(&pkt, sizeof(pkt));
+        logger.WriteBlock(&pkt, sizeof(pkt));
         total_micros += AP_HAL::micros() - start;
         hal.scheduler->delay(20);
     }
@@ -88,11 +88,29 @@ void AP_LoggerTest::setup(void)
     hal.console->printf("Average write time %.1f usec/byte\n", 
                        (double)total_micros/((double)i*sizeof(struct log_Test)));
 
+    uint64_t now = AP_HAL::micros64();
+    hal.console->printf("Testing Write\n");
+    logger.Write("MARY",
+                 "TimeUS,GoodValue",
+                 "sm",
+                 "F0",
+                 "Qf",
+                 now,
+                 -1.5673);
+    hal.console->printf("Testing WriteCritical\n");
+    logger.WriteCritical("BOB",
+                         "TimeUS,GreatValue",
+                         "sm",
+                         "F0",
+                         "Qf",
+                         now,
+                         17.3);
+
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-    dataflash.flush();
+    logger.flush();
 #endif
 
-    hal.scheduler->delay(100);
+    logger.set_vehicle_armed(false);
 }
 
 void AP_LoggerTest::loop(void)
@@ -109,12 +127,12 @@ void loop(void);
 
 void setup()
 {
-    dataflashtest.setup();
+    loggertest.setup();
 }
 
 void loop()
 {
-    dataflashtest.loop();
+    loggertest.loop();
 }
 
 const struct AP_Param::GroupInfo        GCS_MAVLINK::var_info[] = {

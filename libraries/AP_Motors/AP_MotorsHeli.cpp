@@ -77,18 +77,11 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @Param: RSC_MODE
     // @DisplayName: Rotor Speed Control Mode
     // @Description: Determines the method of rotor speed control
-    // @Values: 1:Ch8 Input, 2:SetPoint, 3:Throttle Curve
+    // @Values: 1:Ch8 Input, 2:SetPoint, 3:Throttle Curve, 4:Governor
     // @User: Standard
     AP_GROUPINFO("RSC_MODE", 8, AP_MotorsHeli, _rsc_mode, (int8_t)ROTOR_CONTROL_MODE_SPEED_PASSTHROUGH),
 
-    // @Param: LAND_COL_MIN
-    // @DisplayName: Landing Collective Minimum
-    // @Description: Minimum collective position in PWM microseconds while landed or landing
-    // @Range: 0 500
-    // @Units: PWM
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("LAND_COL_MIN", 9, AP_MotorsHeli, _land_collective_min, AP_MOTORS_HELI_LAND_COLLECTIVE_MIN),
+    // index 9 was LAND_COL_MIN. Do not use this index in the future.
 
     // @Param: RSC_RAMP_TIME
     // @DisplayName: RSC Ramp Time
@@ -153,45 +146,15 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RSC_SLEWRATE", 19, AP_MotorsHeli, _rsc_slewrate, 0),
 
-    // @Param: RSC_THRCRV_0
-    // @DisplayName: Throttle Servo Position for 0 percent collective
-    // @Description: Throttle Servo Position for 0 percent collective. This is on a scale from 0 to 1000, where 1000 is full throttle and 0 is zero throttle. Actual PWM values are controlled by SERVOX_MIN and SERVOX_MAX. The 0 percent collective is defined by H_COL_MIN and 100 percent collective is defined by H_COL_MAX.
-    // @Range: 0 1000
-    // @Increment: 10
-    // @User: Standard
-    AP_GROUPINFO("RSC_THRCRV_0", 20, AP_MotorsHeli, _rsc_thrcrv[0], AP_MOTORS_HELI_RSC_THRCRV_0_DEFAULT),
+    // indices 20 to 25 was throttle curve. Do not use this index in the future.
 
-    // @Param: RSC_THRCRV_25
-    // @DisplayName: Throttle Servo Position for 25 percent collective
-    // @Description: Throttle Servo Position for 25 percent collective. This is on a scale from 0 to 1000, where 1000 is full throttle and 0 is zero throttle. Actual PWM values are controlled by SERVOX_MIN and SERVOX_MAX. The 0 percent collective is defined by H_COL_MIN and 100 percent collective is defined by H_COL_MAX.
-    // @Range: 0 1000
-    // @Increment: 10
-    // @User: Standard
-    AP_GROUPINFO("RSC_THRCRV_25", 21, AP_MotorsHeli, _rsc_thrcrv[1], AP_MOTORS_HELI_RSC_THRCRV_25_DEFAULT),
+    // @Group: RSC_CRV_
+    // @Path: AP_MotorsHeli_RSC.cpp
+    AP_SUBGROUPINFO(_rsc_thrcrv, "RSC_CRV_", 27, AP_MotorsHeli, RSCThrCrvParam),
 
-    // @Param: RSC_THRCRV_50
-    // @DisplayName: Throttle Servo Position for 50 percent collective
-    // @Description: Throttle Servo Position for 50 percent collective. This is on a scale from 0 to 1000, where 1000 is full throttle and 0 is zero throttle. Actual PWM values are controlled by SERVOX_MIN and SERVOX_MAX. The 0 percent collective is defined by H_COL_MIN and 100 percent collective is defined by H_COL_MAX.
-    // @Range: 0 1000
-    // @Increment: 10
-    // @User: Standard
-    AP_GROUPINFO("RSC_THRCRV_50", 22, AP_MotorsHeli, _rsc_thrcrv[2], AP_MOTORS_HELI_RSC_THRCRV_50_DEFAULT),
-
-    // @Param: RSC_THRCRV_75
-    // @DisplayName: Throttle Servo Position for 75 percent collective
-    // @Description: Throttle Servo Position for 75 percent collective. This is on a scale from 0 to 1000, where 1000 is full throttle and 0 is zero throttle. Actual PWM values are controlled by SERVOX_MIN and SERVOX_MAX. The 0 percent collective is defined by H_COL_MIN and 100 percent collective is defined by H_COL_MAX.
-    // @Range: 0 1000
-    // @Increment: 10
-    // @User: Standard
-    AP_GROUPINFO("RSC_THRCRV_75", 23, AP_MotorsHeli, _rsc_thrcrv[3], AP_MOTORS_HELI_RSC_THRCRV_75_DEFAULT),
-
-    // @Param: RSC_THRCRV_100
-    // @DisplayName: Throttle Servo Position for 100 percent collective
-    // @Description: Throttle Servo Position for 100 percent collective. This is on a scale from 0 to 1000, where 1000 is full throttle and 0 is zero throttle. Actual PWM values are controlled by SERVOX_MIN and SERVOX_MAX. The 0 percent collective is defined by H_COL_MIN and 100 percent collective is defined by H_COL_MAX.
-    // @Range: 0 1000
-    // @Increment: 10
-    // @User: Standard
-    AP_GROUPINFO("RSC_THRCRV_100", 24, AP_MotorsHeli, _rsc_thrcrv[4], AP_MOTORS_HELI_RSC_THRCRV_100_DEFAULT),
+    // @Group: RSC_GOV_
+    // @Path: AP_MotorsHeli_RSC.cpp
+    AP_SUBGROUPINFO(_rsc_gov, "RSC_GOV_", 28, AP_MotorsHeli, RSCGovParam),
 
     AP_GROUPEND
 };
@@ -365,81 +328,81 @@ void AP_MotorsHeli::output_logic()
     // force desired and current spool mode if disarmed and armed with interlock enabled
     if (_flags.armed) {
         if (!_flags.interlock) {
-            _spool_desired = DESIRED_GROUND_IDLE;
+            _spool_desired = DesiredSpoolState::GROUND_IDLE;
         } else {
             _heliflags.init_targets_on_arming = false;
         }
     } else {
         _heliflags.init_targets_on_arming = true;
-        _spool_desired = DESIRED_SHUT_DOWN;
-        _spool_mode = SHUT_DOWN;
+        _spool_desired = DesiredSpoolState::SHUT_DOWN;
+        _spool_state = SpoolState::SHUT_DOWN;
     }
 
-    switch (_spool_mode) {
-        case SHUT_DOWN:
+    switch (_spool_state) {
+        case SpoolState::SHUT_DOWN:
             // Motors should be stationary.
             // Servos set to their trim values or in a test condition.
 
             // make sure the motors are spooling in the correct direction
-            if (_spool_desired != DESIRED_SHUT_DOWN) {
-                _spool_mode = GROUND_IDLE;
+            if (_spool_desired != DesiredSpoolState::SHUT_DOWN) {
+                _spool_state = SpoolState::GROUND_IDLE;
                 break;
             }
 
             break;
 
-        case GROUND_IDLE: {
+        case SpoolState::GROUND_IDLE: {
             // Motors should be stationary or at ground idle.
             // Servos should be moving to correct the current attitude.
-            if (_spool_desired == DESIRED_SHUT_DOWN){
-                _spool_mode = SHUT_DOWN;
-            } else if(_spool_desired == DESIRED_THROTTLE_UNLIMITED) {
-                _spool_mode = SPOOL_UP;
+            if (_spool_desired == DesiredSpoolState::SHUT_DOWN){
+                _spool_state = SpoolState::SHUT_DOWN;
+            } else if(_spool_desired == DesiredSpoolState::THROTTLE_UNLIMITED) {
+                _spool_state = SpoolState::SPOOLING_UP;
             } else {    // _spool_desired == GROUND_IDLE
 
             }
 
             break;
         }
-        case SPOOL_UP:
+        case SpoolState::SPOOLING_UP:
             // Maximum throttle should move from minimum to maximum.
             // Servos should exhibit normal flight behavior.
 
             // make sure the motors are spooling in the correct direction
-            if (_spool_desired != DESIRED_THROTTLE_UNLIMITED ){
-                _spool_mode = SPOOL_DOWN;
+            if (_spool_desired != DesiredSpoolState::THROTTLE_UNLIMITED ){
+                _spool_state = SpoolState::SPOOLING_DOWN;
                 break;
             }
 
             if (_heliflags.rotor_runup_complete){
-                _spool_mode = THROTTLE_UNLIMITED;
+                _spool_state = SpoolState::THROTTLE_UNLIMITED;
             }
             break;
 
-        case THROTTLE_UNLIMITED:
+        case SpoolState::THROTTLE_UNLIMITED:
             // Throttle should exhibit normal flight behavior.
             // Servos should exhibit normal flight behavior.
 
             // make sure the motors are spooling in the correct direction
-            if (_spool_desired != DESIRED_THROTTLE_UNLIMITED) {
-                _spool_mode = SPOOL_DOWN;
+            if (_spool_desired != DesiredSpoolState::THROTTLE_UNLIMITED) {
+                _spool_state = SpoolState::SPOOLING_DOWN;
                 break;
             }
 
 
             break;
 
-        case SPOOL_DOWN:
+        case SpoolState::SPOOLING_DOWN:
             // Maximum throttle should move from maximum to minimum.
             // Servos should exhibit normal flight behavior.
 
             // make sure the motors are spooling in the correct direction
-            if (_spool_desired == DESIRED_THROTTLE_UNLIMITED) {
-                _spool_mode = SPOOL_UP;
+            if (_spool_desired == DesiredSpoolState::THROTTLE_UNLIMITED) {
+                _spool_state = SpoolState::SPOOLING_UP;
                 break;
             }
             if (!rotor_speed_above_critical()){
-                _spool_mode = GROUND_IDLE;
+                _spool_state = SpoolState::GROUND_IDLE;
             }
             break;
     }
@@ -527,5 +490,18 @@ void AP_MotorsHeli::rc_write_swash(uint8_t chan, float swash_in)
     SRV_Channels::set_output_pwm_trimmed(function, pwm);
 }
 
-
+// enable_parameters - enables the rsc parameters for the rsc mode
+void AP_MotorsHeli::enable_rsc_parameters(void)
+{
+    if (_rsc_mode == (int8_t)ROTOR_CONTROL_MODE_OPEN_LOOP_POWER_OUTPUT || _rsc_mode == (int8_t)ROTOR_CONTROL_MODE_CLOSED_LOOP_POWER_OUTPUT) {
+        _rsc_thrcrv.set_thrcrv_enable(1);
+    } else {
+        _rsc_thrcrv.set_thrcrv_enable(0);
+    }
+    if (_rsc_mode == (int8_t)ROTOR_CONTROL_MODE_CLOSED_LOOP_POWER_OUTPUT) {
+        _rsc_gov.set_gov_enable(1);
+    } else {
+        _rsc_gov.set_gov_enable(0);
+    }
+}
 

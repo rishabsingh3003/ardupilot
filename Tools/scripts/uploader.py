@@ -64,27 +64,37 @@ import base64
 import time
 import array
 import os
+import platform
 
 from sys import platform as _platform
 
-# default list of port names to look for autopilots
-default_ports = [ '/dev/serial/by-id/usb-Ardu*',
-                  '/dev/serial/by-id/usb-3D*',
-                  '/dev/serial/by-id/usb-APM*',
-                  '/dev/serial/by-id/usb-Radio*',
-                  '/dev/serial/by-id/usb-*_3DR_*',
-                  '/dev/serial/by-id/usb-Hex_Technology_Limited*',
-                  '/dev/serial/by-id/usb-Hex_ProfiCNC*',
-                  '/dev/tty.usbmodem*']
+is_WSL = bool("Microsoft" in platform.uname()[2])
 
-if "cygwin" in _platform:
-    default_ports += [ '/dev/ttyS*' ]
-    
+# default list of port names to look for autopilots
+default_ports = ['/dev/serial/by-id/usb-Ardu*',
+                 '/dev/serial/by-id/usb-3D*',
+                 '/dev/serial/by-id/usb-APM*',
+                 '/dev/serial/by-id/usb-Radio*',
+                 '/dev/serial/by-id/usb-*_3DR_*',
+                 '/dev/serial/by-id/usb-Hex_Technology_Limited*',
+                 '/dev/serial/by-id/usb-Hex_ProfiCNC*',
+                 '/dev/serial/by-id/usb-Holybro*',
+                 '/dev/serial/by-id/usb-mRo*',
+                 '/dev/tty.usbmodem*']
+
+if "cygwin" in _platform or is_WSL:
+    default_ports += ['/dev/ttyS*']
+
 # Detect python version
 if sys.version_info[0] < 3:
     runningPython3 = False
 else:
     runningPython3 = True
+
+# dictionary of bootloader {boardID: (firmware boardID, boardname), ...}
+# designating firmware builds compatible with multiple boardIDs
+compatible_IDs = {33: (9, 'AUAVX2.1')}
+
 
 class firmware(object):
     '''Loads a firmware file'''
@@ -200,10 +210,17 @@ class uploader(object):
     NSH_INIT        = bytearray(b'\x0d\x0d\x0d')
     NSH_REBOOT_BL   = b"reboot -b\n"
     NSH_REBOOT      = b"reboot\n"
-    MAVLINK_REBOOT_ID1 = bytearray(b'\xfe\x21\x72\xff\x00\x4c\x00\x00\x40\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf6\x00\x01\x00\x00\x53\x6b')
-    MAVLINK_REBOOT_ID0 = bytearray(b'\xfe\x21\x45\xff\x00\x4c\x00\x00\x40\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf6\x00\x00\x00\x00\xcc\x37')
 
-    def __init__(self, portname, baudrate_bootloader, baudrate_flightstack, baudrate_bootloader_flash=None):
+    def __init__(self, portname, baudrate_bootloader, baudrate_flightstack, baudrate_bootloader_flash=None, target_system=None, target_component=None, source_system=None, source_component=None):
+        self.MAVLINK_REBOOT_ID1 = bytearray(b'\xfe\x21\x72\xff\x00\x4c\x00\x00\x40\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf6\x00\x01\x00\x00\x53\x6b')
+        self.MAVLINK_REBOOT_ID0 = bytearray(b'\xfe\x21\x45\xff\x00\x4c\x00\x00\x40\x40\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf6\x00\x00\x00\x00\xcc\x37')
+        if target_component is None:
+            target_component = 1
+        if source_system is None:
+            source_system = 255
+        if source_component is None:
+            source_component = 1
+
         # open the port, keep the default timeout short so we can poll quickly
         self.port = serial.Serial(portname, baudrate_bootloader, timeout=1.0)
         self.otp = b''
@@ -215,6 +232,26 @@ class uploader(object):
             self.baudrate_bootloader_flash = self.baudrate_bootloader
         self.baudrate_flightstack = baudrate_flightstack
         self.baudrate_flightstack_idx = -1
+        # generate mavlink reboot message:
+        if target_system is not None:
+            from pymavlink import mavutil
+            m = mavutil.mavlink.MAVLink_command_long_message(
+                target_system,
+                target_component,
+                mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
+                1, # confirmation
+                3, # remain in bootloader
+                0,
+                0,
+                0,
+                0,
+                0,
+                0)
+            mav = mavutil.mavlink.MAVLink(self,
+                                          srcSystem=source_system,
+                                          srcComponent=source_component)
+            self.MAVLINK_REBOOT_ID1 = m.pack(mav)
+            self.MAVLINK_REBOOT_ID0 = None
 
     def close(self):
         if self.port is not None:
@@ -245,7 +282,6 @@ class uploader(object):
                 break
 
     def __send(self, c):
-        # print("send " + binascii.hexlify(c))
         self.port.write(c)
 
     def __recv(self, count=1):
@@ -411,6 +447,22 @@ class uploader(object):
         self.__getSync()
         return True
 
+    # read multiple bytes from flash
+    def __read_multi(self, length):
+
+        if runningPython3:
+            clength = length.to_bytes(1, byteorder='big')
+        else:
+            clength = chr(length)
+
+        self.__send(uploader.READ_MULTI)
+        self.__send(clength)
+        self.__send(uploader.EOC)
+        self.port.flush()
+        ret = self.__recv(length)
+        self.__getSync()
+        return ret
+    
     # send the reboot command
     def __reboot(self):
         self.__send(uploader.REBOOT +
@@ -441,6 +493,30 @@ class uploader(object):
                 self.__drawProgressBar(label, uploadProgress, len(groups))
         self.__drawProgressBar(label, 100, 100)
 
+    # download code
+    def __download(self, label, fw):
+        print("\n", end='')
+        f = open(fw, 'wb')
+
+        downloadProgress = 0
+        readsize = uploader.READ_MULTI_MAX
+        total = 0
+        while True:
+            n = min(self.fw_maxsize - total, readsize)
+            bb = self.__read_multi(n)
+            f.write(bb)
+
+            total += len(bb)
+            # Print download progress (throttled, so it does not delay download progress)
+            downloadProgress += 1
+            if downloadProgress % 256 == 0:
+                self.__drawProgressBar(label, total, self.fw_maxsize)
+            if len(bb) < readsize:
+                break
+        f.close()
+        self.__drawProgressBar(label, total, self.fw_maxsize)
+        print("\nReceived %u bytes to %s" % (total, fw))
+        
     # verify code
     def __verify_v2(self, label, fw):
         print("\n", end='')
@@ -503,13 +579,25 @@ class uploader(object):
     def upload(self, fw, force=False, boot_delay=None):
         # Make sure we are doing the right thing
         if self.board_type != fw.property('board_id'):
-            msg = "Firmware not suitable for this board (board_type=%u board_id=%u)" % (
-                self.board_type, fw.property('board_id'))
-            print("WARNING: %s" % msg)
-            if force:
-                print("FORCED WRITE, FLASHING ANYWAY!")
-            else:
-                raise IOError(msg)
+            # ID mismatch: check compatibility
+            incomp = True
+            if self.board_type in compatible_IDs:
+                comp_fw_id = compatible_IDs[self.board_type][0]
+                board_name = compatible_IDs[self.board_type][1]
+                if comp_fw_id == fw.property('board_id'):
+                    msg = "Target %s (board_id: %d) is compatible with firmware for board_id=%u)" % (
+                         board_name, self.board_type, fw.property('board_id'))
+                    print("INFO: %s" % msg)
+                    incomp = False
+            if incomp:                        
+                msg = "Firmware not suitable for this board (board_type=%u board_id=%u)" % (
+                    self.board_type, fw.property('board_id'))
+                print("WARNING: %s" % msg)
+                
+                if force:
+                    print("FORCED WRITE, FLASHING ANYWAY!")
+                else:
+                    raise IOError(msg)
         if self.fw_maxsize < fw.property('image_size'):
             raise RuntimeError("Firmware image is too large for this board")
 
@@ -593,8 +681,10 @@ class uploader(object):
         try:
             # try MAVLINK command first
             self.port.flush()
-            self.__send(uploader.MAVLINK_REBOOT_ID1)
-            self.__send(uploader.MAVLINK_REBOOT_ID0)
+            if self.MAVLINK_REBOOT_ID1 is not None:
+                self.__send(self.MAVLINK_REBOOT_ID1)
+            if self.MAVLINK_REBOOT_ID0 is not None:
+                self.__send(self.MAVLINK_REBOOT_ID0)
             # then try reboot via NSH
             self.__send(uploader.NSH_INIT)
             self.__send(uploader.NSH_REBOOT_BL)
@@ -602,7 +692,7 @@ class uploader(object):
             self.__send(uploader.NSH_REBOOT)
             self.port.flush()
             self.port.baudrate = self.baudrate_bootloader
-        except:
+        except Exception:
             try:
                 self.port.flush()
                 self.port.baudrate = self.baudrate_bootloader
@@ -611,6 +701,82 @@ class uploader(object):
 
         return True
 
+    # upload the firmware
+    def download(self, fw):
+        if self.baudrate_bootloader_flash != self.baudrate_bootloader:
+            print("Setting baudrate to %u" % self.baudrate_bootloader_flash)
+            self.__setbaud(self.baudrate_bootloader_flash)
+            self.port.baudrate = self.baudrate_bootloader_flash
+            self.__sync()
+
+        self.__download("Download", fw)
+        self.port.close()
+    
+def ports_to_try(args):
+    portlist = []
+    if args.port is None:
+        patterns = default_ports
+    else:
+        patterns = args.port.split(",")
+    # use glob to support wildcard ports. This allows the use of
+    # /dev/serial/by-id/usb-ArduPilot on Linux, which prevents the
+    # upload from causing modem hangups etc
+    if "linux" in _platform or "darwin" in _platform or "cygwin" in _platform:
+        import glob
+        for pattern in patterns:
+            portlist += glob.glob(pattern)
+    else:
+        portlist = patterns
+
+    # filter ports based on platform:
+    if "cygwin" in _platform:
+        # Cygwin, don't open MAC OS and Win ports, we are more like
+        # Linux. Cygwin needs to be before Windows test
+        pass
+    elif "darwin" in _platform:
+        # OS X, don't open Windows and Linux ports
+        portlist = [port for port in portlist if "COM" not in port and "ACM" not in port]
+    elif "win" in _platform:
+        # Windows, don't open POSIX ports
+        portlist = [port for port in portlist if "/" not in port]
+
+    return portlist
+
+def modemmanager_check():
+    if os.path.exists("/usr/sbin/ModemManager"):
+        print("""
+==========================================================================================================
+WARNING: You should uninstall ModemManager as it conflicts with any non-modem serial device (like Pixhawk)
+==========================================================================================================
+""")
+
+def find_bootloader(up, port):
+    while (True):
+        up.open()
+
+        # port is open, try talking to it
+        try:
+            # identify the bootloader
+            up.identify()
+            print("Found board %x,%x bootloader rev %x on %s" % (up.board_type, up.board_rev, up.bl_rev, port))
+            return True
+
+        except Exception as e:
+            pass
+
+        reboot_sent = up.send_reboot()
+
+        # wait for the reboot, without we might run into Serial I/O Error 5
+        time.sleep(0.25)
+
+        # always close the port
+        up.close()
+
+        # wait for the close, without we might run into Serial I/O Error 6
+        time.sleep(0.3)
+
+        if not reboot_sent:
+            return False
 
 def main():
 
@@ -623,100 +789,63 @@ def main():
     parser.add_argument('--baud-flightstack', action="store", default="57600", help="Comma-separated list of baud rate of the serial port (default is 57600) when communicating with flight stack (Mavlink or NSH), only required for true serial ports.")
     parser.add_argument('--force', action='store_true', default=False, help='Override board type check and continue loading')
     parser.add_argument('--boot-delay', type=int, default=None, help='minimum boot delay to store in flash')
+    parser.add_argument('--target-system', type=int, action="store", help="System ID to update")
+    parser.add_argument('--target-component', type=int, action="store", help="Component ID to update")
+    parser.add_argument('--source-system', type=int, action="store", help="Source system to send reboot mavlink packets from", default=255)
+    parser.add_argument('--source-component', type=int, action="store", help="Source component to send reboot mavlink packets from", default=0)
+    parser.add_argument('--download', action='store_true', default=False, help='download firmware from board')
     parser.add_argument('firmware', action="store", help="Firmware file to be uploaded")
     args = parser.parse_args()
 
     # warn people about ModemManager which interferes badly with Pixhawk
-    if os.path.exists("/usr/sbin/ModemManager"):
-        print("==========================================================================================================")
-        print("WARNING: You should uninstall ModemManager as it conflicts with any non-modem serial device (like Pixhawk)")
-        print("==========================================================================================================")
+    modemmanager_check()
 
     # Load the firmware file
-    fw = firmware(args.firmware)
-    print("Loaded firmware for %x,%x, size: %d bytes, waiting for the bootloader..." % (fw.property('board_id'), fw.property('board_revision'), fw.property('image_size')))
-    print("If the board does not respond within 1-2 seconds, unplug and re-plug the USB connector.")
+    if not args.download:
+        fw = firmware(args.firmware)
+        print("Loaded firmware for %x,%x, size: %d bytes, waiting for the bootloader..." % (fw.property('board_id'), fw.property('board_revision'), fw.property('image_size')))
+        print("If the board does not respond within 1-2 seconds, unplug and re-plug the USB connector.")
+
+    baud_flightstack = [int(x) for x in args.baud_flightstack.split(',')]
 
     # Spin waiting for a device to show up
     try:
         while True:
-            portlist = []
-            if args.port is None:
-                patterns = default_ports
-            else:
-                patterns = args.port.split(",")
-            # on unix-like platforms use glob to support wildcard ports. This allows
-            # the use of /dev/serial/by-id/usb-3D_Robotics on Linux, which prevents the upload from
-            # causing modem hangups etc
-            if "linux" in _platform or "darwin" in _platform or "cygwin" in _platform:
-                import glob
-                for pattern in patterns:
-                    portlist += glob.glob(pattern)
-            else:
-                portlist = patterns
 
-            baud_flightstack = [int(x) for x in args.baud_flightstack.split(',')]
-
-            for port in portlist:
+            for port in ports_to_try(args):
 
                 # print("Trying %s" % port)
 
                 # create an uploader attached to the port
                 try:
-                    if "linux" in _platform:
-                        # Linux, don't open Mac OS and Win ports
-                        up = uploader(port, args.baud_bootloader, baud_flightstack, args.baud_bootloader_flash)
-                    elif "darwin" in _platform:
-                        # OS X, don't open Windows and Linux ports
-                        if "COM" not in port and "ACM" not in port:
-                            up = uploader(port, args.baud_bootloader, baud_flightstack, args.baud_bootloader_flash)
-                    elif "cygwin" in _platform:
-                        # Cygwin, don't open MAC OS and Win ports, we are more like Linux. Cygwin needs to be before Windows test
-                        up = uploader(port, args.baud_bootloader, baud_flightstack, args.baud_bootloader_flash)
-                    elif "win" in _platform:
-                        # Windows, don't open POSIX ports
-                        if "/" not in port:
-                            up = uploader(port, args.baud_bootloader, baud_flightstack, args.baud_bootloader_flash)
-                except Exception:
-                    # open failed, rate-limit our attempts
-                    time.sleep(0.05)
+                    up = uploader(port,
+                                  args.baud_bootloader,
+                                  baud_flightstack,
+                                  args.baud_bootloader_flash,
+                                  args.target_system,
+                                  args.target_component,
+                                  args.source_system,
+                                  args.source_component)
+
+                except Exception as e:
+                    if not is_WSL:
+                        # open failed, WSL must cycle through all ttyS* ports quickly but rate limit everything else
+                        print("Exception creating uploader: %s" % str(e))
+                        time.sleep(0.05)
 
                     # and loop to the next port
                     continue
 
-                found_bootloader = False
-                while (True):
-                    up.open()
-
-                    # port is open, try talking to it
-                    try:
-                        # identify the bootloader
-                        up.identify()
-                        found_bootloader = True
-                        print("Found board %x,%x bootloader rev %x on %s" % (up.board_type, up.board_rev, up.bl_rev, port))
-                        break
-
-                    except Exception:
-
-                        if not up.send_reboot():
-                            break
-
-                        # wait for the reboot, without we might run into Serial I/O Error 5
-                        time.sleep(0.25)
-
-                        # always close the port
-                        up.close()
-
-                        # wait for the close, without we might run into Serial I/O Error 6
-                        time.sleep(0.3)
-
-                if not found_bootloader:
+                if not find_bootloader(up, port):
                     # Go to the next port
                     continue
 
                 try:
                     # ok, we have a bootloader, try flashing it
-                    up.upload(fw, force=args.force, boot_delay=args.boot_delay)
+                    if args.download:
+                        up.download(args.firmware)
+                    else:
+                        up.upload(fw, force=args.force, boot_delay=args.boot_delay)
 
                 except RuntimeError as ex:
                     # print the error
