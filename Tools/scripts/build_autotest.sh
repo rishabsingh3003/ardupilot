@@ -2,7 +2,6 @@
 
 export PATH=$HOME/.local/bin:/usr/local/bin:$HOME/prefix/bin:$HOME/APM/px4/gcc-arm-none-eabi-4_9-2015q3/bin:$PATH
 export PYTHONUNBUFFERED=1
-export PYTHONPATH=$HOME/APM
 
 cd $HOME/APM || exit 1
 
@@ -107,8 +106,6 @@ popd
 githash=$(cd APM && git rev-parse HEAD)
 hdate=$(date +"%Y-%m-%d-%H:%m")
 
-mkdir -p "buildlogs/history/$hdate"
-
 (cd APM && Tools/scripts/build_parameters.sh)
 
 (cd APM && Tools/scripts/build_docs.sh)
@@ -121,7 +118,12 @@ ulimit -c 10000000
 # build in home dir, as on faster storage
 export BUILD_BINARIES_PATH=$HOME/build/tmp
 
+# exit on panic so we don't waste time waiting around
+export SITL_PANIC_EXIT=1
+
 timelimit 32000 APM/Tools/autotest/autotest.py --timeout=30000 > buildlogs/autotest-output.txt 2>&1
+
+mkdir -p "buildlogs/history/$hdate"
 
 (cd buildlogs && cp -f *.txt *.flashlog *.tlog *.km[lz] *.gpx *.html *.png *.bin *.BIN *.elf "history/$hdate/")
 echo $githash > "buildlogs/history/$hdate/githash.txt"

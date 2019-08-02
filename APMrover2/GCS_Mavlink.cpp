@@ -82,7 +82,7 @@ void GCS_MAVLINK_Rover::send_position_target_global_int()
     mavlink_msg_position_target_global_int_send(
         chan,
         AP_HAL::millis(), // time_boot_ms
-        MAV_FRAME_GLOBAL_INT, // targets are always global altitude
+        MAV_FRAME_GLOBAL, // targets are always global altitude
         0xFFF8, // ignore everything except the x/y/z components
         target.lat, // latitude as 1e7
         target.lng, // longitude as 1e7
@@ -192,7 +192,7 @@ void GCS_MAVLINK_Rover::send_pid_tuning()
     if (g.gcs_pid_mask & 1) {
         pid_info = &g2.attitude_control.get_steering_rate_pid().get_pid_info();
         mavlink_msg_pid_tuning_send(chan, PID_TUNING_STEER,
-                                    degrees(pid_info->desired),
+                                    degrees(pid_info->target),
                                     degrees(ahrs.get_yaw_rate_earth()),
                                     pid_info->FF,
                                     pid_info->P,
@@ -209,7 +209,7 @@ void GCS_MAVLINK_Rover::send_pid_tuning()
         float speed = 0.0f;
         g2.attitude_control.get_forward_speed(speed);
         mavlink_msg_pid_tuning_send(chan, PID_TUNING_ACCZ,
-                                    pid_info->desired,
+                                    pid_info->target,
                                     speed,
                                     0,
                                     pid_info->P,
@@ -224,7 +224,7 @@ void GCS_MAVLINK_Rover::send_pid_tuning()
     if (g.gcs_pid_mask & 4) {
         pid_info = &g2.attitude_control.get_pitch_to_throttle_pid().get_pid_info();
         mavlink_msg_pid_tuning_send(chan, PID_TUNING_PITCH,
-                                    degrees(pid_info->desired),
+                                    degrees(pid_info->target),
                                     degrees(ahrs.pitch),
                                     pid_info->FF,
                                     pid_info->P,
@@ -239,7 +239,7 @@ void GCS_MAVLINK_Rover::send_pid_tuning()
     if (g.gcs_pid_mask & 8) {
         pid_info = &g2.wheel_rate_control.get_pid(0).get_pid_info();
         mavlink_msg_pid_tuning_send(chan, 7,
-                                    pid_info->desired,
+                                    pid_info->target,
                                     pid_info->actual,
                                     pid_info->FF,
                                     pid_info->P,
@@ -254,7 +254,7 @@ void GCS_MAVLINK_Rover::send_pid_tuning()
     if (g.gcs_pid_mask & 16) {
         pid_info = &g2.wheel_rate_control.get_pid(1).get_pid_info();
         mavlink_msg_pid_tuning_send(chan, 8,
-                                    pid_info->desired,
+                                    pid_info->target,
                                     pid_info->actual,
                                     pid_info->FF,
                                     pid_info->P,
@@ -269,7 +269,7 @@ void GCS_MAVLINK_Rover::send_pid_tuning()
     if (g.gcs_pid_mask & 32) {
         pid_info = &g2.attitude_control.get_sailboat_heel_pid().get_pid_info();
         mavlink_msg_pid_tuning_send(chan, 9,
-                                    pid_info->desired,
+                                    pid_info->target,
                                     pid_info->actual,
                                     pid_info->FF,
                                     pid_info->P,
@@ -281,7 +281,7 @@ void GCS_MAVLINK_Rover::send_pid_tuning()
     }
 }
 
-void Rover::send_wheel_encoder_distance(mavlink_channel_t chan)
+void Rover::send_wheel_encoder_distance(const mavlink_channel_t chan)
 {
     // send wheel encoder data using wheel_distance message
     if (g2.wheel_encoder.num_sensors() > 0) {
@@ -315,16 +315,6 @@ bool GCS_Rover::vehicle_initialised() const
 // try to send a message, return false if it won't fit in the serial tx buffer
 bool GCS_MAVLINK_Rover::try_send_message(enum ap_message id)
 {
-    // if we don't have at least 0.2ms remaining before the main loop
-    // wants to fire then don't send a mavlink message. We want to
-    // prioritise the main flight control loop over communications
-    if (!hal.scheduler->in_delay_callback() &&
-        !AP_BoardConfig::in_sensor_config_error() &&
-        rover.scheduler.time_available_usec() < 200) {
-        gcs().set_out_of_time(true);
-        return false;
-    }
-
     switch (id) {
 
     case MSG_SERVO_OUT:
@@ -348,7 +338,7 @@ bool GCS_MAVLINK_Rover::try_send_message(enum ap_message id)
     return true;
 }
 
-void GCS_MAVLINK_Rover::packetReceived(const mavlink_status_t &status, mavlink_message_t &msg)
+void GCS_MAVLINK_Rover::packetReceived(const mavlink_status_t &status, const mavlink_message_t &msg)
 {
     // pass message to follow library
     rover.g2.follow.handle_msg(msg);
@@ -473,7 +463,8 @@ static const ap_message STREAM_RAW_CONTROLLER_msgs[] = {
 };
 static const ap_message STREAM_RC_CHANNELS_msgs[] = {
     MSG_SERVO_OUTPUT_RAW,
-    MSG_RADIO_IN
+    MSG_RC_CHANNELS,
+    MSG_RC_CHANNELS_RAW, // only sent on a mavlink1 connection
 };
 static const ap_message STREAM_EXTRA1_msgs[] = {
     MSG_ATTITUDE,
@@ -662,27 +653,27 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_long_packet(const mavlink_command_l
 
 
 // a RC override message is considered to be a 'heartbeat' from the ground station for failsafe purposes
-void GCS_MAVLINK_Rover::handle_rc_channels_override(const mavlink_message_t *msg)
+void GCS_MAVLINK_Rover::handle_rc_channels_override(const mavlink_message_t &msg)
 {
     rover.failsafe.last_heartbeat_ms = AP_HAL::millis();
     GCS_MAVLINK::handle_rc_channels_override(msg);
 }
 
 
-void GCS_MAVLINK_Rover::handleMessage(mavlink_message_t* msg)
+void GCS_MAVLINK_Rover::handleMessage(const mavlink_message_t &msg)
 {
-    switch (msg->msgid) {
+    switch (msg.msgid) {
 
     
 
     case MAVLINK_MSG_ID_MANUAL_CONTROL:
     {
-        if (msg->sysid != rover.g.sysid_my_gcs) {  // Only accept control from our gcs
+        if (msg.sysid != rover.g.sysid_my_gcs) {  // Only accept control from our gcs
             break;
         }
 
         mavlink_manual_control_t packet;
-        mavlink_msg_manual_control_decode(msg, &packet);
+        mavlink_msg_manual_control_decode(&msg, &packet);
 
         if (packet.target != rover.g.sysid_this_mav) {
             break; // only accept control aimed at us
@@ -701,7 +692,7 @@ void GCS_MAVLINK_Rover::handleMessage(mavlink_message_t* msg)
     case MAVLINK_MSG_ID_HEARTBEAT:
         {
             // we keep track of the last time we received a heartbeat from our GCS for failsafe purposes
-            if (msg->sysid != rover.g.sysid_my_gcs) {
+            if (msg.sysid != rover.g.sysid_my_gcs) {
                 break;
             }
             rover.failsafe.last_heartbeat_ms = AP_HAL::millis();
@@ -712,7 +703,7 @@ void GCS_MAVLINK_Rover::handleMessage(mavlink_message_t* msg)
         {
             // decode packet
             mavlink_set_attitude_target_t packet;
-            mavlink_msg_set_attitude_target_decode(msg, &packet);
+            mavlink_msg_set_attitude_target_decode(&msg, &packet);
 
             // exit if vehicle is not in Guided mode
             if (!rover.control_mode->in_guided_mode()) {
@@ -744,7 +735,7 @@ void GCS_MAVLINK_Rover::handleMessage(mavlink_message_t* msg)
         {
             // decode packet
             mavlink_set_position_target_local_ned_t packet;
-            mavlink_msg_set_position_target_local_ned_decode(msg, &packet);
+            mavlink_msg_set_position_target_local_ned_decode(&msg, &packet);
 
             // exit if vehicle is not in Guided mode
             if (!rover.control_mode->in_guided_mode()) {
@@ -864,7 +855,7 @@ void GCS_MAVLINK_Rover::handleMessage(mavlink_message_t* msg)
         {
             // decode packet
             mavlink_set_position_target_global_int_t packet;
-            mavlink_msg_set_position_target_global_int_decode(msg, &packet);
+            mavlink_msg_set_position_target_global_int_decode(&msg, &packet);
 
             // exit if vehicle is not in Guided mode
             if (!rover.control_mode->in_guided_mode()) {
@@ -969,7 +960,7 @@ void GCS_MAVLINK_Rover::handleMessage(mavlink_message_t* msg)
     case MAVLINK_MSG_ID_HIL_STATE:
         {
             mavlink_hil_state_t packet;
-            mavlink_msg_hil_state_decode(msg, &packet);
+            mavlink_msg_hil_state_decode(&msg, &packet);
 
             // sanity check location
             if (!check_latlng(packet.lat, packet.lon)) {

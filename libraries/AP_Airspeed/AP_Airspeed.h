@@ -4,7 +4,7 @@
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Param/AP_Param.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
-#include <AP_Baro/AP_Baro.h>
+#include <AP_Math/AP_Math.h>
 
 class AP_Airspeed_Backend;
 
@@ -140,8 +140,9 @@ public:
         TYPE_I2C_MS5525_ADDRESS_1=4,
         TYPE_I2C_MS5525_ADDRESS_2=5,
         TYPE_I2C_SDP3X=6,
-        TYPE_I2C_DLVR=7,
+        TYPE_I2C_DLVR_5IN=7,
         TYPE_UAVCAN=8,
+        TYPE_I2C_DLVR_10IN=9,
     };
 
     // get current primary sensor

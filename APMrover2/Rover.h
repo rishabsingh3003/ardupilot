@@ -77,6 +77,7 @@
 #include <AC_Fence/AC_Fence.h>
 #include <AP_Proximity/AP_Proximity.h>
 #include <AC_Avoidance/AC_Avoid.h>
+#include <AC_Avoidance/AP_OAPathPlanner.h>
 #include <AP_Follow/AP_Follow.h>
 #include <AP_OSD/AP_OSD.h>
 #include <AP_WindVane/AP_WindVane.h>
@@ -178,7 +179,7 @@ private:
     AP_Baro barometer;
     Compass compass;
     AP_InertialSensor ins;
-    RangeFinder rangefinder{serial_manager};
+    RangeFinder rangefinder;
     AP_Button button;
 
     // flight modes convenience array
@@ -229,14 +230,14 @@ private:
     // relay support
     AP_Relay relay;
 
-    AP_ServoRelayEvents ServoRelayEvents{relay};
+    AP_ServoRelayEvents ServoRelayEvents;
 
     // The rover's current location
     struct Location current_loc;
 
     // Camera
 #if CAMERA == ENABLED
-    AP_Camera camera{&relay, MASK_LOG_CAMERA, current_loc, ahrs};
+    AP_Camera camera{MASK_LOG_CAMERA, current_loc};
 #endif
 
     // Camera/Antenna mount tracking and stabilisation stuff
@@ -457,7 +458,6 @@ private:
     bool set_mode(Mode &new_mode, mode_reason_t reason);
     bool mavlink_set_mode(uint8_t mode);
     void startup_INS_ground(void);
-    void print_mode(AP_HAL::BetterStream *port, uint8_t mode);
     void notify_mode(const Mode *new_mode);
     uint8_t check_digital_pin(uint8_t pin);
     bool should_log(uint32_t mask);

@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <AP_BoardConfig/AP_BoardConfig.h>
+#include <stdint.h>
 
 class AP_InternalError {
 public:
@@ -51,9 +51,11 @@ public:
         main_loop_stuck             = (1U << 15),
         gcs_bad_missionprotocol_link= (1U << 16),
         bitmask_range               = (1U << 17),
+        gcs_offset                  = (1U << 18),
     };
 
     void error(const AP_InternalError::error_t error);
+    uint32_t count() const { return total_error_count; }
 
     // internal_errors - return mask of internal errors seen
     uint32_t errors() const {
@@ -64,6 +66,8 @@ private:
 
     // bitmask holding errors from internal_error_t
     uint32_t internal_errors;
+
+    uint32_t total_error_count;
 };
 
 namespace AP {

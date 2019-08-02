@@ -137,9 +137,9 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
 
     // apply voltage and air pressure compensation
     const float compensation_gain = get_compensation_gain();
-    roll_thrust = _roll_in * compensation_gain;
-    pitch_thrust = _pitch_in * compensation_gain;
-    yaw_thrust = _yaw_in * compensation_gain;
+    roll_thrust = (_roll_in + _roll_in_ff) * compensation_gain;
+    pitch_thrust = (_pitch_in + _pitch_in_ff) * compensation_gain;
+    yaw_thrust = (_yaw_in + _yaw_in_ff) * compensation_gain;
     throttle_thrust = get_throttle() * compensation_gain;
 
     // sanity check throttle is above zero and below current limited throttle
@@ -153,8 +153,8 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     }
 
     // calculate left and right throttle outputs
-    _thrust_left  = throttle_thrust + roll_thrust*0.5f;
-    _thrust_right = throttle_thrust - roll_thrust*0.5f;
+    _thrust_left  = throttle_thrust + roll_thrust * 0.5f;
+    _thrust_right = throttle_thrust - roll_thrust * 0.5f;
 
     // if max thrust is more than one reduce average throttle
     thrust_max = MAX(_thrust_right,_thrust_left);

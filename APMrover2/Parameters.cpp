@@ -614,7 +614,8 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_GROUPINFO("BAL_PITCH_TRIM", 40, ParametersG2, bal_pitch_trim, 0),
 
 #ifdef ENABLE_SCRIPTING
-    // Scripting is intentionally not showing up in the parameter docs until it is a more standard feature
+    // @Group: SCR_
+    // @Path: ../libraries/AP_Scripting/AP_Scripting.cpp
     AP_SUBGROUPINFO(scripting, "SCR_", 41, ParametersG2, AP_Scripting),
 #endif
 
@@ -632,6 +633,10 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Group: SAIL_
     // @Path: sailboat.cpp
     AP_SUBGROUPINFO(sailboat, "SAIL_", 44, ParametersG2, Sailboat),
+
+    // @Group: OA_
+    // @Path: ../libraries/AC_Avoidance/AP_OAPathPlanner.cpp
+    AP_SUBGROUPINFO(oa, "OA_", 45, ParametersG2, AP_OAPathPlanner),
 
     AP_GROUPEND
 };
@@ -737,7 +742,6 @@ const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_serial2_baud,       0,      AP_PARAM_INT16, "SERIAL2_BAUD" },
     { Parameters::k_param_throttle_min_old,   0,      AP_PARAM_INT8,  "MOT_THR_MIN" },
     { Parameters::k_param_throttle_max_old,   0,      AP_PARAM_INT8,  "MOT_THR_MAX" },
-
     { Parameters::k_param_compass_enabled_deprecated,       0,      AP_PARAM_INT8, "COMPASS_ENABLE" },
     { Parameters::k_param_pivot_turn_angle_old,   0,  AP_PARAM_INT16,  "WP_PIVOT_ANGLE" },
     { Parameters::k_param_waypoint_radius_old,    0,  AP_PARAM_FLOAT,  "WP_RADIUS" },
@@ -749,6 +753,7 @@ const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_g2,                34,      AP_PARAM_FLOAT,  "SAIL_ANGLE_IDEAL" },
     { Parameters::k_param_g2,                35,      AP_PARAM_FLOAT,  "SAIL_HEEL_MAX" },
     { Parameters::k_param_g2,                36,      AP_PARAM_FLOAT,  "SAIL_NO_GO_ANGLE" },
+    { Parameters::k_param_arming,             2,     AP_PARAM_INT16,  "ARMING_CHECK" },
 };
 
 void Rover::load_parameters(void)
@@ -819,6 +824,22 @@ void Rover::load_parameters(void)
     } else {
         // copy CRUISE_SPEED to new WP_SPEED
         AP_Param::convert_old_parameter(&cruise_speed_info, 1.0f);
+    }
+
+    // attitude control FF and FILT parameter changes for Rover-3.6
+    const AP_Param::ConversionInfo ff_and_filt_conversion_info[] = {
+        { Parameters::k_param_g2, 24650, AP_PARAM_FLOAT, "ATC_STR_RAT_FLTE" },
+        { Parameters::k_param_g2, 28746, AP_PARAM_FLOAT, "ATC_STR_RAT_FF" },
+        { Parameters::k_param_g2, 24714, AP_PARAM_FLOAT, "ATC_SPEED_FLTE" },
+        { Parameters::k_param_g2, 28810, AP_PARAM_FLOAT, "ATC_SPEED_FF" },
+        { Parameters::k_param_g2, 25226, AP_PARAM_FLOAT, "ATC_BAL_FLTE" },
+        { Parameters::k_param_g2, 29322, AP_PARAM_FLOAT, "ATC_BAL_FF" },
+        { Parameters::k_param_g2, 25354, AP_PARAM_FLOAT, "ATC_SAIL_FLTE" },
+        { Parameters::k_param_g2, 29450, AP_PARAM_FLOAT, "ATC_SAIL_FF" },
+    };
+    uint8_t filt_table_size = ARRAY_SIZE(ff_and_filt_conversion_info);
+    for (uint8_t i=0; i<filt_table_size; i++) {
+        AP_Param::convert_old_parameters(&ff_and_filt_conversion_info[i], 1.0f);
     }
 
     // configure safety switch to allow stopping the motors while armed

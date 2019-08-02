@@ -1,5 +1,10 @@
 #include "GCS.h"
+
+#include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_Logger/AP_Logger.h>
+#include <AP_BattMonitor/AP_BattMonitor.h>
+#include <AP_Scheduler/AP_Scheduler.h>
+#include <AP_Baro/AP_Baro.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -93,8 +98,6 @@ bool GCS::install_alternative_protocol(mavlink_channel_t c, GCS_MAVLINK::protoco
     return true;
 }
 
-#undef FOR_EACH_ACTIVE_CHANNEL
-
 void GCS::update_sensor_status_flags()
 {
     control_sensors_present = 0;
@@ -168,5 +171,32 @@ void GCS::update_sensor_status_flags()
     }
     control_sensors_health |= MAV_SYS_STATUS_SENSOR_MOTOR_OUTPUTS;
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    if (ahrs.get_ekf_type() == 10) {
+        // always show EKF type 10 as healthy. This prevents spurious error
+        // messages in xplane and other simulators that use EKF type 10
+        control_sensors_health |= MAV_SYS_STATUS_AHRS | MAV_SYS_STATUS_SENSOR_GPS | MAV_SYS_STATUS_SENSOR_3D_ACCEL | MAV_SYS_STATUS_SENSOR_3D_GYRO;
+    }
+#endif
+
     update_vehicle_sensor_status_flags();
+}
+
+bool GCS::out_of_time() const
+{
+    // while we are in the delay callback we are never out of time:
+    if (hal.scheduler->in_delay_callback()) {
+        return false;
+    }
+
+    // we always want to be able to send messages out while in the error loop:
+    if (AP_BoardConfig::in_sensor_config_error()) {
+        return false;
+    }
+
+    if (min_loop_time_remaining_for_message_send_us() <= AP::scheduler().time_available_usec()) {
+        return false;
+    }
+
+    return true;
 }
