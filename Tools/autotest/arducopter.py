@@ -246,7 +246,7 @@ class AutoTestCopter(AutoTest):
     # fly a square in alt_hold mode
     def fly_square(self, side=50, timeout=300):
 
-        self.clear_mission()
+        self.clear_mission_using_mavproxy()
 
         self.takeoff(10)
 
@@ -661,10 +661,7 @@ class AutoTestCopter(AutoTest):
         self.progress("home: %s" % str(m))
 
         self.start_subtest("ensure we can't arm if ouside fence")
-        fence = os.path.join(self.mission_directory(),
-                             "fence-in-middle-of-nowhere.txt")
-        self.mavproxy.send('fence load %s\n' % fence)
-        self.mavproxy.expect("Loaded 6 geo-fence")
+        self.load_fence_using_mavproxy("fence-in-middle-of-nowhere.txt")
         self.delay_sim_time(5) # let fence check run so it loads-from-eeprom
         seen_statustext = False
         seen_command_ack = False
@@ -1473,7 +1470,7 @@ class AutoTestCopter(AutoTest):
             self.set_rc(1, 1600)
             tstart = self.get_sim_time()
             while True:
-                vicon_pos = self.mav.recv_match(type='VICON_POSITION_ESTIMATE',
+                vicon_pos = self.mav.recv_match(type='VISION_POSITION_ESTIMATE',
                                                 blocking=True)
                 # print("vpe=%s" % str(vicon_pos))
                 self.mav.recv_match(type='GLOBAL_POSITION_INT',
@@ -1600,7 +1597,8 @@ class AutoTestCopter(AutoTest):
                                     blocking=True,
                                     timeout=5)
         except Exception as e:
-            print("Caught exception %s" % str(e))
+            self.progress("Caught exception: %s" %
+                          self.get_exception_stacktrace(e))
 
         if m is not None:
             raise NotAchievedException("Received unexpected RANGEFINDER msg")
@@ -3299,10 +3297,7 @@ class AutoTestCopter(AutoTest):
         self.context_push()
         ex = None
         try:
-            avoid_filepath = os.path.join(self.mission_directory(),
-                                          "copter-avoidance-fence.txt")
-            self.mavproxy.send("fence load %s\n" % avoid_filepath)
-            self.mavproxy.expect("Loaded 5 geo-fence")
+            self.load_fence("copter-avoidance-fence.txt")
             self.set_parameter("FENCE_ENABLE", 0)
             self.set_parameter("PRX_TYPE", 10)
             self.set_parameter("RC10_OPTION", 40) # proximity-enable
@@ -3311,7 +3306,8 @@ class AutoTestCopter(AutoTest):
             self.set_rc(10, 2000)
             self.check_avoidance_corners()
         except Exception as e:
-            self.progress("Caught exception: %s" % str(e))
+            self.progress("Caught exception: %s" %
+                          self.get_exception_stacktrace(e))
             ex = e
         self.context_pop()
         self.mavproxy.send("fence clear\n")
@@ -3324,17 +3320,15 @@ class AutoTestCopter(AutoTest):
         self.context_push()
         ex = None
         try:
-            avoid_filepath = os.path.join(self.mission_directory(),
-                                          "copter-avoidance-fence.txt")
-            self.mavproxy.send("fence load %s\n" % avoid_filepath)
-            self.mavproxy.expect("Loaded 5 geo-fence")
+            self.load_fence("copter-avoidance-fence.txt")
             self.set_parameter("FENCE_ENABLE", 1)
             self.check_avoidance_corners()
         except Exception as e:
-            self.progress("Caught exception: %s" % str(e))
+            self.progress("Caught exception: %s" %
+                          self.get_exception_stacktrace(e))
             ex = e
         self.context_pop()
-        self.mavproxy.send("fence clear\n")
+        self.clear_fence()
         self.disarm_vehicle(force=True)
         if ex is not None:
             raise ex
@@ -3391,7 +3385,8 @@ class AutoTestCopter(AutoTest):
                                            (pos_delta, max_delta))
 
         except Exception as e:
-            self.progress("Caught exception: %s" % str(e))
+            self.progress("Caught exception: %s" %
+                          self.get_exception_stacktrace(e))
             ex = e
         self.context_pop()
         self.disarm_vehicle(force=True)
@@ -3430,7 +3425,8 @@ class AutoTestCopter(AutoTest):
             self.do_RTL()
 
         except Exception as e:
-            self.progress("Caught exception: %s" % str(e))
+            self.progress("Caught exception: %s" %
+                          self.get_exception_stacktrace(e))
             ex = e
         self.context_pop()
         self.mavproxy.send("fence clear\n")
@@ -3705,6 +3701,13 @@ class AutoTestHeli(AutoTestCopter):
         ret = super(AutoTestHeli, self).rc_defaults()
         ret[8] = 1000
         ret[3] = 1000 # collective
+        return ret
+
+    @staticmethod
+    def get_position_armable_modes_list():
+        '''filter THROW mode out of armable modes list; Heli is special-cased'''
+        ret = AutoTestCopter.get_position_armable_modes_list()
+        ret = filter(lambda x : x != "THROW", ret)
         return ret
 
     def loiter_requires_position(self):

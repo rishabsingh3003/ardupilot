@@ -14,6 +14,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "GCS.h"
+
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Arming/AP_Arming.h>
@@ -35,8 +37,6 @@
 #include <AP_VisualOdom/AP_VisualOdom.h>
 #include <AP_OpticalFlow/OpticalFlow.h>
 #include <AP_Baro/AP_Baro.h>
-
-#include "GCS.h"
 
 #include <stdio.h>
 
@@ -1531,6 +1531,16 @@ void GCS_MAVLINK::send_rc_channels() const
         values[16],
         values[17],
         receiver_rssi);        
+}
+
+bool GCS_MAVLINK::sending_mavlink1() const
+{
+    const mavlink_status_t *status = mavlink_get_channel_status(chan);
+    if (status == nullptr) {
+        // should not happen
+        return true;
+    }
+    return ((status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0);
 }
 
 void GCS_MAVLINK::send_rc_channels_raw() const
@@ -3757,26 +3767,6 @@ void GCS_MAVLINK::handle_command_int(const mavlink_message_t &msg)
     hal.util->persistent_data.last_mavlink_cmd = 0;
 }
 
-bool GCS_MAVLINK::try_send_compass_message(const enum ap_message id)
-{
-    Compass &compass = AP::compass();
-    bool ret = true;
-    switch (id) {
-    case MSG_MAG_CAL_PROGRESS:
-        compass.send_mag_cal_progress(chan);
-        ret = true;;
-        break;
-    case MSG_MAG_CAL_REPORT:
-        compass.send_mag_cal_report(chan);
-        ret = true;
-        break;
-    default:
-        ret = true;
-        break;
-    }
-    return ret;
-}
-
 void GCS::try_send_queued_message_for_type(MAV_MISSION_TYPE type) {
     MissionItemProtocol *prot = get_prot_for_mission_type(type);
     if (prot == nullptr) {
@@ -4053,8 +4043,10 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         break;
 
     case MSG_MAG_CAL_PROGRESS:
+        ret = AP::compass().send_mag_cal_progress(*this);
+        break;
     case MSG_MAG_CAL_REPORT:
-        ret = try_send_compass_message(id);
+        ret = AP::compass().send_mag_cal_report(*this);
         break;
 
     case MSG_BATTERY_STATUS:

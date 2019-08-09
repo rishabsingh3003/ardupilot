@@ -514,7 +514,6 @@ is bob we will attempt to checkout bob-AVR'''
 
     def common_boards(self):
         '''returns list of boards common to all vehicles'''
-        # note that while we do not use these for AntennaTracker!
         return ["fmuv2",
                 "fmuv3",
                 "fmuv4",
@@ -534,6 +533,7 @@ is bob we will attempt to checkout bob-AVR'''
                 "MatekF765-Wing",
                 "OMNIBUSF7V2",
                 "sparky2",
+                "omnibusf4",
                 "omnibusf4pro",
                 "omnibusf4v6",
                 "OmnibusNanoV6",

@@ -60,7 +60,7 @@ private:
 	bool parse_sensors(const char *json);
 
 	// buffer for parsing pose data in JSON format
-    uint8_t sensor_buffer[2048];
+    uint8_t sensor_buffer[65000];
     uint32_t sensor_buffer_len;
 
 	enum data_type {
@@ -68,6 +68,8 @@ private:
         DATA_FLOAT,
         DATA_DOUBLE,
         DATA_VECTOR3F,
+        DATA_VECTOR3F_ARRAY,
+        DATA_FLOAT_ARRAY,
     };
 
     struct {
@@ -85,6 +87,12 @@ private:
         struct {
             Vector3f world_linear_velocity;
         } velocity;
+        struct {
+            struct vector3f_array points;
+        } lidar;
+        struct {
+            struct float_array rc_channels;
+        } rc;
     } state, last_state;
 
     // table to aid parsing of JSON sensor data
@@ -93,7 +101,7 @@ private:
         const char *key;
         void *ptr;
         enum data_type type;
-    } keytable[10] = {
+    } keytable[12] = {
         { "", "timestamp", &state.timestamp, DATA_UINT64 },
         { "imu", "angular_velocity",    &state.imu.angular_velocity, DATA_VECTOR3F },
         { "imu", "linear_acceleration", &state.imu.linear_acceleration, DATA_VECTOR3F },
@@ -104,6 +112,8 @@ private:
         { "pose", "pitch", &state.pose.pitch, DATA_FLOAT },
         { "pose", "yaw",   &state.pose.yaw, DATA_FLOAT },
         { "velocity", "world_linear_velocity", &state.velocity.world_linear_velocity, DATA_VECTOR3F },
+        { "lidar", "point_cloud", &state.lidar.points, DATA_VECTOR3F_ARRAY },
+        { "rc", "channels", &state.rc.rc_channels, DATA_FLOAT_ARRAY },
     };
 };
 

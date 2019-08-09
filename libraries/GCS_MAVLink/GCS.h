@@ -56,6 +56,8 @@ public:
     void        queued_param_send();
     void        queued_mission_request_send();
 
+    bool sending_mavlink1() const;
+
     // returns true if we are requesting any items from the GCS:
     bool requesting_mission_items() const;
 
@@ -396,7 +398,6 @@ protected:
     virtual void send_global_position_int();
 
     // message sending functions:
-    bool try_send_compass_message(enum ap_message id);
     bool try_send_mission_message(enum ap_message id);
     void send_hwstatus();
     void handle_data_packet(const mavlink_message_t &msg);

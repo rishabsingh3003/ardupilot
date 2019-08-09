@@ -37,6 +37,7 @@ const AP_Scheduler::Task Tracker::scheduler_tasks[] = {
     SCHED_TASK(update_tracking,        50,   1000),
     SCHED_TASK(update_GPS,             10,   4000),
     SCHED_TASK(update_compass,         10,   1500),
+    SCHED_TASK(compass_save,           0.02,   200),
     SCHED_TASK_CLASS(AP_BattMonitor,    &tracker.battery,   read,           10, 1500),
     SCHED_TASK_CLASS(AP_Baro,          &tracker.barometer,  update,         10,   1500),
     SCHED_TASK_CLASS(GCS,              (GCS*)&tracker._gcs, update_receive, 50, 1700),
@@ -50,6 +51,7 @@ const AP_Scheduler::Task Tracker::scheduler_tasks[] = {
     SCHED_TASK_CLASS(AP_Notify,         &tracker.notify,    update,         50,  100),
     SCHED_TASK(one_second_loop,         1,   3900),
     SCHED_TASK_CLASS(Compass,          &tracker.compass,              cal_update, 50, 100),
+    SCHED_TASK(stats_update,            1,    200),
     SCHED_TASK(accel_cal_update,       10,    100)
 };
 
@@ -95,13 +97,6 @@ void Tracker::one_second_loop()
     // updated armed/disarmed status LEDs
     update_armed_disarmed();
 
-    one_second_counter++;
-
-    if (one_second_counter >= 60) {
-        compass_save();
-        one_second_counter = 0;
-    }
-
     // init compass location for declination
     init_compass_location();
 
@@ -136,6 +131,15 @@ void Tracker::ten_hz_logging_loop()
     if (should_log(MASK_LOG_RCOUT)) {
         logger.Write_RCOUT();
     }
+}
+
+/*
+  update AP_Stats
+*/
+void Tracker::stats_update(void)
+{
+    stats.set_flying(hal.util->get_soft_armed());
+    stats.update();
 }
 
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();

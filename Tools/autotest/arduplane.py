@@ -526,6 +526,31 @@ class AutoTestPlane(AutoTest):
         self.mavproxy.expect("Auto disarmed")
         self.progress("Mission OK")
 
+    def fly_do_reposition(self):
+        self.progress("Takeoff")
+        self.takeoff(alt=50)
+        self.set_rc(3, 1500)
+        self.progress("Entering guided and flying somewhere constant")
+        self.change_mode("GUIDED")
+        loc = self.mav.location()
+        self.location_offset_ne(loc, 500, 500)
+
+        new_alt = 100
+        self.run_cmd_int(
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            0,
+            0,
+            0,
+            0,
+            loc.lat*1e7,
+            loc.lng*1e7,
+            new_alt,    # alt
+            frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+        )
+        self.wait_altitude(new_alt-10, new_alt, timeout=30, relative=True)
+
+        self.fly_home_land_and_disarm()
+
     def fly_do_change_speed(self):
         # the following lines ensure we revert these parameter values
         # - DO_CHANGE_AIRSPEED is a permanent vehicle change!
@@ -607,6 +632,9 @@ class AutoTestPlane(AutoTest):
             self.progress("groundspeed and airspeed should be different (have=%f want=%f)" % (delta, want_delta))
             if delta > want_delta:
                 break
+        self.fly_home_land_and_disarm()
+
+    def fly_home_land_and_disarm(self):
         filename = os.path.join(testdir, "flaps.txt")
         self.progress("Using %s to fly home" % filename)
         self.load_mission(filename)
@@ -959,10 +987,7 @@ class AutoTestPlane(AutoTest):
         try:
             self.progress("Checking for bizarre healthy-when-not-present-or-enabled")
             self.assert_fence_sys_status(False, False, True)
-            fence_filepath = os.path.join(self.mission_directory(),
-                                          "CMAC-fence.txt")
-            self.mavproxy.send("fence load %s\n" % fence_filepath)
-            self.mavproxy.expect("Loaded 6 geo-fence")
+            self.load_fence("CMAC-fence.txt")
             m = self.mav.recv_match(type='FENCE_STATUS', blocking=True, timeout=2)
             if m is not None:
                 raise NotAchievedException("Got FENCE_STATUS unexpectedly");
@@ -997,8 +1022,7 @@ class AutoTestPlane(AutoTest):
 
             # test a rather unfortunate behaviour:
             self.progress("Killing a live fence with fence-clear")
-            self.mavproxy.send("fence load %s\n" % fence_filepath)
-            self.mavproxy.expect("Loaded 6 geo-fence")
+            self.load_fence("CMAC-fence.txt")
             self.set_parameter("FENCE_ACTION", mavutil.mavlink.FENCE_ACTION_RTL)
             self.do_fence_enable()
             self.assert_fence_sys_status(True, True, True)
@@ -1019,10 +1043,7 @@ class AutoTestPlane(AutoTest):
     def test_fence_breach_circle_at(self, loc, disable_on_breach=False):
         ex = None
         try:
-            fence_filepath = os.path.join(self.mission_directory(),
-                                          "CMAC-fence.txt")
-            self.mavproxy.send("fence load %s\n" % fence_filepath)
-            self.mavproxy.expect("Loaded 6 geo-fence")
+            self.load_fence("CMAC-fence.txt")
             want_radius = 100
             # when ArduPlane is fixed, remove this fudge factor
             REALLY_BAD_FUDGE_FACTOR = 1.16
@@ -1080,6 +1101,7 @@ class AutoTestPlane(AutoTest):
                                          disable_on_breach=True)
 
     def location_offset_ne(self, location, north, east):
+        '''move location in metres'''
         print("old: %f %f" % (location.lat, location.lng))
         (lat, lng) = mp_util.gps_offset(location.lat, location.lng, east, north)
         location.lat = lat
@@ -1224,8 +1246,8 @@ class AutoTestPlane(AutoTest):
                                     blocking=True,
                                     timeout=5)
         except Exception as e:
-            print("Caught exception:")
-            self.progress(self.get_exception_stacktrace(e))
+            self.progress("Caught exception: %s" %
+                          self.get_exception_stacktrace(e))
 
         if m is not None:
             raise NotAchievedException("Received unexpected RANGEFINDER msg")
@@ -1361,6 +1383,10 @@ class AutoTestPlane(AutoTest):
             ("TestFlaps", "Flaps", self.fly_flaps),
 
             ("DO_CHANGE_SPEED", "Test mavlink DO_CHANGE_SPEED command", self.fly_do_change_speed),
+
+            ("DO_REPOSITION",
+             "Test mavlink DO_REPOSITION command",
+             self.fly_do_reposition),
 
             ("MainFlight",
              "Lots of things in one flight",

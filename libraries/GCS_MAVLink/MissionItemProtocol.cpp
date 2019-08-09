@@ -31,11 +31,29 @@ void MissionItemProtocol::handle_mission_clear_all(const GCS_MAVLINK &_link,
     send_mission_ack(_link, msg, success ? MAV_MISSION_ACCEPTED : MAV_MISSION_ERROR);
 }
 
+bool MissionItemProtocol::mavlink2_requirement_met(const GCS_MAVLINK &_link, const mavlink_message_t &msg) const
+{
+    // need mavlink2 to do mission types other than mission:
+    if (mission_type() == MAV_MISSION_TYPE_MISSION) {
+        return true;
+    }
+    if (!_link.sending_mavlink1()) {
+        return true;
+    }
+    gcs().send_text(MAV_SEVERITY_WARNING, "Need mavlink2 for item transfer");
+    send_mission_ack(_link, msg, MAV_MISSION_UNSUPPORTED);
+    return false;
+}
+
 void MissionItemProtocol::handle_mission_count(
     GCS_MAVLINK &_link,
     const mavlink_mission_count_t &packet,
     const mavlink_message_t &msg)
 {
+    if (!mavlink2_requirement_met(_link, msg)) {
+        return;
+    }
+
     if (receiving) {
         // someone is already uploading a mission.  If we are
         // receiving from someone then we will allow them to restart -
@@ -56,8 +74,8 @@ void MissionItemProtocol::handle_mission_count(
 
     if (packet.count == 0) {
         // no requests to send...
-        send_mission_ack(_link, msg, MAV_MISSION_ACCEPTED);
-        complete(_link);
+        const MAV_MISSION_RESULT result = complete(_link);
+        send_mission_ack(_link, msg, result);
         return;
     }
 
@@ -70,6 +88,10 @@ void MissionItemProtocol::handle_mission_request_list(
     const mavlink_mission_request_list_t &packet,
     const mavlink_message_t &msg)
 {
+    if (!mavlink2_requirement_met(_link, msg)) {
+        return;
+    }
+
     if (receiving) {
         // someone is uploading a mission; reject fetching of points
         // until done or timeout
@@ -90,6 +112,10 @@ void MissionItemProtocol::handle_mission_request_int(const GCS_MAVLINK &_link,
                                                      const mavlink_mission_request_int_t &packet,
                                                      const mavlink_message_t &msg)
 {
+    if (!mavlink2_requirement_met(_link, msg)) {
+        return;
+    }
+
     if (receiving) {
         // someone is uploading a mission; reject fetching of points
         // until done or timeout
@@ -112,13 +138,7 @@ void MissionItemProtocol::handle_mission_request_int(const GCS_MAVLINK &_link,
         return;
     }
 
-    // we already have a filled structure, use it in place of _send:
-    _mav_finalize_message_chan_send(_link.get_chan(),
-                                    MAVLINK_MSG_ID_MISSION_ITEM_INT,
-                                    (const char *)&ret_packet,
-                                    MAVLINK_MSG_ID_MISSION_ITEM_MIN_LEN,
-                                    MAVLINK_MSG_ID_MISSION_ITEM_INT_LEN,
-                                    MAVLINK_MSG_ID_MISSION_ITEM_INT_CRC);
+    _link.send_message(MAVLINK_MSG_ID_MISSION_ITEM_INT, (const char*)&ret_packet);
 }
 
 void MissionItemProtocol::handle_mission_request(const GCS_MAVLINK &_link,
@@ -126,6 +146,10 @@ void MissionItemProtocol::handle_mission_request(const GCS_MAVLINK &_link,
                                                  const mavlink_message_t &msg
 )
 {
+    if (!mavlink2_requirement_met(_link, msg)) {
+        return;
+    }
+
     // convert into a MISSION_REQUEST_INT and reuse its handling code
     mavlink_mission_request_int_t request_int;
     request_int.target_system = packet.target_system;
@@ -136,25 +160,23 @@ void MissionItemProtocol::handle_mission_request(const GCS_MAVLINK &_link,
     mavlink_mission_item_int_t item_int{};
     item_int.target_system = msg.sysid;
     item_int.target_component = msg.compid;
+    item_int.mission_type = packet.mission_type;
+    item_int.seq = packet.seq;
 
     MAV_MISSION_RESULT ret = get_item(_link, msg, request_int, item_int);
     if (ret != MAV_MISSION_ACCEPTED) {
+        send_mission_ack(_link, msg, ret);
         return;
     }
 
     mavlink_mission_item_t ret_packet{};
     ret = AP_Mission::convert_MISSION_ITEM_INT_to_MISSION_ITEM(item_int, ret_packet);
     if (ret != MAV_MISSION_ACCEPTED) {
+        send_mission_ack(_link, msg, ret);
         return;
     }
 
-    // we already have a filled structure, use it in place of _send:
-    _mav_finalize_message_chan_send(_link.get_chan(),
-                                    MAVLINK_MSG_ID_MISSION_ITEM,
-                                    (const char *)&ret_packet,
-                                    MAVLINK_MSG_ID_MISSION_ITEM_MIN_LEN,
-                                    MAVLINK_MSG_ID_MISSION_ITEM_LEN,
-                                    MAVLINK_MSG_ID_MISSION_ITEM_CRC);
+    _link.send_message(MAVLINK_MSG_ID_MISSION_ITEM, (const char*)&ret_packet);
 }
 
 void MissionItemProtocol::handle_mission_write_partial_list(GCS_MAVLINK &_link,
@@ -211,6 +233,8 @@ void MissionItemProtocol::handle_mission_item(const mavlink_message_t &msg, cons
     }
     if (result != MAV_MISSION_ACCEPTED) {
         send_mission_ack(msg, result);
+        receiving = false;
+        link = nullptr;
         return;
     }
 
@@ -219,8 +243,8 @@ void MissionItemProtocol::handle_mission_item(const mavlink_message_t &msg, cons
     request_i++;
 
     if (request_i > request_last) {
-        send_mission_ack(msg, MAV_MISSION_ACCEPTED);
-        complete(*link);
+        const MAV_MISSION_RESULT complete_result = complete(*link);
+        send_mission_ack(msg, complete_result);
         receiving = false;
         link = nullptr;
         return;
