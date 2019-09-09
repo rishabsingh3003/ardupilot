@@ -251,7 +251,7 @@ void Scheduler::reboot(bool hold_in_bootloader)
     }
 #endif
 
-#ifndef NO_LOGGING
+#ifndef HAL_NO_LOGGING
     //stop logging
     if (AP_Logger::get_singleton()) {
         AP::logger().StopLogging();
@@ -261,7 +261,7 @@ void Scheduler::reboot(bool hold_in_bootloader)
     sdcard_stop();
 #endif
 
-#if defined(HAL_USE_RTC) && HAL_USE_RTC
+#if !defined(NO_FASTBOOT)
     // setup RTC for fast reboot
     set_fast_reboot(hold_in_bootloader?RTC_BOOT_HOLD:RTC_BOOT_FAST);
 #endif
@@ -330,6 +330,7 @@ void Scheduler::_timer_thread(void *arg)
     }
 }
 
+#ifndef HAL_NO_MONITOR_THREAD
 void Scheduler::_monitor_thread(void *arg)
 {
     Scheduler *sched = (Scheduler *)arg;
@@ -369,6 +370,7 @@ void Scheduler::_monitor_thread(void *arg)
         }
     }
 }
+#endif // HAL_NO_MONITOR_THREAD
 
 void Scheduler::_rcin_thread(void *arg)
 {
@@ -378,7 +380,7 @@ void Scheduler::_rcin_thread(void *arg)
         sched->delay_microseconds(20000);
     }
     while (true) {
-        sched->delay_microseconds(2500);
+        sched->delay_microseconds(1000);
         ((RCInput *)hal.rcin)->_timer_tick();
     }
 }

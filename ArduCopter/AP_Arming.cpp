@@ -55,7 +55,8 @@ bool AP_Arming_Copter::run_pre_arm_checks(bool display_failure)
     return fence_checks(display_failure)
         & parameter_checks(display_failure)
         & motor_checks(display_failure)
-        & pilot_throttle_checks(display_failure) &
+        & pilot_throttle_checks(display_failure)
+        & oa_checks(display_failure) &
         AP_Arming::pre_arm_checks(display_failure);
 }
 
@@ -241,6 +242,28 @@ bool AP_Arming_Copter::motor_checks(bool display_failure)
         check_failed(ARMING_CHECK_NONE, display_failure, "check firmware or FRAME_CLASS");
         return false;
     }
+
+    // if this is a multicopter using ToshibaCAN ESCs ensure MOT_PMW_MIN = 1000, MOT_PWM_MAX = 2000
+#if HAL_WITH_UAVCAN && (FRAME_CONFIG != HELI_FRAME)
+    bool tcan_active = false;
+    const uint8_t num_drivers = AP::can().get_num_drivers();
+    for (uint8_t i = 0; i < num_drivers; i++) {
+        if (AP::can().get_protocol_type(i) == AP_BoardConfig_CAN::Protocol_Type_ToshibaCAN) {
+            tcan_active = true;
+        }
+    }
+    if (tcan_active) {
+        if (copter.motors->get_pwm_output_min() != 1000) {
+            check_failed(ARMING_CHECK_NONE, display_failure, "TCAN ESCs require MOT_PWM_MIN=1000");
+            return false;
+        }
+        if (copter.motors->get_pwm_output_max() != 2000) {
+            check_failed(ARMING_CHECK_NONE, display_failure, "TCAN ESCs require MOT_PWM_MAX=2000");
+            return false;
+        }
+    }
+#endif
+
     return true;
 }
 
@@ -261,6 +284,25 @@ bool AP_Arming_Copter::pilot_throttle_checks(bool display_failure)
     }
 
     return true;
+}
+
+bool AP_Arming_Copter::oa_checks(bool display_failure)
+{
+#if AC_OAPATHPLANNER_ENABLED == ENABLED
+    char failure_msg[50];
+    if (copter.g2.oa.pre_arm_check(failure_msg, ARRAY_SIZE(failure_msg))) {
+        return true;
+    }
+    // display failure
+    if (strlen(failure_msg) == 0) {
+        check_failed(ARMING_CHECK_NONE, display_failure, "%s", "Check Object Avoidance");
+    } else {
+        check_failed(ARMING_CHECK_NONE, display_failure, "%s", failure_msg);
+    }
+    return false;
+#else
+    return true;
+#endif
 }
 
 bool AP_Arming_Copter::rc_calibration_checks(bool display_failure)

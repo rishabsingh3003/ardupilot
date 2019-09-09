@@ -27,14 +27,14 @@ namespace SITL {
  */
 class Sailboat : public Aircraft {
 public:
-    Sailboat(const char *home_str, const char *frame_str);
+    Sailboat(const char *frame_str);
 
     /* update model by one time step */
     void update(const struct sitl_input &input) override;
 
     /* static object creator */
-    static Aircraft *create(const char *home_str, const char *frame_str) {
-        return new Sailboat(home_str, frame_str);
+    static Aircraft *create(const char *frame_str) {
+        return new Sailboat(frame_str);
     }
 
     bool on_ground() const override {return true;};
@@ -52,6 +52,9 @@ private:
     // return lateral acceleration in m/s/s given a steering input (in the range -1 to +1) and speed in m/s
     float get_lat_accel(float steering, float speed) const;
 
+    // simulate waves and swell
+    void update_wave(float delta_time);
+
     float steering_angle_max;   // vehicle steering mechanism's max angle in degrees
     float turning_circle;       // vehicle minimum turning circle diameter in meters
 
@@ -63,13 +66,10 @@ private:
     const float mass = 2.0f;
 
     Vector3f velocity_ef_water; // m/s
-
-    // simulate basic waves / swell
-    void update_wave(float delta_time);
-    Vector3f wave_gyro; // rad/s
-    float wave_heave; // m/s/s
-    float wave_phase; // rads
-
+    Vector3f wave_gyro;         // rad/s
+    float wave_heave;           // m/s/s
+    float wave_phase;           // rads
+    bool motor_connected;       // true if this frame has a motor
 };
 
 } // namespace SITL

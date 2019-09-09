@@ -175,6 +175,7 @@ class Board:
             '-Wno-reorder',
             '-Wno-redundant-decls',
             '-Wno-unknown-pragmas',
+            '-Wno-expansion-to-defined',
             '-Werror=attributes',
             '-Werror=format-security',
             '-Werror=enum-compare',
@@ -225,6 +226,11 @@ class Board:
             env.CXXFLAGS += [
                 '-Werror=unused-but-set-variable'
             ]
+            (major, minor, patchlevel) = cfg.env.CC_VERSION
+            if int(major) >= 5 and int(minor) > 1 and not self.with_uavcan:
+                env.CXXFLAGS += [
+                    '-Werror=suggest-override',
+                ]
 
         if cfg.env.DEBUG:
             env.CXXFLAGS += [
@@ -475,6 +481,9 @@ class chibios(Board):
         env.CXXFLAGS += env.CFLAGS + [
             '-fno-rtti',
             '-fno-threadsafe-statics',
+        ]
+        env.CFLAGS += [
+            '-std=c11'
         ]
 
         if Utils.unversioned_sys_platform() == 'cygwin':

@@ -252,19 +252,19 @@ const AP_Param::Info Rover::var_info[] = {
 
     // @Group: SR0_
     // @Path: GCS_Mavlink.cpp
-    GOBJECTN(_gcs._chan[0], gcs0,        "SR0_",     GCS_MAVLINK),
+    GOBJECTN(_gcs.chan_parameters[0], gcs0,        "SR0_",     GCS_MAVLINK_Parameters),
 
     // @Group: SR1_
     // @Path: GCS_Mavlink.cpp
-    GOBJECTN(_gcs._chan[1],  gcs1,       "SR1_",     GCS_MAVLINK),
+    GOBJECTN(_gcs.chan_parameters[1],  gcs1,       "SR1_",     GCS_MAVLINK_Parameters),
 
     // @Group: SR2_
     // @Path: GCS_Mavlink.cpp
-    GOBJECTN(_gcs._chan[2],  gcs2,       "SR2_",     GCS_MAVLINK),
+    GOBJECTN(_gcs.chan_parameters[2],  gcs2,       "SR2_",     GCS_MAVLINK_Parameters),
 
     // @Group: SR3_
     // @Path: GCS_Mavlink.cpp
-    GOBJECTN(_gcs._chan[3],  gcs3,       "SR3_",     GCS_MAVLINK),
+    GOBJECTN(_gcs.chan_parameters[3],  gcs3,       "SR3_",     GCS_MAVLINK_Parameters),
 
     // @Group: SERIAL
     // @Path: ../libraries/AP_SerialManager/AP_SerialManager.cpp
@@ -628,30 +628,6 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 // @Increment: 1
 // @User: Standard
 
-// @Param: WP_RADIUS
-// @DisplayName: Waypoint radius
-// @Description: The distance in meters from a waypoint when we consider the waypoint has been reached. This determines when the rover will turn along the next waypoint path.
-// @Units: m
-// @Range: 0 1000
-// @Increment: 0.1
-// @User: Standard
-
-// @Param: WP_OVERSHOOT
-// @DisplayName: Waypoint overshoot maximum
-// @Description: Waypoint overshoot maximum in meters.  The vehicle will attempt to stay within this many meters of the track as it completes one waypoint and moves to the next.
-// @Units: m
-// @Range: 0 10
-// @Increment: 0.1
-// @User: Standard
-
-// @Param: WP_SPEED
-// @DisplayName: Waypoint speed default
-// @Description: Waypoint speed default.  If zero use CRUISE_SPEED.
-// @Units: m/s
-// @Range: 0 100
-// @Increment: 0.1
-// @User: Standard
-
 // @Param: PIVOT_TURN_RATE
 // @DisplayName: Pivot turn rate
 // @Description: Desired pivot turn rate in deg/s.
@@ -663,7 +639,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 ParametersG2::ParametersG2(void)
     :
 #if ADVANCED_FAILSAFE == ENABLED
-    afs(rover.mission, rover.gps),
+    afs(rover.mode_auto.mission),
 #endif
     beacon(rover.serial_manager),
     motors(rover.ServoRelayEvents),

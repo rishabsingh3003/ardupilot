@@ -33,6 +33,8 @@ const AP_Param::GroupInfo AP_RTC::var_info[] = {
 
 void AP_RTC::set_utc_usec(uint64_t time_utc_usec, source_type type)
 {
+    const uint64_t oldest_acceptable_date = 1546300800000; // 2019-01-01 0:00
+
     if (type >= rtc_source_type) {
         // e.g. system-time message when we've been set by the GPS
         return;
@@ -40,6 +42,11 @@ void AP_RTC::set_utc_usec(uint64_t time_utc_usec, source_type type)
 
     // check it's from an allowed sources:
     if (!(allowed_types & (1<<type))) {
+        return;
+    }
+
+    // don't allow old times
+    if (time_utc_usec < oldest_acceptable_date) {
         return;
     }
 
@@ -72,7 +79,7 @@ bool AP_RTC::get_utc_usec(uint64_t &usec) const
     return true;
 }
 
-bool AP_RTC::get_system_clock_utc(int32_t &hour, int32_t &min, int32_t &sec, int32_t &ms)
+bool AP_RTC::get_system_clock_utc(uint8_t &hour, uint8_t &min, uint8_t &sec, uint16_t &ms)
 {
      // get time of day in ms
     uint64_t time_ms = 0;
@@ -95,8 +102,12 @@ bool AP_RTC::get_system_clock_utc(int32_t &hour, int32_t &min, int32_t &sec, int
     return true;
 }
 
-// get milliseconds from now to a target time of day expressed as hour, min, sec, ms
-// match starts from first value that is not -1. I.e. specifying hour=-1, minutes=10 will ignore the hour and return time until 10 minutes past 12am (utc)
+// get milliseconds from now to a target time of day expressed as
+// hour, min, sec, ms.  Match starts from first value that is not
+// -1. I.e. specifying hour=-1, minutes=10 will ignore the hour and
+// return time until 10 minutes past 12am (utc) NOTE: if this time has
+// just past then you can expect a return value of roughly 86340000 -
+// the number of milliseconds in a day.
 uint32_t AP_RTC::get_time_utc(int32_t hour, int32_t min, int32_t sec, int32_t ms)
 {
     // determine highest value specified (0=none, 1=ms, 2=sec, 3=min, 4=hour)
@@ -115,7 +126,8 @@ uint32_t AP_RTC::get_time_utc(int32_t hour, int32_t min, int32_t sec, int32_t ms
     }
 
     // get start_time_ms as h, m, s, ms
-    int32_t curr_hour, curr_min, curr_sec, curr_ms;
+    uint8_t curr_hour, curr_min, curr_sec;
+    uint16_t curr_ms;
     if (!get_system_clock_utc(curr_hour, curr_min, curr_sec, curr_ms)) {
         return 0;
     }

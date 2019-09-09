@@ -56,7 +56,7 @@ void Sub::init_ardupilot()
     serial_manager.init();
 
     // setup first port early to allow BoardConfig to report errors
-    gcs().chan(0).setup_uart(0);
+    gcs().setup_console();
 
     // init cargo gripper
 #if GRIPPER_ENABLED == ENABLED
@@ -127,7 +127,7 @@ void Sub::init_ardupilot()
 
 #if MOUNT == ENABLED
     // initialise camera mount
-    camera_mount.init(serial_manager);
+    camera_mount.init();
 #endif
 
 #ifdef USERHOOK_INIT

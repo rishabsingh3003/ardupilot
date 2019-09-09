@@ -34,6 +34,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_InertialSensor',
     'AP_Math',
     'AP_Mission',
+    'AP_NavEKF',
     'AP_NavEKF2',
     'AP_NavEKF3',
     'AP_Notify',
@@ -84,6 +85,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_RobotisServo',
     'AP_ToshibaCAN',
     'AP_NMEA_Output',
+    'AP_Filesystem',
 ]
 
 def get_legacy_defines(sketch_name):

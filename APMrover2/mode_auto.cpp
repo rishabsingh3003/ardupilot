@@ -97,6 +97,10 @@ void ModeAuto::update()
             rover.mode_guided.update();
             break;
         }
+
+        case Auto_Stop:
+            stop_vehicle();
+            break;
     }
 }
 
@@ -117,6 +121,7 @@ float ModeAuto::get_distance_to_destination() const
     case Auto_WP:
         return _distance_to_destination;
     case Auto_HeadingAndSpeed:
+    case Auto_Stop:
         // no valid distance so return zero
         return 0.0f;
     case Auto_RTL:
@@ -142,6 +147,7 @@ bool ModeAuto::get_desired_location(Location& destination) const
         }
         return false;
     case Auto_HeadingAndSpeed:
+    case Auto_Stop:
         // no desired location for this submode
         return false;
     case Auto_RTL:
@@ -177,6 +183,7 @@ bool ModeAuto::reached_destination() const
         return g2.wp_nav.reached_destination();
         break;
     case Auto_HeadingAndSpeed:
+    case Auto_Stop:
         // always return true because this is the safer option to allow missions to continue
         return true;
         break;
@@ -295,6 +302,12 @@ void ModeAuto::start_guided(const Location& loc)
     }
 }
 
+// start stopping vehicle as quickly as possible
+void ModeAuto::start_stop()
+{
+    _submode = Auto_Stop;
+}
+
 // send latest position target to offboard navigation system
 void ModeAuto::send_guided_position_target()
 {
@@ -312,7 +325,7 @@ void ModeAuto::send_guided_position_target()
         uint8_t compid;
         mavlink_channel_t chan;
         if (GCS_MAVLINK::find_by_mavtype(MAV_TYPE_ONBOARD_CONTROLLER, sysid, compid, chan)) {
-            gcs().chan(chan-MAVLINK_COMM_0).send_set_position_target_global_int(sysid, compid, guided_target.loc);
+            gcs().chan(chan-MAVLINK_COMM_0)->send_set_position_target_global_int(sysid, compid, guided_target.loc);
         }
     }
 
@@ -346,6 +359,10 @@ bool ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
 
     case MAV_CMD_NAV_SET_YAW_SPEED:
         do_nav_set_yaw_speed(cmd);
+        break;
+
+    case MAV_CMD_NAV_DELAY:                    // 93 Delay the next navigation command
+        do_nav_delay(cmd);
         break;
 
     // Conditional commands
@@ -472,6 +489,9 @@ bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_NAV_GUIDED_ENABLE:
         return verify_nav_guided_enable(cmd);
 
+    case MAV_CMD_NAV_DELAY:
+       return verify_nav_delay(cmd);
+
     case MAV_CMD_CONDITION_DELAY:
         return verify_wait_delay();
 
@@ -538,6 +558,30 @@ bool ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd, bool always_sto
     return true;
 }
 
+// do_nav_delay - Delay the next navigation command
+void ModeAuto::do_nav_delay(const AP_Mission::Mission_Command& cmd)
+{
+    nav_delay_time_start_ms = millis();
+
+    // boats loiter, cars and balancebots stop
+    if (rover.is_boat()) {
+        if (!start_loiter()) {
+            start_stop();
+        }
+    } else {
+        start_stop();
+    }
+
+    if (cmd.content.nav_delay.seconds > 0) {
+        // relative delay
+        nav_delay_time_max_ms = cmd.content.nav_delay.seconds * 1000; // convert seconds to milliseconds
+    } else {
+        // absolute delay to utc time
+        nav_delay_time_max_ms = AP::rtc().get_time_utc(cmd.content.nav_delay.hour_utc, cmd.content.nav_delay.min_utc, cmd.content.nav_delay.sec_utc, 0);
+    }
+    gcs().send_text(MAV_SEVERITY_INFO, "Delaying %u sec", (unsigned)(nav_delay_time_max_ms/1000));
+}
+
 // start guided within auto to allow external navigation system to control vehicle
 void ModeAuto::do_nav_guided_enable(const AP_Mission::Mission_Command& cmd)
 {
@@ -599,6 +643,17 @@ bool ModeAuto::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
     } else {
         return (((millis() - loiter_start_time) / 1000) >= loiter_duration);
     }
+}
+
+// verify_nav_delay - check if we have waited long enough
+bool ModeAuto::verify_nav_delay(const AP_Mission::Mission_Command& cmd)
+{
+    if (millis() - nav_delay_time_start_ms > nav_delay_time_max_ms) {
+        nav_delay_time_max_ms = 0;
+        return true;
+    }
+
+    return false;
 }
 
 bool ModeAuto::verify_RTL()

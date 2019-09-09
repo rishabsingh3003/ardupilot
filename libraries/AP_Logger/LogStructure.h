@@ -682,6 +682,26 @@ struct PACKED log_Cmd {
     uint8_t frame;
 };
 
+struct PACKED log_MAVLink_Command {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t target_system;
+    uint8_t target_component;
+    uint8_t frame;
+    uint16_t command;
+    uint8_t current;
+    uint8_t autocontinue;
+    float param1;
+    float param2;
+    float param3;
+    float param4;
+    int32_t x;
+    int32_t y;
+    float z;
+    uint8_t result;
+    bool was_command_long;
+};
+
 struct PACKED log_Radio {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -1116,6 +1136,7 @@ struct PACKED log_Performance {
     uint32_t internal_error_count;
     uint32_t spi_count;
     uint32_t i2c_count;
+    uint32_t i2c_isr_count;
 };
 
 struct PACKED log_SRTL {
@@ -1203,7 +1224,7 @@ struct PACKED log_Arm_Disarm {
 #define GPA_LABELS "TimeUS,VDop,HAcc,VAcc,SAcc,VV,SMS,Delta"
 #define GPA_FMT   "QCCCCBIH"
 #define GPA_UNITS "smmmn-ss"
-#define GPA_MULTS "FBBBB-CF"
+#define GPA_MULTS "FBBBB-CC"
 
 // see "struct GPS_State" and "Write_GPS":
 #define GPS_LABELS "TimeUS,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt,Spd,GCrs,VZ,Yaw,U"
@@ -1306,6 +1327,8 @@ struct PACKED log_Arm_Disarm {
       "POWR","QffHB","TimeUS,Vcc,VServo,Flags,Safety", "svv--", "F00--" },  \
     { LOG_CMD_MSG, sizeof(log_Cmd), \
       "CMD", "QHHHffffLLfB","TimeUS,CTot,CNum,CId,Prm1,Prm2,Prm3,Prm4,Lat,Lng,Alt,Frame", "s-------DUm-", "F-------GG0-" }, \
+    { LOG_MAVLINK_COMMAND_MSG, sizeof(log_MAVLink_Command), \
+      "MAVC", "QBBBHBBffffiifBB","TimeUS,TS,TC,Fr,Cmd,Cur,AC,P1,P2,P3,P4,X,Y,Z,Res,WL", "s---------------", "F---------------" }, \
     { LOG_RADIO_MSG, sizeof(log_Radio), \
       "RAD", "QBBBBBHH", "TimeUS,RSSI,RemRSSI,TxBuf,Noise,RemNoise,RxErrors,Fixed", "s-------", "F-------" }, \
     { LOG_CAMERA_MSG, sizeof(log_Camera), \
@@ -1365,7 +1388,7 @@ struct PACKED log_Arm_Disarm {
     { LOG_PROXIMITY_MSG, sizeof(log_Proximity), \
       "PRX", "QBfffffffffff", "TimeUS,Health,D0,D45,D90,D135,D180,D225,D270,D315,DUp,CAn,CDis", "s-mmmmmmmmmhm", "F-00000000000" }, \
     { LOG_PERFORMANCE_MSG, sizeof(log_Performance),                     \
-      "PM",  "QHHIIHIIII", "TimeUS,NLon,NLoop,MaxT,Mem,Load,IntErr,IntErrCnt,SPICnt,I2CCnt", "s---b%----", "F---0A----" }, \
+      "PM",  "QHHIIHIIIII", "TimeUS,NLon,NLoop,MaxT,Mem,Load,IntE,IntEC,SPIC,I2CC,I2CI", "s---b%-----", "F---0A-----" }, \
     { LOG_SRTL_MSG, sizeof(log_SRTL), \
       "SRTL", "QBHHBfff", "TimeUS,Active,NumPts,MaxPts,Action,N,E,D", "s----mmm", "F----000" }, \
     { LOG_OA_BENDYRULER_MSG, sizeof(log_OABendyRuler), \
@@ -1636,6 +1659,7 @@ enum LogMessages : uint8_t {
     LOG_AHR2_MSG,
     LOG_SIMSTATE_MSG,
     LOG_CMD_MSG,
+    LOG_MAVLINK_COMMAND_MSG,
     LOG_RADIO_MSG,
     LOG_ATRP_MSG,
     LOG_CAMERA_MSG,

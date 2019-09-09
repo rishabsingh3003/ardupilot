@@ -349,12 +349,12 @@ class AutoTest(ABC):
         self.mavproxy.send("reboot\n")
         self.detect_and_handle_reboot(old_bootcount, required_bootcount=required_bootcount)
 
-    def detect_and_handle_reboot(self, old_bootcount, required_bootcount=None):
+    def detect_and_handle_reboot(self, old_bootcount, required_bootcount=None, timeout=10):
         tstart = time.time()
         if required_bootcount is None:
             required_bootcount = old_bootcount + 1
         while True:
-            if time.time() - tstart > 10:
+            if time.time() - tstart > timeout:
                 raise AutoTestTimeoutException("Did not detect reboot")
             try:
                 current_bootcount = self.get_parameter('STAT_BOOTCNT', timeout=1)
@@ -923,6 +923,7 @@ class AutoTest(ABC):
     def arm_vehicle(self, timeout=20):
         """Arm vehicle with mavlink arm message."""
         self.progress("Arm motors with MAVLink cmd")
+        tstart = self.get_sim_time()
         self.run_cmd(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
                      1,  # ARM
                      0,
@@ -932,7 +933,6 @@ class AutoTest(ABC):
                      0,
                      0,
                      timeout=timeout)
-        tstart = self.get_sim_time()
         while self.get_sim_time_cached() - tstart < timeout:
             self.wait_heartbeat()
             if self.mav.motors_armed():
@@ -946,6 +946,7 @@ class AutoTest(ABC):
         p2 = 0
         if force:
             p2 = 21196 # magic force disarm value
+        tstart = self.get_sim_time()
         self.run_cmd(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
                      0,  # DISARM
                      p2,
@@ -955,7 +956,6 @@ class AutoTest(ABC):
                      0,
                      0,
                      timeout=timeout)
-        tstart = self.get_sim_time()
         while self.get_sim_time_cached() - tstart < timeout:
             self.wait_heartbeat()
             if not self.mav.motors_armed():
@@ -1077,11 +1077,11 @@ class AutoTest(ABC):
             return True
         return False
 
-    def set_parameter(self, name, value, add_to_context=True, epsilon=0.0002):
+    def set_parameter(self, name, value, add_to_context=True, epsilon=0.0002, retries=10):
         """Set parameters from vehicle."""
         self.progress("Setting %s to %f" % (name, value))
         old_value = self.get_parameter(name, retry=2)
-        for i in range(1, 10):
+        for i in range(1, retries+2):
             self.mavproxy.send("param set %s %s\n" % (name, str(value)))
             returned_value = self.get_parameter(name)
             delta = float(value) - returned_value
@@ -1909,7 +1909,10 @@ class AutoTest(ABC):
                 return
         raise AutoTestTimeoutException("Failed to get EKF.flags=%u disabled" % not_required_value)
 
-    def wait_text(self, text, timeout=20, the_function=None):
+    def wait_text(self, *args, **kwargs):
+        self.wait_statustext(*args, **kwargs)
+
+    def wait_statustext(self, text, timeout=20, the_function=None):
         """Wait a specific STATUS_TEXT."""
         self.progress("Waiting for text : %s" % text.lower())
         tstart = self.get_sim_time()
@@ -2610,6 +2613,7 @@ class AutoTest(ABC):
                              want_result=mavutil.mavlink.MAV_RESULT_FAILED
                              )
                 self.set_parameter("SIM_GPS_DISABLE", 0)
+                self.wait_ekf_happy() # EKF may stay unhappy for a while
                 self.progress("PASS not able to arm without Position in mode : %s" % mode)
             if mode in self.get_no_position_not_settable_modes_list():
                 self.progress("Setting mode need Position : %s" % mode)
@@ -3066,6 +3070,25 @@ switch value'''
 
         return True
 
+    def test_parameters(self):
+        '''general small tests for parameter system'''
+        self.start_subtest("Ensure GCS is not be able to set MIS_TOTAL")
+        old_mt = self.get_parameter("MIS_TOTAL")
+        ex = None
+        try:
+            self.set_parameter("MIS_TOTAL", 17, retries=0)
+        except ValueError as e:
+            ex = e
+        if ex is None:
+            raise NotAchievedException("Set parameter when I shouldn't have")
+        if old_mt != self.get_parameter("MIS_TOTAL"):
+            raise NotAchievedException("Total has changed")
+
+        self.start_subtest("Ensure GCS is able to set other MIS_ parameters")
+        self.set_parameter("MIS_OPTIONS", 1)
+        if self.get_parameter("MIS_OPTIONS") != 1:
+            raise NotAchievedException("Failed to set MIS_OPTIONS")
+
     def disabled_tests(self):
         return {}
 
@@ -3122,6 +3145,10 @@ switch value'''
             ("SensorConfigErrorLoop",
              "Test Sensor Config Error Loop",
              self.test_sensor_config_error_loop),
+
+            ("Parameters",
+             "Test Parameter Set/Get",
+             self.test_parameters),
         ]
 
     def post_tests_announcements(self):

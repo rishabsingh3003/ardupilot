@@ -94,9 +94,15 @@
 #define STM32_PLLQ_VALUE                    7
 #endif
 
+#ifndef STM32_HPRE
 #define STM32_HPRE                          STM32_HPRE_DIV1
+#endif
+#ifndef STM32_PPRE1
 #define STM32_PPRE1                         STM32_PPRE1_DIV4
+#endif
+#ifndef STM32_PPRE2
 #define STM32_PPRE2                         STM32_PPRE2_DIV2
+#endif
 #define STM32_RTCSEL                        STM32_RTCSEL_LSI
 #define STM32_RTCPRE_VALUE                  8
 #define STM32_MCO1SEL                       STM32_MCO1SEL_HSI
@@ -114,9 +120,15 @@
  * ADC driver system settings.
  */
 #define STM32_ADC_ADCPRE                    ADC_CCR_ADCPRE_DIV4
+#ifndef STM32_ADC_USE_ADC1
 #define STM32_ADC_USE_ADC1                  TRUE
+#endif
+#ifndef STM32_ADC_USE_ADC2
 #define STM32_ADC_USE_ADC2                  FALSE
+#endif
+#ifndef STM32_ADC_USE_ADC3
 #define STM32_ADC_USE_ADC3                  FALSE
+#endif
 #define STM32_ADC_ADC1_DMA_PRIORITY         2
 #define STM32_ADC_ADC2_DMA_PRIORITY         2
 #define STM32_ADC_ADC3_DMA_PRIORITY         2
@@ -128,8 +140,12 @@
 /*
  * CAN driver system settings.
  */
+#ifndef STM32_CAN_USE_CAN1
 #define STM32_CAN_USE_CAN1                  FALSE
+#endif
+#ifndef STM32_CAN_USE_CAN2
 #define STM32_CAN_USE_CAN2                  FALSE
+#endif
 #define STM32_CAN_CAN1_IRQ_PRIORITY         11
 #define STM32_CAN_CAN2_IRQ_PRIORITY         11
 
@@ -382,3 +398,8 @@
  * WDG driver system settings.
  */
 #define STM32_WDG_USE_IWDG                  FALSE
+
+// limit ISR count per byte
+#define STM32_I2C_ISR_LIMIT                 6
+
+

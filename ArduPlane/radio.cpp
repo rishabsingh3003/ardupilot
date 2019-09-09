@@ -182,12 +182,14 @@ void Plane::read_radio()
         return;
     }
 
-    if(!failsafe.rc_failsafe)
+    if (!failsafe.rc_failsafe)
     {
         failsafe.AFS_last_valid_rc_ms = millis();
     }
 
-    failsafe.last_valid_rc_ms = millis();
+    if (rc_throttle_value_ok()) {
+        failsafe.last_valid_rc_ms = millis();
+    }
 
     if (control_mode == &mode_training) {
         // in training mode we don't want to use a deadzone, as we
@@ -278,36 +280,34 @@ void Plane::control_failsafe()
         }
     }
 
-    if(g.throttle_fs_enabled == 0)
+    if(g.throttle_fs_enabled == 0) {
         return;
+    }
 
-    if (g.throttle_fs_enabled) {
-        if (rc_failsafe_active()) {
-            // we detect a failsafe from radio
-            // throttle has dropped below the mark
-            failsafe.throttle_counter++;
-            if (failsafe.throttle_counter == 10) {
-                gcs().send_text(MAV_SEVERITY_WARNING, "Throttle failsafe on");
-                failsafe.rc_failsafe = true;
-                AP_Notify::flags.failsafe_radio = true;
-            }
-            if (failsafe.throttle_counter > 10) {
-                failsafe.throttle_counter = 10;
-            }
-
-        }else if(failsafe.throttle_counter > 0) {
-            // we are no longer in failsafe condition
-            // but we need to recover quickly
-            failsafe.throttle_counter--;
-            if (failsafe.throttle_counter > 3) {
-                failsafe.throttle_counter = 3;
-            }
-            if (failsafe.throttle_counter == 1) {
-                gcs().send_text(MAV_SEVERITY_WARNING, "Throttle failsafe off");
-            } else if(failsafe.throttle_counter == 0) {
-                failsafe.rc_failsafe = false;
-                AP_Notify::flags.failsafe_radio = false;
-            }
+    if (rc_failsafe_active()) {
+        // we detect a failsafe from radio
+        // throttle has dropped below the mark
+        failsafe.throttle_counter++;
+        if (failsafe.throttle_counter == 10) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "Throttle failsafe on");
+            failsafe.rc_failsafe = true;
+            AP_Notify::flags.failsafe_radio = true;
+        }
+        if (failsafe.throttle_counter > 10) {
+            failsafe.throttle_counter = 10;
+        }
+    } else if(failsafe.throttle_counter > 0) {
+        // we are no longer in failsafe condition
+        // but we need to recover quickly
+        failsafe.throttle_counter--;
+        if (failsafe.throttle_counter > 3) {
+            failsafe.throttle_counter = 3;
+        }
+        if (failsafe.throttle_counter == 1) {
+            gcs().send_text(MAV_SEVERITY_WARNING, "Throttle failsafe off");
+        } else if(failsafe.throttle_counter == 0) {
+            failsafe.rc_failsafe = false;
+            AP_Notify::flags.failsafe_radio = false;
         }
     }
 }
@@ -369,20 +369,31 @@ bool Plane::trim_radio()
 }
 
 /*
+  check if throttle value is within allowed range
+ */
+bool Plane::rc_throttle_value_ok(void) const
+{
+    if (!g.throttle_fs_enabled) {
+        return true;
+    }
+    if (channel_throttle->get_reverse()) {
+        return channel_throttle->get_radio_in() < g.throttle_fs_value;
+    }
+    return channel_throttle->get_radio_in() > g.throttle_fs_value;
+}
+
+/*
   return true if throttle level is below throttle failsafe threshold
   or RC input is invalid
  */
 bool Plane::rc_failsafe_active(void) const
 {
-    if (!g.throttle_fs_enabled) {
-        return false;
+    if (!rc_throttle_value_ok()) {
+        return true;
     }
     if (millis() - failsafe.last_valid_rc_ms > 1000) {
         // we haven't had a valid RC frame for 1 seconds
         return true;
     }
-    if (channel_throttle->get_reverse()) {
-        return channel_throttle->get_radio_in() >= g.throttle_fs_value;
-    }
-    return channel_throttle->get_radio_in() <= g.throttle_fs_value;
+    return false;
 }
