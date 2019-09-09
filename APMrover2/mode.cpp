@@ -272,23 +272,27 @@ void Mode::calc_throttle(float target_speed, bool avoidance_enabled)
     }
 
     // call throttle controller and convert output to -100 to +100 range
-    float throttle_out;
+    float throttle_out = 0.0f;
 
-    // call speed or stop controller
-    if (is_zero(target_speed) && !rover.is_balancebot()) {
-        bool stopped;
-        throttle_out = 100.0f * attitude_control.get_throttle_out_stop(g2.motors.limit.throttle_lower, g2.motors.limit.throttle_upper, g.speed_cruise, g.throttle_cruise * 0.01f, rover.G_Dt, stopped);
+    if (rover.g2.sailboat.sail_enabled()) {
+        // sailboats use special throttle and mainsail controller
+        float mainsail_out = 0.0f;
+        rover.g2.sailboat.get_throttle_and_mainsail_out(target_speed, throttle_out, mainsail_out);
+        rover.g2.motors.set_mainsail(mainsail_out);
     } else {
-        throttle_out = 100.0f * attitude_control.get_throttle_out_speed(target_speed, g2.motors.limit.throttle_lower, g2.motors.limit.throttle_upper, g.speed_cruise, g.throttle_cruise * 0.01f, rover.G_Dt);
-    }
+        // call speed or stop controller
+        if (is_zero(target_speed) && !rover.is_balancebot()) {
+            bool stopped;
+            throttle_out = 100.0f * attitude_control.get_throttle_out_stop(g2.motors.limit.throttle_lower, g2.motors.limit.throttle_upper, g.speed_cruise, g.throttle_cruise * 0.01f, rover.G_Dt, stopped);
+        } else {
+            throttle_out = 100.0f * attitude_control.get_throttle_out_speed(target_speed, g2.motors.limit.throttle_lower, g2.motors.limit.throttle_upper, g.speed_cruise, g.throttle_cruise * 0.01f, rover.G_Dt);
+        }
 
-    // if vehicle is balance bot, calculate actual throttle required for balancing
-    if (rover.is_balancebot()) {
-        rover.balancebot_pitch_control(throttle_out);
+        // if vehicle is balance bot, calculate actual throttle required for balancing
+        if (rover.is_balancebot()) {
+            rover.balancebot_pitch_control(throttle_out);
+        }
     }
-
-    // update mainsail position if present
-    rover.g2.sailboat.update_mainsail(target_speed);
 
     // send to motor
     g2.motors.set_throttle(throttle_out);
@@ -394,7 +398,7 @@ void Mode::navigate_to_waypoint()
     desired_speed = calc_speed_nudge(desired_speed, g2.wp_nav.get_reversed());
     calc_throttle(desired_speed, true);
 
-    float desired_heading_cd = g2.wp_nav.wp_bearing_cd();
+    float desired_heading_cd = g2.wp_nav.oa_wp_bearing_cd();
     if (g2.sailboat.use_indirect_route(desired_heading_cd)) {
         // sailboats use heading controller when tacking upwind
         desired_heading_cd = g2.sailboat.calc_heading(desired_heading_cd);

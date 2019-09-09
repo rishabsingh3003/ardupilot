@@ -32,16 +32,18 @@ namespace SITL {
 
 #define STEERING_SERVO_CH   0   // steering controlled by servo output 1
 #define MAINSAIL_SERVO_CH   3   // main sail controlled by servo output 4
+#define THROTTLE_SERVO_CH   2   // throttle controlled by servo output 3
 
     // very roughly sort of a stability factors for waves
 #define WAVE_ANGLE_GAIN 1
 #define WAVE_HEAVE_GAIN 1
 
-Sailboat::Sailboat(const char *home_str, const char *frame_str) :
-    Aircraft(home_str, frame_str),
+Sailboat::Sailboat(const char *frame_str) :
+    Aircraft(frame_str),
     steering_angle_max(35),
     turning_circle(1.8)
 {
+    motor_connected = (strcmp(frame_str, "sailboat-motor") == 0);
 }
 
 // calculate the lift and drag as values from 0 to 1
@@ -218,8 +220,16 @@ void Sailboat::update(const struct sitl_input &input)
         hull_drag *= -1.0f;
     }
 
+    // throttle force (for motor sailing)
+    // gives throttle force == hull drag at 10m/s
+    float throttle_force = 0.0f;
+    if (motor_connected) {
+        const uint16_t throttle_out = constrain_int16(input.servos[THROTTLE_SERVO_CH], 1000, 2000);
+        throttle_force = (throttle_out-1500) * 0.1f;
+    }
+
     // accel in body frame due acceleration from sail and deceleration from hull friction
-    accel_body = Vector3f(force_fwd - hull_drag, 0, 0);
+    accel_body = Vector3f((throttle_force + force_fwd) - hull_drag, 0, 0);
     accel_body /= mass;
 
     // add in accel due to direction change

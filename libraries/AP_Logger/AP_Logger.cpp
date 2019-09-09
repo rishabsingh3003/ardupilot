@@ -22,6 +22,10 @@ extern const AP_HAL::HAL& hal;
 #define HAL_LOGGING_MAV_BUFSIZE  8
 #endif 
 
+#ifndef HAL_LOGGING_FILE_TIMEOUT
+#define HAL_LOGGING_FILE_TIMEOUT 5
+#endif 
+
 // by default log for 15 seconds after disarming
 #ifndef HAL_LOGGER_ARM_PERSIST
 #define HAL_LOGGER_ARM_PERSIST 15
@@ -78,6 +82,13 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     // @Units: kB
     AP_GROUPINFO("_MAV_BUFSIZE",  5, AP_Logger, _params.mav_bufsize,       HAL_LOGGING_MAV_BUFSIZE),
 
+    // @Param: _FILE_TIMEOUT
+    // @DisplayName: Timeout before giving up on file writes
+    // @Description: This controls the amount of time before failing writes to a log file cause the file to be closed and logging stopped.
+    // @User: Standard
+    // @Units: s
+    AP_GROUPINFO("_FILE_TIMEOUT",  6, AP_Logger, _params.file_timeout,     HAL_LOGGING_FILE_TIMEOUT),
+    
     AP_GROUPEND
 };
 
@@ -112,8 +123,7 @@ void AP_Logger::Init(const struct LogStructure *structures, uint8_t num_types)
     _num_types = num_types;
     _structures = structures;
 
-#if defined(HAL_BOARD_LOG_DIRECTORY)
- #if HAL_OS_POSIX_IO || HAL_OS_FATFS_IO
+#if defined(HAL_BOARD_LOG_DIRECTORY) && HAVE_FILESYSTEM_SUPPORT
     if (_params.backend_types & uint8_t(Backend_Type::FILESYSTEM)) {
         LoggerMessageWriter_DFLogStart *message_writer =
             new LoggerMessageWriter_DFLogStart();
@@ -128,8 +138,7 @@ void AP_Logger::Init(const struct LogStructure *structures, uint8_t num_types)
             _next_backend++;
         }
     }
- #endif
-#endif // HAL_BOARD_LOG_DIRECTORY
+#endif // HAVE_FILESYSTEM_SUPPORT
 
 #if LOGGER_MAVLINK_SUPPORT
     if (_params.backend_types & uint8_t(Backend_Type::MAVLINK)) {

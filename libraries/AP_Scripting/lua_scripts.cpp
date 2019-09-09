@@ -18,14 +18,6 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_ROMFS/AP_ROMFS.h>
 
-#if HAL_OS_POSIX_IO
-#include <dirent.h>
-#endif
-
-#if HAL_OS_FATFS_IO
-#include <stdio.h>
-#endif
-
 #include "lua_generated_bindings.h"
 
 #ifndef SCRIPTING_DIRECTORY
@@ -121,14 +113,14 @@ void lua_scripts::load_all_scripts_in_dir(lua_State *L, const char *dirname) {
         return;
     }
 
-    DIR *d = opendir(dirname);
+    DIR *d = AP::FS().opendir(dirname);
     if (d == nullptr) {
         gcs().send_text(MAV_SEVERITY_INFO, "Lua: Could not find a scripts directory");
         return;
     }
 
     // load anything that ends in .lua
-    for (struct dirent *de=readdir(d); de; de=readdir(d)) {
+    for (struct dirent *de=AP::FS().readdir(d); de; de=AP::FS().readdir(d)) {
         uint8_t length = strlen(de->d_name);
         if (length < 5) {
             // not long enough
@@ -157,7 +149,7 @@ void lua_scripts::load_all_scripts_in_dir(lua_State *L, const char *dirname) {
         reschedule_script(script);
 
     }
-    closedir(d);
+    AP::FS().closedir(d);
 }
 
 void lua_scripts::run_next_script(lua_State *L) {
@@ -393,8 +385,14 @@ void lua_scripts::run(void) {
             const uint32_t runEnd = AP_HAL::micros();
             const int endMem = lua_gc(L, LUA_GCCOUNT, 0) * 1024 + lua_gc(L, LUA_GCCOUNTB, 0);
             if (_debug_level > 1) {
-                gcs().send_text(MAV_SEVERITY_DEBUG, "Lua: Time: %u Mem: %d", (unsigned int)(runEnd - loadEnd), (int)(endMem - startMem));
+                gcs().send_text(MAV_SEVERITY_DEBUG, "Lua: Time: %u Mem: %d + %d",
+                                                    (unsigned int)(runEnd - loadEnd),
+                                                    (int)endMem,
+                                                    (int)(endMem - startMem));
             }
+
+            // garbage collect after each script, this shouldn't matter, but seems to resolve a memory leak
+            lua_gc(L, LUA_GCCOLLECT, 0);
 
         } else {
             gcs().send_text(MAV_SEVERITY_DEBUG, "Lua: No scripts to run");

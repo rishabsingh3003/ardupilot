@@ -1,3 +1,17 @@
+/*
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 /* 
 	Simulator connector for Airsim: https://github.com/Microsoft/AirSim
 */
@@ -15,14 +29,14 @@ namespace SITL {
 
 class AirSim : public Aircraft {
 public:
-	AirSim(const char *home_str, const char *frame_str);
+	AirSim(const char *frame_str);
 
 	/* update model by one time step */
 	void update(const struct sitl_input &input) override;
 
 	/* static object creator */
-    static Aircraft *create(const char *home_str, const char *frame_str) {
-        return new AirSim(home_str, frame_str);
+    static Aircraft *create(const char *frame_str) {
+        return new AirSim(frame_str);
     }
 
     /*  Create and set in/out socket for Airsim simulator */
@@ -52,6 +66,7 @@ private:
     double average_frame_time;
     uint64_t frame_counter;
     uint64_t last_frame_count;
+    uint64_t last_timestamp;
 
 	void send_servos(const struct sitl_input &input);
 	void recv_fdm();
@@ -93,7 +108,7 @@ private:
         struct {
             struct float_array rc_channels;
         } rc;
-    } state, last_state;
+    } state;
 
     // table to aid parsing of JSON sensor data
     struct keytable {

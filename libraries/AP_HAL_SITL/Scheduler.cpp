@@ -11,6 +11,7 @@
 #else
 #include <malloc.h>
 #endif
+#include <AP_RCProtocol/AP_RCProtocol.h>
 
 using namespace HALSITL;
 
@@ -209,6 +210,8 @@ void Scheduler::_run_io_procs()
     hal.storage->_timer_tick();
 
     check_thread_stacks();
+
+    AP::RC().update();
 }
 
 /*
@@ -289,9 +292,11 @@ bool Scheduler::thread_create(AP_HAL::MemberProc proc, const char *name, uint32_
     a->name = name;
     
     pthread_attr_init(&a->attr);
+#if !defined(__CYGWIN__) && !defined(__CYGWIN64__)
     if (pthread_attr_setstack(&a->attr, a->stack, alloc_stack) != 0) {
         AP_HAL::panic("Failed to set stack of size %u for thread %s", alloc_stack, name);
     }
+#endif
     if (pthread_create(&thread, &a->attr, thread_create_trampoline, a) != 0) {
         goto failed;
     }

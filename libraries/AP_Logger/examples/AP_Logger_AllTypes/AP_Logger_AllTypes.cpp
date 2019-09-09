@@ -85,8 +85,8 @@ static uint16_t log_num;
 
 class AP_LoggerTest_AllTypes : public AP_HAL::HAL::Callbacks {
 public:
-    void setup();
-    void loop();
+    void setup() override;
+    void loop() override;
 
 private:
 
@@ -226,7 +226,7 @@ void AP_LoggerTest_AllTypes::loop(void)
     hal.scheduler->delay(1000);
 }
 
-const struct AP_Param::GroupInfo        GCS_MAVLINK::var_info[] = {
+const struct AP_Param::GroupInfo        GCS_MAVLINK_Parameters::var_info[] = {
     AP_GROUPEND
 };
 GCS_Dummy _gcs;

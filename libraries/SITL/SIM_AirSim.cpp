@@ -1,3 +1,17 @@
+/*
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 /* 
 	Simulator Connector for AirSim
 */
@@ -16,8 +30,8 @@ extern const AP_HAL::HAL& hal;
 
 using namespace SITL;
 
-AirSim::AirSim(const char *home_str, const char *frame_str) :
-	Aircraft(home_str, frame_str),
+AirSim::AirSim(const char *frame_str) :
+	Aircraft(frame_str),
 	sock(true)
 {
 	printf("Starting SITL Airsim\n");
@@ -248,8 +262,8 @@ void AirSim::recv_fdm()
 
     dcm.from_euler(state.pose.roll, state.pose.pitch, state.pose.yaw);
 
-    if (last_state.timestamp) {
-        double deltat = state.timestamp - last_state.timestamp;
+    if (last_timestamp) {
+        int deltat = state.timestamp - last_timestamp;
         time_now_us += deltat;
 
         if (deltat > 0 && deltat < 100000) {
@@ -298,7 +312,7 @@ void AirSim::recv_fdm()
                        velocity_ef.z);
 #endif
 
-    last_state = state;
+    last_timestamp = state.timestamp;
 }
 
 /*
@@ -308,9 +322,6 @@ void AirSim::update(const struct sitl_input &input)
 {
 	send_servos(input);
     recv_fdm();
-    // Airsim takes approximately 3ms between each message (or 333 Hz)
-    adjust_frame_time(1.0e6/3000);
-    time_advance();
 
     // update magnetic field
     update_mag_field_bf();

@@ -542,8 +542,8 @@ class AutoTestPlane(AutoTest):
             0,
             0,
             0,
-            loc.lat*1e7,
-            loc.lng*1e7,
+            int(loc.lat*1e7),
+            int(loc.lng*1e7),
             new_alt,    # alt
             frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
         )
@@ -799,16 +799,7 @@ class AutoTestPlane(AutoTest):
         self.wait_mode('RTL') # long failsafe
         self.progress("Ensure we've had our throttle squashed to 950")
         self.wait_rc_channel_value(3, 950)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
+        self.drain_mav_unparsed()
         m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
         print("%s" % str(m))
         self.progress("Testing receiver enabled")
@@ -822,10 +813,7 @@ class AutoTestPlane(AutoTest):
 #        if (m.onboard_control_sensors_health & receiver_bit):
 #            raise NotAchievedException("Sensor healthy when it shouldn't be")
         self.set_parameter("SIM_RC_FAIL", 0)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
+        self.drain_mav_unparsed()
         m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
         self.progress("Testing receiver enabled")
         if (not (m.onboard_control_sensors_enabled & receiver_bit)):
@@ -835,23 +823,14 @@ class AutoTestPlane(AutoTest):
             raise NotAchievedException("Receiver not present")
         self.progress("Testing receiver health")
         if (not (m.onboard_control_sensors_health & receiver_bit)):
-            raise NotAchievedException("Receiver not healthy")
+            raise NotAchievedException("Receiver not healthy2")
         self.change_mode('MANUAL')
 
         self.progress("Failing receiver (no-pulses)")
         self.set_parameter("SIM_RC_FAIL", 1) # no-pulses
         self.wait_mode('CIRCLE') # short failsafe
         self.wait_mode('RTL') # long failsafe
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        print("%s" % str(m))
+        self.drain_mav_unparsed()
         m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
         print("%s" % str(m))
         self.progress("Testing receiver enabled")
@@ -878,6 +857,31 @@ class AutoTestPlane(AutoTest):
         if (not (m.onboard_control_sensors_health & receiver_bit)):
             raise NotAchievedException("Receiver not healthy")
         self.change_mode('MANUAL')
+
+        self.progress("Ensure long failsafe can trigger when short failsafe disabled")
+        self.context_push()
+        ex = None
+        try:
+            self.set_parameter("FS_SHORT_ACTN", 3) # 3 means disabled
+            self.set_parameter("SIM_RC_FAIL", 1)
+            self.wait_statustext("Long event on")
+            self.wait_mode("RTL")
+            self.set_parameter("SIM_RC_FAIL", 0)
+            self.wait_text("Long event off")
+            self.change_mode("MANUAL")
+
+            self.progress("Trying again with THR_FS_VALUE")
+            self.set_parameter("THR_FS_VALUE", 960)
+            self.set_parameter("SIM_RC_FAIL", 2)
+            self.wait_statustext("Long event on")
+            self.wait_mode("RTL")
+        except Exception as e:
+            self.progress("Exception caught:")
+            self.progress(self.get_exception_stacktrace(e))
+            ex = e
+        self.context_pop()
+        if ex is not None:
+            raise ex
 
     def test_gripper_mission(self):
         self.context_push()
@@ -1341,14 +1345,14 @@ class AutoTestPlane(AutoTest):
         self.set_parameter("AVD_ENABLE", 1)
         self.delay_sim_time(1) # TODO: work out why this is required...
         self.mav.mav.adsb_vehicle_send(37, # ICAO address
-                                       here.lat * 1e7,
-                                       here.lng * 1e7,
+                                       int(here.lat * 1e7),
+                                       int(here.lng * 1e7),
                                        mavutil.mavlink.ADSB_ALTITUDE_TYPE_PRESSURE_QNH,
-                                       here.alt*1000 + 10000, # 10m up
+                                       int(here.alt*1000 + 10000), # 10m up
                                        0, # heading in cdeg
                                        0, # horizontal velocity cm/s
                                        0, # vertical velocity cm/s
-                                       "bob", # callsign
+                                       "bob".encode("ascii"), # callsign
                                        mavutil.mavlink.ADSB_EMITTER_TYPE_LIGHT,
                                        1, # time since last communication
                                        65535, # flags

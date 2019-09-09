@@ -324,8 +324,8 @@ private:
     uint32_t loiter_time;                    // How long have we been loitering - The start time in millis
 
     // Delay the next navigation command
-    int32_t nav_delay_time_max;  // used for delaying the navigation commands
-    uint32_t nav_delay_time_start;
+    uint32_t nav_delay_time_max_ms;  // used for delaying the navigation commands
+    uint32_t nav_delay_time_start_ms;
 
     // Battery Sensors
     AP_BattMonitor battery{MASK_LOG_CURRENT,
@@ -454,7 +454,6 @@ private:
     static const AP_Param::Info var_info[];
     static const struct LogStructure log_structure[];
 
-    void init_compass_location();
     void fast_loop();
     void fifty_hz_loop();
     void update_batt_compass(void);

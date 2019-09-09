@@ -37,6 +37,19 @@
     }
 #define MAV_STREAM_TERMINATOR { (streams)0, nullptr, 0 }
 
+#define GCS_MAVLINK_NUM_STREAM_RATES 10
+class GCS_MAVLINK_Parameters
+{
+public:
+
+    GCS_MAVLINK_Parameters();
+
+    static const struct AP_Param::GroupInfo        var_info[];
+
+    // saveable rate of each stream
+    AP_Int16        streamRates[GCS_MAVLINK_NUM_STREAM_RATES];
+};
+
 ///
 /// @class	GCS_MAVLINK
 /// @brief	MAVLink transport control class
@@ -45,14 +58,15 @@ class GCS_MAVLINK
 {
 public:
     friend class GCS;
-    GCS_MAVLINK();
+
+    GCS_MAVLINK(GCS_MAVLINK_Parameters &parameters, AP_HAL::UARTDriver &uart);
+    virtual ~GCS_MAVLINK() {}
+
     void        update_receive(uint32_t max_time_us=1000);
     void        update_send();
-    void        init(AP_HAL::UARTDriver *port, mavlink_channel_t mav_chan);
-    void        setup_uart(uint8_t instance);
+    bool        init(uint8_t instance);
     void        send_message(enum ap_message id);
     void        send_text(MAV_SEVERITY severity, const char *fmt, ...) const FMT_PRINTF(3, 4);
-    void        send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list) const;
     void        queued_param_send();
     void        queued_mission_request_send();
 
@@ -101,10 +115,9 @@ public:
     virtual uint8_t sysid_my_gcs() const = 0;
     virtual bool sysid_enforce() const { return false; }
 
-    static const struct AP_Param::GroupInfo        var_info[];
-
-    // set to true if this GCS link is active
-    bool            initialised;
+    void send_parameter_value(const char *param_name,
+                              ap_var_type param_type,
+                              float param_value);
 
     // NOTE! The streams enum below and the
     // set of AP_Int16 stream rates _must_ be
@@ -122,6 +135,12 @@ public:
         STREAM_ADSB,
         NUM_STREAMS
     };
+
+    // streams must be moved out into the top level for
+    // GCS_MAVLINK_Parameters to be able to use it.  This is an
+    // extensive change, so we 'll just keep them in sync with a
+    // static assert for now:
+    static_assert(NUM_STREAMS == GCS_MAVLINK_NUM_STREAM_RATES, "num streams must equal num stream rates");
 
     bool is_high_bandwidth() { return chan == MAVLINK_COMM_0; }
     // return true if this channel has hardware flow control
@@ -280,7 +299,7 @@ protected:
     uint8_t packet_overhead(void) const { return packet_overhead_chan(chan); }
 
     // saveable rate of each stream
-    AP_Int16        streamRates[NUM_STREAMS];
+    AP_Int16        *streamRates;
 
     virtual bool persist_streamrates() const { return false; }
     void handle_request_data_stream(const mavlink_message_t &msg);
@@ -427,6 +446,9 @@ private:
     virtual void        handleMessage(const mavlink_message_t &msg) = 0;
 
     MAV_RESULT handle_servorelay_message(const mavlink_command_long_t &packet);
+
+    static bool command_long_stores_location(const MAV_CMD command);
+    static void convert_COMMAND_LONG_to_COMMAND_INT(const mavlink_command_long_t &in, mavlink_command_int_t &out);
 
     bool calibrate_gyros();
 
@@ -606,6 +628,7 @@ private:
                                                      const float yaw,
                                                      const uint16_t payload_size);
     void log_vision_position_estimate_data(const uint64_t usec,
+                                           const uint32_t corrected_msec,
                                            const float x,
                                            const float y,
                                            const float z,
@@ -658,6 +681,7 @@ private:
         uint32_t no_space_for_message;
         uint16_t statustext_last_sent_ms;
         uint32_t behind;
+        uint32_t out_of_time;
         uint16_t fnbts_maxtime;
         uint32_t max_retry_deferred_body_us;
         uint8_t max_retry_deferred_body_type;
@@ -701,9 +725,10 @@ public:
     void send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list);
     virtual void send_statustext(MAV_SEVERITY severity, uint8_t dest_bitmask, const char *text);
     void service_statustext(void);
-    virtual GCS_MAVLINK &chan(const uint8_t ofs) = 0;
-    virtual const GCS_MAVLINK &chan(const uint8_t ofs) const = 0;
-    virtual uint8_t num_gcs() const = 0;
+    virtual GCS_MAVLINK *chan(const uint8_t ofs) = 0;
+    virtual const GCS_MAVLINK *chan(const uint8_t ofs) const = 0;
+    // return the number of valid GCS objects
+    uint8_t num_gcs() const { return _num_gcs; };
     void send_message(enum ap_message id);
     void send_mission_item_reached_message(uint16_t mission_index);
     void send_named_float(const char *name, float value) const;
@@ -719,7 +744,6 @@ public:
 
     void update_send();
     void update_receive();
-    virtual void setup_uarts();
 
     // minimum amount of time (in microseconds) that must remain in
     // the main scheduler loop before we are allowed to send any
@@ -728,19 +752,25 @@ public:
     virtual uint16_t min_loop_time_remaining_for_message_send_us() const {
         return 200;
     }
+
+    void setup_console();
+    void setup_uarts();
+
     bool out_of_time() const;
 
     // frsky backend
     AP_Frsky_Telem *frsky;
 
+#if !HAL_MINIMIZE_FEATURES
     // Devo backend
     AP_DEVO_Telem devo_telemetry;
+#endif
 
     // install an alternative protocol handler
     bool install_alternative_protocol(mavlink_channel_t chan, GCS_MAVLINK::protocol_handler_fn_t handler);
 
     // get the VFR_HUD throttle
-    int16_t get_hud_throttle(void) const { return num_gcs()>0?chan(0).vfr_hud_throttle():0; }
+    int16_t get_hud_throttle(void) const { return num_gcs()>0?chan(0)->vfr_hud_throttle():0; }
 
     // update uart pass-thru
     void update_passthru();
@@ -753,20 +783,31 @@ public:
 
 protected:
 
+    virtual GCS_MAVLINK *new_gcs_mavlink_backend(GCS_MAVLINK_Parameters &params,
+                                                 AP_HAL::UARTDriver &uart) = 0;
+
     uint32_t control_sensors_present;
     uint32_t control_sensors_enabled;
     uint32_t control_sensors_health;
-    void update_sensor_status_flags();
     virtual void update_vehicle_sensor_status_flags() {}
+
+    GCS_MAVLINK_Parameters chan_parameters[MAVLINK_COMM_NUM_BUFFERS];
+    uint8_t _num_gcs;
+    GCS_MAVLINK *_chan[MAVLINK_COMM_NUM_BUFFERS];
 
 private:
 
     static GCS *_singleton;
 
+    void create_gcs_mavlink_backend(GCS_MAVLINK_Parameters &params,
+                                    AP_HAL::UARTDriver &uart);
+
     struct statustext_t {
         uint8_t                 bitmask;
         mavlink_statustext_t    msg;
     };
+
+    void update_sensor_status_flags();
 
 #if HAL_CPU_CLASS <= HAL_CPU_CLASS_150 || CONFIG_HAL_BOARD == HAL_BOARD_SITL
     static const uint8_t _status_capacity = 5;

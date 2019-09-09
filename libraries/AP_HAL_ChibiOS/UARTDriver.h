@@ -55,7 +55,8 @@ public:
 
     // control optional features
     bool set_options(uint8_t options) override;
-
+    uint8_t get_options(void) const override;
+    
     // write to a locked port. If port is locked and key is not correct then 0 is returned
     // and write is discarded
     size_t write_locked(const uint8_t *buffer, size_t size, uint32_t key) override;
@@ -63,12 +64,14 @@ public:
     struct SerialDef {
         BaseSequentialStream* serial;
         bool is_usb;
+#ifndef HAL_UART_NODMA
         bool dma_rx;
         uint8_t dma_rx_stream_id;
         uint32_t dma_rx_channel_id;
         bool dma_tx;
         uint8_t dma_tx_stream_id;
-        uint32_t dma_tx_channel_id; 
+        uint32_t dma_tx_channel_id;
+#endif
         ioline_t rts_line;
         int8_t rxinv_gpio;
         uint8_t rxinv_polarity;
@@ -113,7 +116,6 @@ public:
     }
 
 private:
-    bool tx_bounce_buf_ready;
     const SerialDef &sdef;
 
     // thread used for all UARTs
@@ -145,20 +147,27 @@ private:
 
     // we use in-task ring buffers to reduce the system call cost
     // of ::read() and ::write() in the main loop
+#ifndef HAL_UART_NODMA
+    bool tx_bounce_buf_ready;
     uint8_t *rx_bounce_buf;
     uint8_t *tx_bounce_buf;
+#endif
     ByteBuffer _readbuf{0};
     ByteBuffer _writebuf{0};
     Semaphore _write_mutex;
+#ifndef HAL_UART_NODMA
     const stm32_dma_stream_t* rxdma;
     const stm32_dma_stream_t* txdma;
+#endif
     virtual_timer_t tx_timeout;    
     bool _in_timer;
     bool _blocking_writes;
     bool _initialised;
     bool _device_initialised;
     bool _lock_rx_in_timer_tick = false;
+#ifndef HAL_UART_NODMA
     Shared_DMA *dma_handle;
+#endif
     static const SerialDef _serial_tab[];
 
     // timestamp for receiving data on the UART, avoiding a lock
@@ -175,6 +184,7 @@ private:
     // we remember cr2 and cr2 options from set_options to apply on sdStart()
     uint32_t _cr3_options;
     uint32_t _cr2_options;
+    uint8_t _last_options;
 
     // half duplex control. After writing we throw away bytes for 4 byte widths to
     // prevent reading our own bytes back
@@ -185,18 +195,30 @@ private:
 
     // set to true for unbuffered writes (low latency writes)
     bool unbuffered_writes;
+
+#if CH_CFG_USE_EVENTS == TRUE
+    // listener for parity error events
+    event_listener_t ev_listener;
+    bool parity_enabled;
+#endif
     
+#ifndef HAL_UART_NODMA
     static void rx_irq_cb(void* sd);
+#endif
     static void rxbuff_full_irq(void* self, uint32_t flags);
     static void tx_complete(void* self, uint32_t flags);
     static void handle_tx_timeout(void *arg);
 
+#ifndef HAL_UART_NODMA
     void dma_tx_allocate(Shared_DMA *ctx);
     void dma_tx_deallocate(Shared_DMA *ctx);
+#endif
     void update_rts_line(void);
 
     void check_dma_tx_completion(void);
+#ifndef HAL_UART_NODMA
     void write_pending_bytes_DMA(uint32_t n);
+#endif
     void write_pending_bytes_NODMA(uint32_t n);
     void write_pending_bytes(void);
 

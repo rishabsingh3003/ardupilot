@@ -97,6 +97,10 @@
 #if AC_AVOID_ENABLED == ENABLED
  #include <AC_Avoidance/AC_Avoid.h>
 #endif
+#if AC_OAPATHPLANNER_ENABLED == ENABLED
+ #include <AC_WPNav/AC_WPNav_OA.h>
+ #include <AC_Avoidance/AP_OAPathPlanner.h>
+#endif
 #if SPRAYER_ENABLED == ENABLED
  # include <AC_Sprayer/AC_Sprayer.h>
 #endif
@@ -825,7 +829,6 @@ private:
     void read_rangefinder(void);
     bool rangefinder_alt_ok();
     void rpm_update();
-    void init_compass_location();
     void init_optflow();
     void update_optical_flow(void);
     void compass_cal_update(void);

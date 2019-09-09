@@ -31,6 +31,7 @@
 
 #include <AP_Logger/AP_Logger.h>
 #include <AP_Param/AP_Param.h>
+#include <AP_Declination/AP_Declination.h>
 
 using namespace SITL;
 
@@ -38,7 +39,7 @@ using namespace SITL;
   parent class for all simulator types
  */
 
-Aircraft::Aircraft(const char *home_str, const char *frame_str) :
+Aircraft::Aircraft(const char *frame_str) :
     ground_level(0.0f),
     frame_height(0.0f),
     dcm(),
@@ -63,19 +64,6 @@ Aircraft::Aircraft(const char *home_str, const char *frame_str) :
     // make the SIM_* variables available to simulator backends
     sitl = AP::sitl();
 
-    if (!parse_home(home_str, home, home_yaw)) {
-        ::printf("Failed to parse home string (%s).  Should be LAT,LON,ALT,HDG e.g. 37.4003371,-122.0800351,0,353\n", home_str);
-    }
-    ::printf("Home: %f %f alt=%fm hdg=%f\n",
-             home.lat*1e-7,
-             home.lng*1e-7,
-             home.alt*0.01,
-             home_yaw);
-    location = home;
-    ground_level = home.alt * 0.01f;
-
-    dcm.from_euler(0.0f, 0.0f, radians(home_yaw));
-
     set_speedup(1.0f);
 
     last_wall_time_us = get_wall_time_us();
@@ -87,61 +75,22 @@ Aircraft::Aircraft(const char *home_str, const char *frame_str) :
     terrain = reinterpret_cast<AP_Terrain *>(AP_Param::find_object("TERRAIN_"));
 }
 
-
-/*
-  parse a home string into a location and yaw
- */
-bool Aircraft::parse_home(const char *home_str, Location &loc, float &yaw_degrees)
+void Aircraft::set_start_location(const Location &start_loc, const float start_yaw)
 {
-    char *saveptr = nullptr;
-    char *s = strdup(home_str);
-    if (!s) {
-        free(s);
-        ::printf("No home string supplied\n");
-        return false;
-    }
-    char *lat_s = strtok_r(s, ",", &saveptr);
-    if (!lat_s) {
-        free(s);
-        ::printf("Failed to parse latitude\n");
-        return false;
-    }
-    char *lon_s = strtok_r(nullptr, ",", &saveptr);
-    if (!lon_s) {
-        free(s);
-        ::printf("Failed to parse longitude\n");
-        return false;
-    }
-    char *alt_s = strtok_r(nullptr, ",", &saveptr);
-    if (!alt_s) {
-        free(s);
-        ::printf("Failed to parse altitude\n");
-        return false;
-    }
-    char *yaw_s = strtok_r(nullptr, ",", &saveptr);
-    if (!yaw_s) {
-        free(s);
-        ::printf("Failed to parse yaw\n");
-        return false;
-    }
+    home = start_loc;
+    home_yaw = start_yaw;
+    home_is_set = true;
 
-    loc = {};
-    loc.lat = static_cast<int32_t>(strtod(lat_s, nullptr) * 1.0e7);
-    loc.lng = static_cast<int32_t>(strtod(lon_s, nullptr) * 1.0e7);
-    loc.alt = static_cast<int32_t>(strtod(alt_s, nullptr) * 1.0e2);
+    ::printf("Home: %f %f alt=%fm hdg=%f\n",
+             home.lat*1e-7,
+             home.lng*1e-7,
+             home.alt*0.01,
+             home_yaw);
 
-    if (loc.lat == 0 && loc.lng == 0) {
-        // default to CMAC instead of middle of the ocean. This makes
-        // SITL in MissionPlanner a bit more useful
-        loc.lat = -35.363261*1e7;
-        loc.lng = 149.165230*1e7;
-        loc.alt = 584*100;
-    }
+    location = home;
+    ground_level = home.alt * 0.01f;
 
-    yaw_degrees = strtof(yaw_s, nullptr);
-    free(s);
-
-    return true;
+    dcm.from_euler(0.0f, 0.0f, radians(home_yaw));
 }
 
 /*
@@ -467,6 +416,21 @@ uint64_t Aircraft::get_wall_time_us() const
 void Aircraft::set_speedup(float speedup)
 {
     setup_frame_time(rate_hz, speedup);
+}
+
+void Aircraft::update_model(const struct sitl_input &input)
+{
+    if (!home_is_set) {
+        if (sitl == nullptr) {
+            return;
+        }
+        Location loc;
+        loc.lat = sitl->opos.lat.get() * 1.0e7;
+        loc.lng = sitl->opos.lng.get() * 1.0e7;
+        loc.alt = sitl->opos.alt.get() * 1.0e2;
+        set_start_location(loc, sitl->opos.hdg.get());
+    }
+    update(input);
 }
 
 /*
