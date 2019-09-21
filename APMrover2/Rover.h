@@ -452,6 +452,10 @@ private:
     bool should_log(uint32_t mask);
     bool is_boat() const;
 
+#if OSD_ENABLED == ENABLED
+    void publish_osd_info();
+#endif
+
     enum Failsafe_Action {
         Failsafe_Action_None          = 0,
         Failsafe_Action_RTL           = 1,
