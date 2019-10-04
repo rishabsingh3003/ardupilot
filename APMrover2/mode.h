@@ -631,6 +631,7 @@ public:
 protected:
 
     bool _enter() override;
+    void _exit() override;
 };
 
 class ModeLineFollower : public Mode
