@@ -1,6 +1,10 @@
 #include <AP_HAL/AP_HAL.h>
+#include "AR_IR_Sensor.h"
 
 extern const AP_HAL::HAL& hal = AP_HAL::get_HAL();
+
+
+
 
 float AR_IR::readIR()
 {
