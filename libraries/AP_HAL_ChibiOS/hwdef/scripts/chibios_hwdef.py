@@ -596,9 +596,12 @@ def write_mcu_config(f):
     ram_map = get_mcu_config('RAM_MAP', True)
     f.write('// memory regions\n')
     regions = []
+    total_memory = 0
     for (address, size, flags) in ram_map:
         regions.append('{(void*)0x%08x, 0x%08x, 0x%02x }' % (address, size*1024, flags))
+        total_memory += size
     f.write('#define HAL_MEMORY_REGIONS %s\n' % ', '.join(regions))
+    f.write('#define HAL_MEMORY_TOTAL_KB %u\n' % total_memory)
 
     f.write('\n// CPU serial number (12 bytes)\n')
     f.write('#define UDID_START 0x%08x\n\n' % get_mcu_config('UDID_START', True))
@@ -1102,7 +1105,7 @@ def write_PWM_config(f):
                 if p.type not in pwm_timers:
                     pwm_timers.append(p.type)
 
-    if not pwm_out:
+    if not pwm_out and not alarm:
         print("No PWM output defined")
         f.write('''
 #ifndef HAL_USE_PWM
@@ -1639,7 +1642,7 @@ def process_line(line):
         bylabel.pop(a[1],'')
         #also remove all occurences of defines in previous lines if any
         for line in alllines[:]:
-            if line.startswith('define') and a[1] in line:
+            if line.startswith('define') and a[1] == line.split()[1]:
                 alllines.remove(line)
         newpins = []
         for pin in allpins:

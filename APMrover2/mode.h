@@ -186,9 +186,6 @@ protected:
     //  reversed should be true if the vehicle is intentionally backing up which allows the pilot to increase the backing up speed by pulling the throttle stick down
     float calc_speed_nudge(float target_speed, bool reversed);
 
-    // calculate vehicle stopping location using current location, velocity and maximum acceleration
-    void calc_stopping_location(Location& stopping_loc);
-
 protected:
 
     // decode pilot steering and throttle inputs and return in steer_out and throttle_out arguments
@@ -526,6 +523,8 @@ protected:
     bool _enter() override;
 
     bool sent_notification; // used to send one time notification to ground station
+    bool _loitering;        // true if loitering at end of RTL
+
 };
 
 class ModeSmartRTL : public Mode
@@ -563,8 +562,10 @@ protected:
 
     bool _enter() override;
     bool _load_point;
+    bool _loitering;        // true if loitering at end of SRTL
 };
 
+   
 
 class ModeSteering : public Mode
 {
@@ -633,6 +634,7 @@ public:
 protected:
 
     bool _enter() override;
+    void _exit() override;
 };
 
 class ModeSimple : public Mode

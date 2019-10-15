@@ -23,11 +23,6 @@
 #include "AP_WindVane_SITL.h"
 #include "AP_WindVane_NMEA.h"
 
-#define WINDVANE_DEFAULT_PIN 15                     // default wind vane sensor analog pin
-#define WINDSPEED_DEFAULT_SPEED_PIN 14              // default pin for reading speed from ModernDevice rev p wind sensor
-#define WINDSPEED_DEFAULT_TEMP_PIN 13               // default pin for reading temperature from ModernDevice rev p wind sensor
-#define WINDSPEED_DEFAULT_VOLT_OFFSET 1.346         // default voltage offset between speed and temp pins from ModernDevice rev p wind sensor
-
 const AP_Param::GroupInfo AP_WindVane::var_info[] = {
 
     // @Param: TYPE
@@ -293,7 +288,7 @@ void AP_WindVane::update()
         update_true_wind_speed_and_direction();
     } else {
         // no wind speed sensor, so can't do true wind calcs
-        _direction_absolute = _direction_apparent_ef;
+        _direction_true = _direction_apparent_ef;
         _speed_true = 0.0f;
         return;
     }
@@ -331,7 +326,7 @@ void AP_WindVane::send_wind(mavlink_channel_t chan)
     // send wind
     mavlink_msg_wind_send(
         chan,
-        wrap_360(degrees(get_absolute_wind_direction_rad())),
+        wrap_360(degrees(get_true_wind_direction_rad())),
         get_true_wind_speed(),
         0);
 }
@@ -344,7 +339,7 @@ void AP_WindVane::update_true_wind_speed_and_direction()
     Vector3f veh_velocity;
     if (!AP::ahrs().get_velocity_NED(veh_velocity)) {
         // if no vehicle speed use apparent speed and direction directly
-        _direction_absolute = _direction_apparent_ef;
+        _direction_true = _direction_apparent_ef;
         _speed_true = _speed_apparent;
         return;
     }
@@ -357,7 +352,7 @@ void AP_WindVane::update_true_wind_speed_and_direction()
     Vector2f wind_true_vec = Vector2f(wind_apparent_vec.x + veh_velocity.x, wind_apparent_vec.y + veh_velocity.y);
 
     // calculate true speed and direction
-    _direction_absolute = wrap_PI(atan2f(wind_true_vec.y, wind_true_vec.x) - radians(180));
+    _direction_true = wrap_PI(atan2f(wind_true_vec.y, wind_true_vec.x) - radians(180));
     _speed_true = wind_true_vec.length();
 }
 

@@ -16,7 +16,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma GCC optimize("O3")
+#pragma GCC optimize("O2")
 
 #include "AP_Math.h"
 
@@ -451,3 +451,4 @@ template bool Vector2<long>::operator ==(const Vector2<long> &v) const;
 
 // define for int
 template bool Vector2<int>::operator ==(const Vector2<int> &v) const;
+template bool Vector2<int>::operator !=(const Vector2<int> &v) const;

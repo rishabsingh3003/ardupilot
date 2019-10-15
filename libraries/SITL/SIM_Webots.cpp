@@ -107,6 +107,8 @@ Webots::Webots(const char *frame_str) :
         output_type = OUTPUT_ROVER;
     } else if (strstr(frame_option, "-quad")) {
         output_type = OUTPUT_QUAD;
+    } else if (strstr(frame_option, "-tri")) {
+        output_type = OUTPUT_TRICOPTER;
     } else if (strstr(frame_option, "-pwm")) {
         output_type = OUTPUT_PWM;
     } else {
@@ -359,15 +361,43 @@ void Webots::output_rover(const struct sitl_input &input)
     const float motor2 = 2*((input.servos[2]-1000)/1000.0f - 0.5f);
     
     // construct a JSON packet for v and w
-    char buf[60];
+    char buf[200];
     
-    snprintf(buf, sizeof(buf)-1, "{\"rover\": [%f, %f]}\n",
-             motor1, motor2);
-    //printf("rover motors m1: %f m2: %f\n", steer_angle, speed_ms);
+    const int len = snprintf(buf, sizeof(buf)-1, "{\"rover\": [%f, %f], \"wnd\": [%f, %f, %f, %f]}\n",
+             motor1, motor2,
+             input.wind.speed, wind_ef.x, wind_ef.y, wind_ef.z);
     
-    buf[sizeof(buf)-1] = 0;
+    buf[len] = 0;
 
-    sim_sock->send(buf, strlen(buf));
+    sim_sock->send(buf, len);
+}
+
+/*
+  output control command assuming a 3 channels motors and 1 channel servo
+*/
+void Webots::output_tricopter(const struct sitl_input &input)
+{
+    const float max_thrust = 1.0;
+    float motors[3];
+    const float servo = ((input.servos[6]-1000)/1000.0f - 0.5f);
+    motors[0] = constrain_float(((input.servos[0]-1000)/1000.0f) * max_thrust, 0, max_thrust); 
+    motors[1] = constrain_float(((input.servos[1]-1000)/1000.0f) * max_thrust, 0, max_thrust); 
+    motors[2] = constrain_float(((input.servos[3]-1000)/1000.0f) * max_thrust, 0, max_thrust); 
+
+    const float &m_right = motors[0]; 
+    const float &m_left  = motors[1]; 
+    const float &m_servo = servo ; 
+    const float &m_back  = motors[2]; 
+
+    // construct a JSON packet for motors
+    char buf[200];
+    const int len = snprintf(buf, sizeof(buf)-1, "{\"eng\": [%.3f, %.3f, %.3f, %.3f], \"wnd\": [%f, %3.1f, %1.1f, %2.1f]}\n",
+             m_right, m_left, m_servo, m_back,
+             input.wind.speed, wind_ef.x, wind_ef.y, wind_ef.z);
+    //printf("\"eng\": [%.3f, %.3f, %.3f, %.3f]\n",m_right, m_left, m_servo, m_back);
+    buf[len] = 0;
+
+    sim_sock->send(buf, len);
 }
 
 /*
@@ -394,12 +424,12 @@ void Webots::output_quad(const struct sitl_input &input)
     // m4: left
 
     // construct a JSON packet for motors
-    char buf[60];
-    snprintf(buf, sizeof(buf)-1, "{\"engines\": [%f, %f, %f, %f]}\n",
-             m_front, m_right, m_back, m_left);
-    buf[sizeof(buf)-1] = 0;
-
-    sim_sock->send(buf, strlen(buf));
+    char buf[200];
+    const int len = snprintf(buf, sizeof(buf)-1, "{\"eng\": [%.3f, %.3f, %.3f, %.3f], \"wnd\": [%f, %3.1f, %1.1f, %2.1f]}\n",
+             m_front, m_right, m_back, m_left,
+             input.wind.speed, wind_ef.x, wind_ef.y, wind_ef.z);
+    buf[len] = 0;
+    sim_sock->send(buf, len);
 }
 
 /*
@@ -409,13 +439,14 @@ void Webots::output_quad(const struct sitl_input &input)
 void Webots::output_pwm(const struct sitl_input &input)
 {
     char buf[200];
-    snprintf(buf, sizeof(buf)-1, "{\"pwm\": [%u, %uf, %u, %u, %u, %uf, %u, %u, %u, %uf, %u, %u, %u, %uf, %u, %u]}\n",
+    const int len = snprintf(buf, sizeof(buf)-1, "{\"pwm\": [%u, %uf, %u, %u, %u, %uf, %u, %u, %u, %uf, %u, %u, %u, %uf, %u, %u], \"wnd\": [%f, %f, %f, %f]}\n",
              input.servos[0], input.servos[1], input.servos[2], input.servos[3],
              input.servos[4], input.servos[5], input.servos[6], input.servos[7],
              input.servos[8], input.servos[9], input.servos[10], input.servos[11],
-             input.servos[12], input.servos[13], input.servos[14], input.servos[15]);
-    buf[sizeof(buf)-1] = 0;
-    sim_sock->send(buf, strlen(buf));
+             input.servos[12], input.servos[13], input.servos[14], input.servos[15],
+             input.wind.speed, wind_ef.x, wind_ef.y, wind_ef.z);
+    buf[len ] = 0;
+    sim_sock->send(buf, len);
 }
 
 
@@ -428,6 +459,9 @@ void Webots::output (const struct sitl_input &input)
             break;
         case OUTPUT_QUAD:
             output_quad(input);
+            break;
+        case OUTPUT_TRICOPTER:
+            output_tricopter(input);
             break;
         case OUTPUT_PWM:
             output_pwm(input);
@@ -554,6 +588,7 @@ void Webots::update(const struct sitl_input &input)
         // update magnetic field
         update_mag_field_bf();
 
+        update_wind (input);
         output(input);
 
         report_FPS();

@@ -596,10 +596,6 @@ void NavEKF2::check_log_write(void)
         AP::logger().Write_Compass(imuSampleTime_us);
         logging.log_compass = false;
     }
-    if (logging.log_gps) {
-        AP::logger().Write_GPS(AP::gps().primary_sensor(), imuSampleTime_us);
-        logging.log_gps = false;
-    }
     if (logging.log_baro) {
         AP::logger().Write_Baro(imuSampleTime_us);
         logging.log_baro = false;
@@ -664,16 +660,17 @@ bool NavEKF2::InitialiseFilter(void)
             gcs().send_text(MAV_SEVERITY_CRITICAL, "NavEKF2: allocation failed");
             return false;
         }
+
+        //Call Constructors on all cores
         for (uint8_t i = 0; i < num_cores; i++) {
-            //Call Constructors
-            new (&core[i]) NavEKF2_core();
+            new (&core[i]) NavEKF2_core(this);
         }
 
         // set the IMU index for the cores
         num_cores = 0;
         for (uint8_t i=0; i<7; i++) {
             if (_imuMask & (1U<<i)) {
-                if(!core[num_cores].setup_core(this, i, num_cores)) {
+                if(!core[num_cores].setup_core(i, num_cores)) {
                     return false;
                 }
                 num_cores++;

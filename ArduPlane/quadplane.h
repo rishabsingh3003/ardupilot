@@ -44,7 +44,7 @@ public:
     static const struct AP_Param::GroupInfo var_info2[];
 
     void control_run(void);
-    void control_auto(const Location &loc);
+    void control_auto(void);
     bool init_mode(void);
     bool setup(void);
 
@@ -511,6 +511,11 @@ private:
         OPTION_FS_QRTL=(1<<5),
     };
 
+    AP_Float takeoff_failure_scalar;
+    AP_Float maximum_takeoff_airspeed;
+    uint32_t takeoff_start_time_ms;
+    uint32_t takeoff_time_limit_ms;
+
     /*
       return true if current mission item is a vtol takeoff
      */
@@ -535,6 +540,11 @@ private:
       are we in the descent phase of a VTOL landing?
      */
     bool in_vtol_land_descent(void) const;
+
+    /*
+      are we in the final landing phase of a VTOL landing?
+     */
+    bool in_vtol_land_final(void) const;
     
 public:
     void motor_test_output();

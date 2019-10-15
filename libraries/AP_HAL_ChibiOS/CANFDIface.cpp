@@ -119,7 +119,7 @@ inline void handleInterrupt(uavcan::uint8_t iface_index, uavcan::uint8_t line_in
 } // namespace
 
 uint32_t CanIface::FDCANMessageRAMOffset_ = 0;
-#if !HAL_MINIMIZE_FEATURES
+#if AP_UAVCAN_SLCAN_ENABLED
 SLCANRouter CanIface::_slcan_router;
 #endif
 
@@ -695,7 +695,7 @@ bool CanIface::readRxFIFO(uavcan::uint8_t fifo_index)
      * Store with timeout into the FIFO buffer and signal update event
      */
     rx_queue_.push(frame, utc_usec, 0);
-#if !HAL_MINIMIZE_FEATURES
+#if AP_UAVCAN_SLCAN_ENABLED
     _slcan_router.route_frame_to_slcan(this, frame, utc_usec);
 #endif
     return true;
@@ -721,8 +721,6 @@ void CanIface::pollErrorFlagsFromISR()
             if (((1 << pending_tx_[i].index) & can_->TXBRP)) {
                 can_->TXBCR = 1 << pending_tx_[i].index;  // Goodnight sweet transmission
                 error_cnt_++;
-                //Wait for Cancelation to finish
-                while (!(can_->TXBCF & (1 << pending_tx_[i].index))) {}
                 served_aborts_cnt_++;
             }
         }
@@ -736,8 +734,6 @@ void CanIface::discardTimedOutTxMailboxes(uavcan::MonotonicTime current_time)
         if (((1 << pending_tx_[i].index) & can_->TXBRP) && pending_tx_[i].deadline < current_time) {
             can_->TXBCR = 1 << pending_tx_[i].index;  // Goodnight sweet transmission
             error_cnt_++;
-            //Wait for Cancelation to finish
-            while (!(can_->TXBCF & (1 << pending_tx_[i].index))) {}
         }
     }
 }

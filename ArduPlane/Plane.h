@@ -33,9 +33,6 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include <StorageManager/StorageManager.h>
-#include <AP_GPS/AP_GPS.h>         // ArduPilot GPS library
-#include <AP_Baro/AP_Baro.h>        // ArduPilot barometer library
-#include <AP_Compass/AP_Compass.h>     // ArduPilot Mega Magnetometer Library
 #include <AP_Math/AP_Math.h>        // ArduPilot Mega Vector/Matrix math Library
 #include <AP_InertialSensor/AP_InertialSensor.h> // Inertial Sensor Library
 #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
@@ -43,7 +40,6 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_RangeFinder/AP_RangeFinder.h>     // Range finder library
 #include <Filter/Filter.h>                     // Filter library
-#include <AP_Relay/AP_Relay.h>       // APM relay
 #include <AP_Camera/AP_Camera.h>          // Photo or video camera
 #include <AP_Airspeed/AP_Airspeed.h>
 #include <AP_Terrain/AP_Terrain.h>
@@ -55,7 +51,6 @@
 #include <APM_Control/APM_Control.h>
 #include <APM_Control/AP_AutoTune.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>    // MAVLink GCS definitions
-#include <AP_SerialManager/AP_SerialManager.h>   // Serial manager library
 #include <AP_Mount/AP_Mount.h>           // Camera/Antenna mount
 #include <AP_Declination/AP_Declination.h> // ArduPilot Mega Declination Helper Library
 #include <AP_Logger/AP_Logger.h>
@@ -74,23 +69,17 @@
 #include <AP_Mission/AP_Mission.h>     // Mission command library
 
 #include <AP_Soaring/AP_Soaring.h>
-#include <AP_Notify/AP_Notify.h>      // Notify library
 #include <AP_BattMonitor/AP_BattMonitor.h> // Battery monitor library
 
 #include <AP_Arming/AP_Arming.h>
-#include <AP_BoardConfig/AP_BoardConfig.h>
-#include <AP_BoardConfig/AP_BoardConfig_CAN.h>
 #include <AP_Frsky_Telem/AP_Frsky_Telem.h>
 #include <AP_OSD/AP_OSD.h>
-#include <AP_ServoRelayEvents/AP_ServoRelayEvents.h>
 
 #include <AP_Rally/AP_Rally.h>
 
 #include <AP_OpticalFlow/AP_OpticalFlow.h>     // Optical Flow library
-#include <AP_RSSI/AP_RSSI.h>                   // RSSI Library
 #include <AP_Parachute/AP_Parachute.h>
 #include <AP_ADSB/AP_ADSB.h>
-#include <AP_Button/AP_Button.h>
 #include <AP_ICEngine/AP_ICEngine.h>
 #include <AP_Gripper/AP_Gripper.h>
 #include <AP_Landing/AP_Landing.h>
@@ -128,7 +117,7 @@
 /*
   main APM:Plane class
  */
-class Plane : public AP_HAL::HAL::Callbacks {
+class Plane : public AP_Vehicle {
 public:
     friend class GCS_MAVLINK_Plane;
     friend class Parameters;
@@ -188,22 +177,11 @@ private:
     // mapping between input channels
     RCMapper rcmap;
 
-    // board specific config
-    AP_BoardConfig BoardConfig;
-
-    // board specific config for CAN bus
-#if HAL_WITH_UAVCAN
-    AP_BoardConfig_CAN BoardConfig_CAN;
-#endif
-
     // primary input channels
     RC_Channel *channel_roll;
     RC_Channel *channel_pitch;
     RC_Channel *channel_throttle;
     RC_Channel *channel_rudder;
-
-    // notification object for LEDs, buzzers etc (parameter set to false disables external leds)
-    AP_Notify notify;
 
     AP_Logger logger;
 
@@ -211,18 +189,8 @@ private:
     int32_t roll_limit_cd;
     int32_t pitch_limit_min_cd;
 
-    // Sensors
-    AP_GPS gps;
-
     // flight modes convenience array
     AP_Int8 *flight_modes = &g.flight_mode1;
-
-    AP_Baro barometer;
-    Compass compass;
-
-    AP_InertialSensor ins;
-
-    RangeFinder rangefinder;
 
     AP_Vehicle::FixedWing::Rangefinder_State rangefinder_state;
 
@@ -271,8 +239,6 @@ private:
     // external failsafe boards during baro and airspeed calibration
     bool in_calibration;
 
-    AP_SerialManager serial_manager;
-
     // GCS selection
     GCS_Plane _gcs; // avoid using this; use gcs()
     GCS_Plane &gcs() { return _gcs; }
@@ -282,12 +248,6 @@ private:
 
     // selected navigation controller
     AP_SpdHgtControl *SpdHgt_Controller = &TECS_controller;
-
-    // Relay
-    AP_Relay relay;
-
-    // handle servo and relay events
-    AP_ServoRelayEvents ServoRelayEvents;
 
     // Camera
 #if CAMERA == ENABLED
@@ -301,9 +261,6 @@ private:
 
     // Rally Ponints
     AP_Rally rally;
-
-    // RSSI
-    AP_RSSI rssi;
 
 #if OSD_ENABLED == ENABLED
     AP_OSD osd;
@@ -356,13 +313,13 @@ private:
     struct {
         // Used to track if the value on channel 3 (throtttle) has fallen below the failsafe threshold
         // RC receiver should be set up to output a low throttle value when signal is lost
-        bool rc_failsafe:1;
+        bool rc_failsafe;
 
         // has the saved mode for failsafe been set?
-        bool saved_mode_set:1;
+        bool saved_mode_set;
 
         // true if an adsb related failsafe has occurred
-        bool adsb:1;
+        bool adsb;
 
         // saved flight mode
         enum Mode::Number saved_mode_number;
@@ -467,58 +424,25 @@ private:
         uint32_t accel_event_ms;
         uint32_t start_time_ms;
     } takeoff_state;
-    
+
     // ground steering controller state
     struct {
         // Direction held during phases of takeoff and landing centidegrees
         // A value of -1 indicates the course has not been set/is not in use
         // this is a 0..36000 value, or -1 for disabled
-        int32_t hold_course_cd;
+        int32_t hold_course_cd = -1;
 
         // locked_course and locked_course_cd are used in stabilize mode 
         // when ground steering is active, and for steering in auto-takeoff
         bool locked_course;
         float locked_course_err;
-    } steer_state { -1, false, 0 };
+    } steer_state;
 
     // flight mode specific
     struct {
-        // Flag for using gps ground course instead of INS yaw.  Set false when takeoff command in process.
-        bool takeoff_complete:1;
-
-        // are we headed to the land approach waypoint? Works for any nav type
-        bool wp_is_land_approach:1;
-
-        // should we fly inverted?
-        bool inverted_flight:1;
-
-        // should we enable cross-tracking for the next waypoint?
-        bool next_wp_crosstrack:1;
-
-        // should we use cross-tracking for this waypoint?
-        bool crosstrack:1;
-
-        // in FBWA taildragger takeoff mode
-        bool fbwa_tdrag_takeoff_mode:1;
-
-        // have we checked for an auto-land?
-        bool checked_for_autoland:1;
-
-        // Altitude threshold to complete a takeoff command in autonomous modes.  Centimeters
-        // are we in idle mode? used for balloon launch to stop servo
-        // movement until altitude is reached
-        bool idle_mode:1;
-
-        // used to 'wiggle' servos in idle mode to prevent them freezing
-        // at high altitudes
-        uint8_t idle_wiggle_stage;
-
         // Altitude threshold to complete a takeoff command in autonomous
         // modes.  Centimeters above home
         int32_t takeoff_altitude_rel_cm;
-
-        // Minimum pitch to hold during takeoff command execution.  Hundredths of a degree
-        int16_t takeoff_pitch_cd;
 
         // Begin leveling out the enforced takeoff pitch angle min at this height to reduce/eliminate overshoot
         int32_t height_below_takeoff_to_level_off_cm;
@@ -526,9 +450,6 @@ private:
         // the highest airspeed we have reached since entering AUTO. Used
         // to control ground takeoff
         float highest_airspeed;
-        
-        // initial pitch. Used to detect if nose is rising in a tail dragger
-        int16_t initial_pitch_cd;
         
         // turn angle for next leg of mission
         float next_turn_angle {90};
@@ -554,11 +475,50 @@ private:
         // barometric altitude at start of takeoff
         float baro_takeoff_alt;
 
+        // initial pitch. Used to detect if nose is rising in a tail dragger
+        int16_t initial_pitch_cd;
+
+        // Minimum pitch to hold during takeoff command execution.  Hundredths of a degree
+        int16_t takeoff_pitch_cd;
+
+        // used to 'wiggle' servos in idle mode to prevent them freezing
+        // at high altitudes
+        uint8_t idle_wiggle_stage;
+
+        // Flag for using gps ground course instead of INS yaw.  Set false when takeoff command in process.
+        bool takeoff_complete;
+
+        // are we headed to the land approach waypoint? Works for any nav type
+        bool wp_is_land_approach;
+
+        // should we fly inverted?
+        bool inverted_flight;
+
+        // should we enable cross-tracking for the next waypoint?
+        bool next_wp_crosstrack;
+
+        // should we use cross-tracking for this waypoint?
+        bool crosstrack;
+
+        // in FBWA taildragger takeoff mode
+        bool fbwa_tdrag_takeoff_mode;
+
+        // have we checked for an auto-land?
+        bool checked_for_autoland;
+
+        // Altitude threshold to complete a takeoff command in autonomous modes.  Centimeters
+        // are we in idle mode? used for balloon launch to stop servo
+        // movement until altitude is reached
+        bool idle_mode;
+
         // are we in VTOL mode in AUTO?
-        bool vtol_mode:1;
+        bool vtol_mode;
 
         // are we doing loiter mode as a VTOL?
-        bool vtol_loiter:1;
+        bool vtol_loiter;
+
+        // how much correction have we added for terrain data
+        float terrain_correction;
     } auto_state;
 
     struct {
@@ -583,13 +543,13 @@ private:
     struct {
         // on hard landings, only check once after directly a landing so you
         // don't trigger a crash when picking up the aircraft
-        bool checkedHardLanding:1;
+        bool checkedHardLanding;
 
         // crash detection. True when we are crashed
-        bool is_crashed:1;
+        bool is_crashed;
 
         // impact detection flag. Expires after a few seconds via impact_timer_ms
-        bool impact_detected:1;
+        bool impact_detected;
 
         // debounce timer
         uint32_t debounce_timer_ms;
@@ -771,7 +731,7 @@ private:
         uint32_t last_elev_check_us;
     } target_altitude {};
 
-    float relative_altitude = 0.0f;
+    float relative_altitude;
 
     // INS variables
     // The main loop execution time.  Seconds
@@ -898,13 +858,13 @@ private:
     void failsafe_short_off_event(mode_reason_t reason);
     void failsafe_long_off_event(mode_reason_t reason);
     void handle_battery_failsafe(const char* type_str, const int8_t action);
-    uint8_t max_fencepoints(void);
-    Vector2l get_fence_point_with_index(unsigned i);
+    uint8_t max_fencepoints(void) const;
+    Vector2l get_fence_point_with_index(uint8_t i) const;
     void set_fence_point_with_index(const Vector2l &point, unsigned i);
     void geofence_load(void);
     bool geofence_present(void);
     void geofence_update_pwm_enabled_state();
-    bool geofence_set_enabled(bool enable, GeofenceEnableReason r);
+    bool geofence_set_enabled(bool enable);
     bool geofence_enabled(void);
     bool geofence_set_floor_enabled(bool floor_enable);
     bool geofence_check_minalt(void);
@@ -1095,7 +1055,6 @@ public:
     void failsafe_check(void);
 };
 
-extern const AP_HAL::HAL& hal;
 extern Plane plane;
 
 using AP_HAL::millis;

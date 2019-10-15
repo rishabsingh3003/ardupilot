@@ -96,8 +96,8 @@ const AP_Param::GroupInfo AP_BLHeli::var_info[] = {
 
     // @Param: PORT
     // @DisplayName: Control port
-    // @Description: This sets the telemetry port to use for blheli pass-thru
-    // @Values: 0:Console,1:Telem1,2:Telem2,3:Telem3,4:Telem4,5:Telem5
+    // @Description: This sets the serial port to use for blheli pass-thru
+    // @Values: 0:Console,1:Serial1,2:Serial2,3:Serial3,4:Serial4,5:Serial5
     // @User: Advanced
     AP_GROUPINFO("PORT",  8, AP_BLHeli, control_port, 0),
 
@@ -1274,7 +1274,7 @@ void AP_BLHeli::update(void)
     motor_mask = mask;
     debug("ESC: %u motors mask=0x%04x", num_motors, mask);
 
-    if (telem_rate > 0) {
+    if (num_motors != 0 && telem_rate > 0) {
         AP_SerialManager *serial_manager = AP_SerialManager::get_singleton();
         if (serial_manager) {
             telem_uart = serial_manager->find_serial(AP_SerialManager::SerialProtocol_ESCTelemetry,0);
