@@ -7,9 +7,11 @@
 class AR_IR
 {
 public:
+	AR_IR();
+
 
    float readIR();
 
 protected:
-    AP_HAL::AnalogSource *_IR_pin_analog_source;
+  AP_HAL::AnalogSource *_IR_pin_analog_source;
 };
