@@ -34,6 +34,8 @@ extern AP_IOMCU iomcu;
 #define CHIBIOS_ADC_MAVLINK_DEBUG 0
 #endif
 
+// MAVLink is included as we send a mavlink message as part of debug,
+// and also use the MAV_POWER flags below in update_power_flags
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
 #define ANLOGIN_DEBUGGING 0

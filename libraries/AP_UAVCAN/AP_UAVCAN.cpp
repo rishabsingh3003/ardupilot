@@ -34,7 +34,10 @@
 #include <uavcan/equipment/esc/RawCommand.hpp>
 #include <uavcan/equipment/indication/LightsCommand.hpp>
 #include <uavcan/equipment/indication/SingleLightCommand.hpp>
+#include <uavcan/equipment/indication/BeepCommand.hpp>
 #include <uavcan/equipment/indication/RGB565.hpp>
+#include <ardupilot/indication/SafetyState.hpp>
+#include <ardupilot/indication/Button.hpp>
 
 #include <AP_Baro/AP_Baro_UAVCAN.h>
 #include <AP_RangeFinder/AP_RangeFinder_UAVCAN.h>
@@ -98,6 +101,13 @@ const AP_Param::GroupInfo AP_UAVCAN::var_info[] = {
 static uavcan::Publisher<uavcan::equipment::actuator::ArrayCommand>* act_out_array[MAX_NUMBER_OF_CAN_DRIVERS];
 static uavcan::Publisher<uavcan::equipment::esc::RawCommand>* esc_raw[MAX_NUMBER_OF_CAN_DRIVERS];
 static uavcan::Publisher<uavcan::equipment::indication::LightsCommand>* rgb_led[MAX_NUMBER_OF_CAN_DRIVERS];
+static uavcan::Publisher<uavcan::equipment::indication::BeepCommand>* buzzer[MAX_NUMBER_OF_CAN_DRIVERS];
+static uavcan::Publisher<ardupilot::indication::SafetyState>* safety_state[MAX_NUMBER_OF_CAN_DRIVERS];
+
+// subscribers
+// handler SafteyButton
+UC_REGISTRY_BINDER(ButtonCb, ardupilot::indication::Button);
+static uavcan::Subscriber<ardupilot::indication::Button, ButtonCb> *safety_button_listener[MAX_NUMBER_OF_CAN_DRIVERS];
 
 AP_UAVCAN::AP_UAVCAN() :
     _node_allocator()
@@ -222,6 +232,19 @@ void AP_UAVCAN::init(uint8_t driver_index, bool enable_filters)
     rgb_led[driver_index]->setTxTimeout(uavcan::MonotonicDuration::fromMSec(20));
     rgb_led[driver_index]->setPriority(uavcan::TransferPriority::OneHigherThanLowest);
 
+    buzzer[driver_index] = new uavcan::Publisher<uavcan::equipment::indication::BeepCommand>(*_node);
+    buzzer[driver_index]->setTxTimeout(uavcan::MonotonicDuration::fromMSec(20));
+    buzzer[driver_index]->setPriority(uavcan::TransferPriority::OneHigherThanLowest);
+
+    safety_state[driver_index] = new uavcan::Publisher<ardupilot::indication::SafetyState>(*_node);
+    safety_state[driver_index]->setTxTimeout(uavcan::MonotonicDuration::fromMSec(20));
+    safety_state[driver_index]->setPriority(uavcan::TransferPriority::OneHigherThanLowest);
+
+    safety_button_listener[driver_index] = new uavcan::Subscriber<ardupilot::indication::Button, ButtonCb>(*_node);
+    if (safety_button_listener[driver_index]) {
+        safety_button_listener[driver_index]->start(ButtonCb(this, &handle_button));
+    }
+
     _led_conf.devices_count = 0;
     if (enable_filters) {
         configureCanAcceptanceFilters(*_node);
@@ -291,6 +314,8 @@ void AP_UAVCAN::loop(void)
         }
 
         led_out_send();
+        buzzer_send();
+        safety_state_send();
     }
 }
 
@@ -472,6 +497,75 @@ bool AP_UAVCAN::led_write(uint8_t led_index, uint8_t red, uint8_t green, uint8_t
     }
 
     return true;
+}
+
+// buzzer send
+void AP_UAVCAN::buzzer_send()
+{
+    uavcan::equipment::indication::BeepCommand msg;
+    WITH_SEMAPHORE(_buzzer.sem);
+    uint8_t mask = (1U << _driver_index);
+    if ((_buzzer.pending_mask & mask) == 0) {
+        return;
+    }
+    _buzzer.pending_mask &= ~mask;
+    msg.frequency = _buzzer.frequency;
+    msg.duration = _buzzer.duration;
+    buzzer[_driver_index]->broadcast(msg);
+}
+
+// buzzer support
+void AP_UAVCAN::set_buzzer_tone(float frequency, float duration_s)
+{
+    WITH_SEMAPHORE(_buzzer.sem);
+    _buzzer.frequency = frequency;
+    _buzzer.duration = duration_s;
+    _buzzer.pending_mask = 0xFF;
+}
+
+// SafetyState send
+void AP_UAVCAN::safety_state_send()
+{
+    ardupilot::indication::SafetyState msg;
+    uint32_t now = AP_HAL::millis();
+    if (now - _last_safety_state_ms < 500) {
+        // update at 2Hz
+        return;
+    }
+    _last_safety_state_ms = now;
+    switch (hal.util->safety_switch_state()) {
+    case AP_HAL::Util::SAFETY_ARMED:
+        msg.status = ardupilot::indication::SafetyState::STATUS_SAFETY_OFF;
+        break;
+    case AP_HAL::Util::SAFETY_DISARMED:
+        msg.status = ardupilot::indication::SafetyState::STATUS_SAFETY_ON;
+        break;
+    default:
+        // nothing to send
+        return;
+    }
+    safety_state[_driver_index]->broadcast(msg);
+}
+
+/*
+  handle Button message
+ */
+void AP_UAVCAN::handle_button(AP_UAVCAN* ap_uavcan, uint8_t node_id, const ButtonCb &cb)
+{
+    switch (cb.msg->button) {
+    case ardupilot::indication::Button::BUTTON_SAFETY: {
+        AP_BoardConfig *brdconfig = AP_BoardConfig::get_singleton();
+        if (brdconfig && brdconfig->safety_button_handle_pressed(cb.msg->press_time)) {
+            AP_HAL::Util::safety_state state = hal.util->safety_switch_state();
+            if (state == AP_HAL::Util::SAFETY_ARMED) {
+                hal.rcout->force_safety_on();
+            } else {
+                hal.rcout->force_safety_off();
+            }
+        }
+        break;
+    }
+    }
 }
 
 #endif // HAL_WITH_UAVCAN

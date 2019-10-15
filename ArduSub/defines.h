@@ -39,7 +39,8 @@ enum control_mode_t {
     CIRCLE =        7,  // automatic circular flight with automatic throttle
     SURFACE =       9,  // automatically return to surface, pilot maintains horizontal control
     POSHOLD =      16,  // automatic position hold with manual override, with automatic throttle
-    MANUAL =       19   // Pass-through input with no stabilization
+    MANUAL =       19,  // Pass-through input with no stabilization
+    MOTOR_DETECT = 20   // Automatically detect motors orientation
 };
 
 enum mode_reason_t {
@@ -102,8 +103,6 @@ enum RTLState {
 
 //  Logging parameters
 enum LoggingParameters {
-    TYPE_AIRSTART_MSG,
-    TYPE_GROUNDSTART_MSG,
     LOG_CONTROL_TUNING_MSG,
     LOG_DATA_INT16_MSG,
     LOG_DATA_UINT16_MSG,
@@ -111,7 +110,6 @@ enum LoggingParameters {
     LOG_DATA_UINT32_MSG,
     LOG_DATA_FLOAT_MSG,
     LOG_MOTBATT_MSG,
-    LOG_PARAMTUNE_MSG,
     LOG_GUIDEDTARGET_MSG
 };
 

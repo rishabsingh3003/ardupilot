@@ -137,7 +137,6 @@ is bob we will attempt to checkout bob-AVR'''
                 return True
             except subprocess.CalledProcessError:
                 self.progress("Checkout branch %s failed" % branch)
-                pass
 
         self.progress("Failed to find tag for %s %s %s %s" %
                       (vehicle, ctag, cboard, cframe))
@@ -173,7 +172,7 @@ is bob we will attempt to checkout bob-AVR'''
     def skip_frame(self, board, frame):
         '''returns true if this board/frame combination should not be built'''
         if frame == "heli":
-            if board in ["bebop", "aerofc-v1", "skyviper-v2450", "CubeSolo", "CubeGreen-solo"]:
+            if board in ["bebop", "aerofc-v1", "skyviper-v2450", "CubeSolo", "CubeGreen-solo", 'skyviper-journey']:
                 self.progress("Skipping heli build for %s" % board)
                 return True
         return False
@@ -527,6 +526,7 @@ is bob we will attempt to checkout bob-AVR'''
                 "pxfmini",
                 "KakuteF4",
                 "KakuteF7",
+                "KakuteF7Mini",
                 "MatekF405",
                 "MatekF405-STD",
                 "MatekF405-Wing",
@@ -541,8 +541,10 @@ is bob we will attempt to checkout bob-AVR'''
                 "airbotf4",
                 "revo-mini",
                 "CubeBlack",
+                "CubeBlack+",
                 "CubePurple",
                 "Pixhawk1",
+                "Pixhawk1-1M",
                 "Pixhawk4",
                 "PH4-mini",
                 "CUAVv5",
@@ -572,7 +574,7 @@ is bob we will attempt to checkout bob-AVR'''
     def build_arducopter(self, tag):
         '''build Copter binaries'''
         boards = []
-        boards.extend(["skyviper-v2450", "aerofc-v1", "bebop", "CubeSolo", "CubeGreen-solo"])
+        boards.extend(["skyviper-v2450", "aerofc-v1", "bebop", "CubeSolo", "CubeGreen-solo", "skyviper-journey"])
         boards.extend(self.common_boards()[:])
         self.build_vehicle(tag,
                            "ArduCopter",

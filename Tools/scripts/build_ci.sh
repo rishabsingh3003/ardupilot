@@ -58,6 +58,9 @@ function run_autotest() {
     if [ $NAME == "Rover" ]; then
         w="$w --enable-math-check-indexes"
     fi
+    if [ "x$CI_BUILD_DEBUG" != "x" ]; then
+        w="$w --debug"
+    fi
     Tools/autotest/autotest.py --waf-configure-args="$w" "$BVEHICLE" "$RVEHICLE"
     ccache -s && ccache -z
 }
@@ -80,8 +83,17 @@ for t in $CI_BUILD_TARGET; do
         run_autotest "Rover" "build.APMrover2" "drive.APMrover2"
         continue
     fi
+    if [ "$t" == "sitltest-balancebot" ]; then
+        run_autotest "BalanceBot" "build.APMrover2" "drive.BalanceBot"
+        continue
+    fi
     if [ "$t" == "sitltest-sub" ]; then
         run_autotest "Sub" "build.ArduSub" "dive.ArduSub"
+        continue
+    fi
+
+    if [ "$t" == "unit-tests" ]; then
+        run_autotest "Unit Tests" "build.unit_tests" "run.unit_tests"
         continue
     fi
 

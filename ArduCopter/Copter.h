@@ -35,11 +35,7 @@
 
 // Application dependencies
 #include <GCS_MAVLink/GCS.h>
-#include <AP_SerialManager/AP_SerialManager.h>   // Serial manager library
-#include <AP_GPS/AP_GPS.h>             // ArduPilot GPS library
 #include <AP_Logger/AP_Logger.h>          // ArduPilot Mega Flash Memory Library
-#include <AP_Baro/AP_Baro.h>
-#include <AP_Compass/AP_Compass.h>         // ArduPilot Mega Magnetometer Library
 #include <AP_Math/AP_Math.h>            // ArduPilot Mega Vector/Matrix math Library
 #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 #include <AP_InertialSensor/AP_InertialSensor.h>  // ArduPilot Mega Inertial Sensor (accel & gyro) Library
@@ -52,10 +48,7 @@
 #include <AC_AttitudeControl/AC_PosControl.h>      // Position control library
 #include <AP_Motors/AP_Motors.h>          // AP Motors library
 #include <AP_Stats/AP_Stats.h>     // statistics library
-#include <AP_RSSI/AP_RSSI.h>                   // RSSI Library
 #include <Filter/Filter.h>             // Filter library
-#include <AP_Relay/AP_Relay.h>           // APM relay
-#include <AP_ServoRelayEvents/AP_ServoRelayEvents.h>
 #include <AP_Airspeed/AP_Airspeed.h>        // needed for AHRS build
 #include <AP_Vehicle/AP_Vehicle.h>         // needed for AHRS build
 #include <AP_InertialNav/AP_InertialNav.h>     // ArduPilot Mega inertial navigation library
@@ -65,14 +58,10 @@
 #include <AP_Declination/AP_Declination.h>     // ArduPilot Mega Declination Helper Library
 #include <AP_Scheduler/AP_Scheduler.h>       // main loop scheduler
 #include <AP_RCMapper/AP_RCMapper.h>        // RC input mapping library
-#include <AP_Notify/AP_Notify.h>          // Notify library
 #include <AP_BattMonitor/AP_BattMonitor.h>     // Battery monitor library
-#include <AP_BoardConfig/AP_BoardConfig.h>     // board configuration library
-#include <AP_BoardConfig/AP_BoardConfig_CAN.h>
 #include <AP_LandingGear/AP_LandingGear.h>     // Landing Gear library
 #include <AC_InputManager/AC_InputManager.h>        // Pilot input handling library
 #include <AC_InputManager/AC_InputManager_Heli.h>   // Heli specific pilot input handling library
-#include <AP_Button/AP_Button.h>
 #include <AP_Arming/AP_Arming.h>
 #include <AP_SmartRTL/AP_SmartRTL.h>
 #include <AP_TempCalibration/AP_TempCalibration.h>
@@ -82,6 +71,18 @@
 // Configuration
 #include "defines.h"
 #include "config.h"
+
+#if FRAME_CONFIG == HELI_FRAME
+    #define AC_AttitudeControl_t AC_AttitudeControl_Heli
+#else
+    #define AC_AttitudeControl_t AC_AttitudeControl_Multi
+#endif
+
+#if FRAME_CONFIG == HELI_FRAME
+ #define MOTOR_CLASS AP_MotorsHeli
+#else
+ #define MOTOR_CLASS AP_MotorsMulticopter
+#endif
 
 #include "RC_Channel.h"         // RC Channel Library
 
@@ -144,6 +145,9 @@
 #if CAMERA == ENABLED
  # include <AP_Camera/AP_Camera.h>
 #endif
+#if BUTTON_ENABLED == ENABLED
+ # include <AP_Button/AP_Button.h>
+#endif
 
 #if OSD_ENABLED == ENABLED
  #include <AP_OSD/AP_OSD.h>
@@ -180,21 +184,9 @@
 #include <SITL/SITL.h>
 #endif
 
-#if FRAME_CONFIG == HELI_FRAME
-    #define AC_AttitudeControl_t AC_AttitudeControl_Heli
-#else
-    #define AC_AttitudeControl_t AC_AttitudeControl_Multi
-#endif
-
-#if FRAME_CONFIG == HELI_FRAME
- #define MOTOR_CLASS AP_MotorsHeli
-#else
- #define MOTOR_CLASS AP_MotorsMulticopter
-#endif
-
 #include "mode.h"
 
-class Copter : public AP_HAL::HAL::Callbacks {
+class Copter : public AP_Vehicle {
 public:
     friend class GCS_MAVLINK_Copter;
     friend class GCS_Copter;
@@ -257,9 +249,6 @@ private:
     // main loop scheduler
     AP_Scheduler scheduler{FUNCTOR_BIND_MEMBER(&Copter::fast_loop, void)};
 
-    // AP_Notify instance
-    AP_Notify notify;
-
     // used to detect MAVLink acks from GCS to stop compassmot
     uint8_t command_ack_counter;
 
@@ -271,45 +260,50 @@ private:
 
     AP_Logger logger;
 
-    AP_GPS gps;
-
     // flight modes convenience array
     AP_Int8 *flight_modes;
     const uint8_t num_flight_modes = 6;
 
-    AP_Baro barometer;
-    Compass compass;
-    AP_InertialSensor ins;
-
-    RangeFinder rangefinder;
-    struct {
+    struct RangeFinderState {
         bool enabled:1;
         bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
         int16_t alt_cm;     // tilt compensated altitude (in cm) from rangefinder
         uint32_t last_healthy_ms;
         LowPassFilterFloat alt_cm_filt; // altitude filter
-        int8_t glitch_count;
-    } rangefinder_state;
+        int16_t alt_cm_glitch_protected;    // last glitch protected altitude
+        int8_t glitch_count;    // non-zero number indicates rangefinder is glitching
+        uint32_t glitch_cleared_ms; // system time glitch cleared
+    } rangefinder_state, rangefinder_up_state;
 
     class SurfaceTracking {
     public:
+        // get desired climb rate (in cm/s) to achieve surface tracking
         float adjust_climb_rate(float target_rate);
+
+        // get/set target altitude (in cm) above ground
         bool get_target_alt_cm(float &target_alt_cm) const;
         void set_target_alt_cm(float target_alt_cm);
-        float logging_target_alt() const {
-            if (!valid_for_logging) {
-                return AP::logger().quiet_nan();
-            }
-            return target_alt_cm * 0.01f; // cm->m
-        }
-        void invalidate_for_logging() {
-            valid_for_logging = false;
-        }
+
+        // get target and actual distances (in m) for logging purposes
+        bool get_dist_for_logging(float &target_dist, float &actual_dist) const;
+        void invalidate_for_logging() { valid_for_logging = false; }
+
+        // surface tracking states
+        enum class SurfaceTrackingState {
+            SURFACE_TRACKING_DISABLED = 0,
+            SURFACE_TRACKING_GROUND = 1,
+            SURFACE_TRACKING_CEILING = 2
+        };
+        // set direction
+        void set_state(SurfaceTrackingState state);
 
     private:
-        float target_alt_cm;        // desired altitude in cm above the ground
+        SurfaceTrackingState tracking_state = SurfaceTrackingState::SURFACE_TRACKING_GROUND;
+        float target_dist_cm;       // desired distance in cm from ground or ceiling
         uint32_t last_update_ms;    // system time of last update to target_alt_cm
+        uint32_t last_glitch_cleared_ms;    // system time of last handle glitch recovery
         bool valid_for_logging;     // true if target_alt_cm is valid for logging
+        bool reset_target;          // true if target should be reset because of change in tracking_state
     } surface_tracking;
 
 #if RPM_ENABLED == ENABLED
@@ -337,8 +331,6 @@ private:
     // system time in milliseconds of last recorded yaw reset from ekf
     uint32_t ekfYawReset_ms;
     int8_t ekf_primary_core;
-
-    AP_SerialManager serial_manager;
 
     // GCS selection
     GCS_Copter _gcs; // avoid using this; use gcs()
@@ -387,24 +379,16 @@ private:
 
     // This is the state of the flight control system
     // There are multiple states defined such as STABILIZE, ACRO,
-    control_mode_t control_mode;
+    Mode::Number control_mode;
     mode_reason_t control_mode_reason = MODE_REASON_UNKNOWN;
 
-    control_mode_t prev_control_mode;
+    Mode::Number prev_control_mode;
     mode_reason_t prev_control_mode_reason = MODE_REASON_UNKNOWN;
 
     RCMapper rcmap;
 
     // intertial nav alt when we armed
     float arming_altitude_m;
-
-    // board specific config
-    AP_BoardConfig BoardConfig;
-
-#if HAL_WITH_UAVCAN
-    // board specific config for CAN bus
-    AP_BoardConfig_CAN BoardConfig_CAN;
-#endif
 
     // Failsafe
     struct {
@@ -497,12 +481,6 @@ private:
     // Used to exit the roll and pitch auto trim function
     uint8_t auto_trim_counter;
 
-    // Reference to the relay object
-    AP_Relay relay;
-
-    // handle repeated servo and relay events
-    AP_ServoRelayEvents ServoRelayEvents;
-
     // Camera
 #if CAMERA == ENABLED
     AP_Camera camera{MASK_LOG_CAMERA, current_loc};
@@ -528,9 +506,6 @@ private:
     AP_Rally_Copter rally;
 #endif
 
-    // RSSI
-    AP_RSSI rssi;
-
     // Crop Sprayer
 #if SPRAYER_ENABLED == ENABLED
     AC_Sprayer sprayer;
@@ -539,6 +514,11 @@ private:
     // Parachute release
 #if PARACHUTE == ENABLED
     AP_Parachute parachute{relay};
+#endif
+
+    // Button 
+#if BUTTON_ENABLED == ENABLED
+    AP_Button button;
 #endif
 
     // Landing Gear Controller
@@ -607,6 +587,15 @@ private:
     static const AP_Scheduler::Task scheduler_tasks[];
     static const AP_Param::Info var_info[];
     static const struct LogStructure log_structure[];
+
+    // enum for ESC CALIBRATION
+    enum ESCCalibrationModes : uint8_t {
+        ESCCAL_NONE = 0,
+        ESCCAL_PASSTHROUGH_IF_THROTTLE_HIGH = 1,
+        ESCCAL_PASSTHROUGH_ALWAYS = 2,
+        ESCCAL_AUTO = 3,
+        ESCCAL_DISABLED = 9,
+    };
 
     enum Failsafe_Action {
         Failsafe_Action_None           = 0,
@@ -777,7 +766,7 @@ private:
     void log_init(void);
 
     // mode.cpp
-    bool set_mode(control_mode_t mode, mode_reason_t reason);
+    bool set_mode(Mode::Number mode, mode_reason_t reason);
     void update_flight_mode();
     void notify_flight_mode();
 
@@ -828,6 +817,7 @@ private:
     void init_rangefinder(void);
     void read_rangefinder(void);
     bool rangefinder_alt_ok();
+    bool rangefinder_up_ok();
     void rpm_update();
     void init_optflow();
     void update_optical_flow(void);
@@ -854,6 +844,7 @@ private:
     // system.cpp
     void init_ardupilot();
     void startup_INS_ground();
+    void update_dynamic_notch();
     bool position_ok() const;
     bool ekf_position_ok() const;
     bool optflow_position_ok() const;
@@ -959,7 +950,7 @@ private:
 #endif
 
     // mode.cpp
-    Mode *mode_from_mode_num(const uint8_t mode);
+    Mode *mode_from_mode_num(const Mode::Number mode);
     void exit_mode(Mode *&old_flightmode, Mode *&new_flightmode);
 
 public:
@@ -967,7 +958,6 @@ public:
     void failsafe_check();      // failsafe.cpp
 };
 
-extern const AP_HAL::HAL& hal;
 extern Copter copter;
 
 using AP_HAL::millis;

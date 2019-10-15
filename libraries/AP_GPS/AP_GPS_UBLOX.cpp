@@ -467,6 +467,10 @@ AP_GPS_UBLOX::read(void)
 				goto reset;
             }
             _payload_counter = 0;                       // prepare to receive payload
+            if (_payload_length == 0) {
+                // bypass payload and go straight to checksum
+                _step++;
+            }
             break;
 
         // Receive message data
@@ -1028,8 +1032,56 @@ AP_GPS_UBLOX::_parse_gps(void)
         state.hdop = 130;
 #endif
         break;
+    case MSG_RELPOSNED:
+        {
+            const Vector3f &offset0 = gps._antenna_offset[0].get();
+            const Vector3f &offset1 = gps._antenna_offset[1].get();
+            // note that we require the yaw to come from a fixed solution, not a float solution
+            // yaw from a float solution would only be acceptable with a very large separation between
+            // GPS modules
+            const uint32_t valid_mask = static_cast<uint32_t>(RELPOSNED::relPosHeadingValid) |
+                                        static_cast<uint32_t>(RELPOSNED::relPosValid) |
+                                        static_cast<uint32_t>(RELPOSNED::gnssFixOK) |
+                                        static_cast<uint32_t>(RELPOSNED::isMoving) |
+                                        static_cast<uint32_t>(RELPOSNED::carrSolnFixed);
+            const uint32_t invalid_mask = static_cast<uint32_t>(RELPOSNED::refPosMiss) |
+                                          static_cast<uint32_t>(RELPOSNED::refObsMiss) |
+                                          static_cast<uint32_t>(RELPOSNED::carrSolnFloat);
+
+            const float offset_dist = (offset0 - offset1).length();
+            const float rel_dist = _buffer.relposned.relPosLength * 1.0e-2;
+            const float strict_length_error_allowed = 0.2; // allow for up to 20% error
+            const float min_separation = 0.05;
+            if (((_buffer.relposned.flags & valid_mask) == valid_mask) &&
+                ((_buffer.relposned.flags & invalid_mask) == 0) &&
+                rel_dist > min_separation &&
+                offset_dist > min_separation &&
+                fabsf(offset_dist - rel_dist) / MIN(offset_dist, rel_dist) < strict_length_error_allowed) {
+                float rotation_offset_rad;
+                if (offset0.is_zero()) {
+                    rotation_offset_rad = Vector2f(offset1.x, offset1.y).angle();
+                } else if (offset1.is_zero()) {
+                    rotation_offset_rad = Vector2f(offset0.x, offset0.y).angle();
+                } else {
+                    const Vector3f diff = offset0 - offset1;
+                    rotation_offset_rad = Vector2f(diff.x, diff.y).angle();
+                }
+                if (state.instance != 0) {
+                    rotation_offset_rad += M_PI;
+                }
+                state.gps_yaw = wrap_360(_buffer.relposned.relPosHeading * 1e-5 + degrees(rotation_offset_rad));
+                state.have_gps_yaw = true;
+                state.gps_yaw_accuracy = _buffer.relposned.accHeading * 1e-5;
+                state.have_gps_yaw_accuracy = true;
+            } else {
+                state.have_gps_yaw = false;
+                state.have_gps_yaw_accuracy = false;
+            }
+        }
+        break;
     case MSG_PVT:
         Debug("MSG_PVT");
+
         havePvtMsg = true;
         // position
         _check_new_itow(_buffer.pvt.itow);

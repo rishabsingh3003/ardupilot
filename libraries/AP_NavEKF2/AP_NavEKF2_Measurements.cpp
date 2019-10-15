@@ -600,11 +600,10 @@ void NavEKF2_core::readGpsData()
                 gpsNotAvailable = false;
             }
 
-            frontend->logging.log_gps = true;
-
         } else {
             // report GPS fix status
             gpsCheckStatus.bad_fix = true;
+            hal.util->snprintf(prearm_fail_string, sizeof(prearm_fail_string), "Waiting for 3D fix");
         }
     }
 }

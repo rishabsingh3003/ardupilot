@@ -619,17 +619,22 @@ void NavEKF3_core::readGpsData()
                 gpsNotAvailable = false;
             }
 
-            frontend->logging.log_gps = true;
-
             // if the GPS has yaw data then input that as well
             float yaw_deg, yaw_accuracy_deg;
             if (AP::gps().gps_yaw_deg(yaw_deg, yaw_accuracy_deg)) {
+                // GPS modules are rather too optimistic about their
+                // accuracy. Set to min of 5 degrees here to prevent
+                // the user constantly receiving warnings about high
+                // normalised yaw innovations
+                const float min_yaw_accuracy_deg = 5.0f;
+                yaw_accuracy_deg = MAX(yaw_accuracy_deg, min_yaw_accuracy_deg);
                 writeEulerYawAngle(radians(yaw_deg), radians(yaw_accuracy_deg), gpsDataNew.time_ms, 2);
             }
 
         } else {
             // report GPS fix status
             gpsCheckStatus.bad_fix = true;
+            hal.util->snprintf(prearm_fail_string, sizeof(prearm_fail_string), "Waiting for 3D fix");
         }
     }
 }

@@ -64,6 +64,7 @@ enum mode_reason_t {
     MODE_REASON_SOARING_THERMAL_ESTIMATE_DETERIORATED,
     MODE_REASON_VTOL_FAILED_TRANSITION,
     MODE_REASON_UNAVAILABLE,
+    MODE_REASON_VTOL_FAILED_TAKEOFF,
 };
 
 // type of stick mixing enabled
@@ -85,16 +86,6 @@ enum ChannelMixing {
     MIXING_DNDN_SWP = 8,
 };
 
-/*
- * The cause for the most recent fence enable
- */
-typedef enum GeofenceEnableReason {
-    NOT_ENABLED = 0,     //The fence is not enabled
-    PWM_TOGGLED,         //Fence enabled/disabled by PWM signal
-    AUTO_TOGGLED,        //Fence auto enabled/disabled at takeoff.
-    GCS_TOGGLED          //Fence enabled/disabled by the GCS via Mavlink
-} GeofenceEnableReason;
-
 // PID broadcast bitmask
 enum tuning_pid_bits {
     TUNING_BITS_ROLL  = (1 <<  0),
@@ -113,15 +104,10 @@ enum log_messages {
     LOG_CTUN_MSG,
     LOG_NTUN_MSG,
     LOG_STARTUP_MSG,
-    TYPE_AIRSTART_MSG,
     TYPE_GROUNDSTART_MSG,
-    LOG_RC_MSG,
     LOG_SONAR_MSG,
     LOG_STATUS_MSG,
     LOG_QTUN_MSG,
-    LOG_PARAMTUNE_MSG,
-    LOG_THERMAL_MSG,
-    LOG_VARIO_MSG,
     LOG_PIQR_MSG,
     LOG_PIQP_MSG,
     LOG_PIQY_MSG,

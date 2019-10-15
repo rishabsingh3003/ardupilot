@@ -264,42 +264,42 @@ const AP_Param::Info Copter::var_info[] = {
     // @Description: Flight mode when Channel 5 pwm is <= 1230
     // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
     // @User: Standard
-    GSCALAR(flight_mode1, "FLTMODE1",               FLIGHT_MODE_1),
+    GSCALAR(flight_mode1, "FLTMODE1",               (uint8_t)FLIGHT_MODE_1),
 
     // @Param: FLTMODE2
     // @DisplayName: Flight Mode 2
     // @Description: Flight mode when Channel 5 pwm is >1230, <= 1360
     // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
     // @User: Standard
-    GSCALAR(flight_mode2, "FLTMODE2",               FLIGHT_MODE_2),
+    GSCALAR(flight_mode2, "FLTMODE2",               (uint8_t)FLIGHT_MODE_2),
 
     // @Param: FLTMODE3
     // @DisplayName: Flight Mode 3
     // @Description: Flight mode when Channel 5 pwm is >1360, <= 1490
     // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
     // @User: Standard
-    GSCALAR(flight_mode3, "FLTMODE3",               FLIGHT_MODE_3),
+    GSCALAR(flight_mode3, "FLTMODE3",               (uint8_t)FLIGHT_MODE_3),
 
     // @Param: FLTMODE4
     // @DisplayName: Flight Mode 4
     // @Description: Flight mode when Channel 5 pwm is >1490, <= 1620
     // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
     // @User: Standard
-    GSCALAR(flight_mode4, "FLTMODE4",               FLIGHT_MODE_4),
+    GSCALAR(flight_mode4, "FLTMODE4",               (uint8_t)FLIGHT_MODE_4),
 
     // @Param: FLTMODE5
     // @DisplayName: Flight Mode 5
     // @Description: Flight mode when Channel 5 pwm is >1620, <= 1749
     // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
     // @User: Standard
-    GSCALAR(flight_mode5, "FLTMODE5",               FLIGHT_MODE_5),
+    GSCALAR(flight_mode5, "FLTMODE5",               (uint8_t)FLIGHT_MODE_5),
 
     // @Param: FLTMODE6
     // @DisplayName: Flight Mode 6
     // @Description: Flight mode when Channel 5 pwm is >=1750
     // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
     // @User: Standard
-    GSCALAR(flight_mode6, "FLTMODE6",               FLIGHT_MODE_6),
+    GSCALAR(flight_mode6, "FLTMODE6",               (uint8_t)FLIGHT_MODE_6),
 
     // @Param: FLTMODE_CH
     // @DisplayName: Flightmode channel
@@ -732,9 +732,11 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("WP_NAVALT_MIN", 1, ParametersG2, wp_navalt_min, 0),
 
+#if BUTTON_ENABLED == ENABLED
     // @Group: BTN_
     // @Path: ../libraries/AP_Button/AP_Button.cpp
     AP_SUBGROUPINFO(button, "BTN_", 2, ParametersG2, AP_Button),
+#endif
 
 #if MODE_THROW_ENABLED == ENABLED
     // @Param: THROW_NEXTMODE
@@ -1237,6 +1239,16 @@ void Copter::convert_pid_parameters(void)
         AP_Param::convert_old_parameters(&ff_and_filt_conversion_info[i], 1.0f);
     }
 
+    // notch filter parameter conversions (changed position and type) for Copter-3.7
+    const AP_Param::ConversionInfo notchfilt_conversion_info[] = {
+        { Parameters::k_param_ins, 165, AP_PARAM_INT16, "INS_NOTCH_FREQ" },
+        { Parameters::k_param_ins, 229, AP_PARAM_INT16, "INS_NOTCH_BW" },
+    };
+    uint8_t notchfilt_table_size = ARRAY_SIZE(notchfilt_conversion_info);
+    for (uint8_t i=0; i<notchfilt_table_size; i++) {
+        AP_Param::convert_old_parameters(&notchfilt_conversion_info[i], 1.0f);
+    }
+
     const uint8_t old_rc_keys[14] = { Parameters::k_param_rc_1_old,  Parameters::k_param_rc_2_old,
                                       Parameters::k_param_rc_3_old,  Parameters::k_param_rc_4_old,
                                       Parameters::k_param_rc_5_old,  Parameters::k_param_rc_6_old,
@@ -1344,7 +1356,6 @@ void Copter::convert_tradheli_parameters(void)
             { Parameters::k_param_motors, 1, AP_PARAM_INT16, "H_SW_H3_SV1_POS" },
             { Parameters::k_param_motors, 2, AP_PARAM_INT16, "H_SW_H3_SV2_POS" },
             { Parameters::k_param_motors, 3, AP_PARAM_INT16, "H_SW_H3_SV3_POS" },
-            { Parameters::k_param_motors, 5, AP_PARAM_INT8, "H_SW_TYPE" },
             { Parameters::k_param_motors, 7, AP_PARAM_INT16, "H_SW_H3_PHANG" },
             { Parameters::k_param_motors, 19, AP_PARAM_INT8, "H_SW_COL_DIR" },
         };
@@ -1356,29 +1367,48 @@ void Copter::convert_tradheli_parameters(void)
         }
 
         // convert to known swash type for setups that match
-        AP_Int16 *swash_pos_1, *swash_pos_2, *swash_pos_3, *swash_phang, *swash_type;
-        enum ap_var_type ptype;
-        swash_pos_1 = (AP_Int16 *)AP_Param::find("H_SW_H3_SV1_POS", &ptype);
-        swash_pos_2 = (AP_Int16 *)AP_Param::find("H_SW_H3_SV2_POS", &ptype);
-        swash_pos_3 = (AP_Int16 *)AP_Param::find("H_SW_H3_SV3_POS", &ptype);
-        swash_phang = (AP_Int16 *)AP_Param::find("H_SW_H3_PHANG", &ptype);
-        swash_type = (AP_Int16 *)AP_Param::find("H_SW_TYPE", &ptype);
-        if (swash_pos_1->get() == -60 && swash_pos_2->get() == 60 && swash_pos_3->get() == 180 && swash_phang->get() == 0 && swash_type->get() == 0) {
-            AP_Param::set_default_by_name("H_SW_TYPE", SwashPlateType::SWASHPLATE_TYPE_H3_120);
-        }
+        AP_Int16 swash_pos_1, swash_pos_2, swash_pos_3, swash_phang; 
+        AP_Int8  swash_type;
+        bool swash_pos1_exist = AP_Param::find_old_parameter(&singleheli_conversion_info[0], &swash_pos_1);
+        bool swash_pos2_exist = AP_Param::find_old_parameter(&singleheli_conversion_info[1], &swash_pos_2);
+        bool swash_pos3_exist = AP_Param::find_old_parameter(&singleheli_conversion_info[2], &swash_pos_3);
+        bool swash_phang_exist = AP_Param::find_old_parameter(&singleheli_conversion_info[3], &swash_phang);
+        const AP_Param::ConversionInfo swash_type_info { Parameters::k_param_motors, 5, AP_PARAM_INT8, "H_SW_TYPE" };
+        bool swash_type_exists = AP_Param::find_old_parameter(&swash_type_info, &swash_type);
 
+        if (swash_type_exists) {
+            // convert swash type to new parameter
+            AP_Param::convert_old_parameter(&swash_type_info, 1.0f);
+        } else {
+        // old swash type is not in eeprom and thus type is default value of generic swash
+            if (swash_pos1_exist || swash_pos2_exist || swash_pos3_exist || swash_phang_exist) {
+                // if any params exist with the generic swash then the upgraded swash type must be generic
+                // find the new variable in the variable structures
+                enum ap_var_type ptype;
+                AP_Param *ap2;
+                ap2 = AP_Param::find("H_SW_TYPE", &ptype);
+                // make sure the pointer is valid
+                if (ap2 != nullptr) {
+                    // see if we can load it from EEPROM
+                    if (!ap2->configured_in_storage()) {
+                        // the new parameter is not in storage so set generic swash
+                        AP_Param::set_and_save_by_name("H_SW_TYPE", SwashPlateType::SWASHPLATE_TYPE_H3);            
+                    }
+                }
+            }
+        }
     } else if (g2.frame_class.get() == AP_Motors::MOTOR_FRAME_HELI_DUAL) {
         // dual heli conversion info
         const AP_Param::ConversionInfo dualheli_conversion_info[] = {
-            { Parameters::k_param_motors, 1, AP_PARAM_INT16, "H_SW1_H3_SV1_POS" },
-            { Parameters::k_param_motors, 2, AP_PARAM_INT16, "H_SW1_H3_SV2_POS" },
-            { Parameters::k_param_motors, 3, AP_PARAM_INT16, "H_SW1_H3_SV3_POS" },
+            { Parameters::k_param_motors, 1, AP_PARAM_INT16, "H_SW_H3_SV1_POS" },
+            { Parameters::k_param_motors, 2, AP_PARAM_INT16, "H_SW_H3_SV2_POS" },
+            { Parameters::k_param_motors, 3, AP_PARAM_INT16, "H_SW_H3_SV3_POS" },
             { Parameters::k_param_motors, 4, AP_PARAM_INT16, "H_SW2_H3_SV1_POS" },
             { Parameters::k_param_motors, 5, AP_PARAM_INT16, "H_SW2_H3_SV2_POS" },
             { Parameters::k_param_motors, 6, AP_PARAM_INT16, "H_SW2_H3_SV3_POS" },
-            { Parameters::k_param_motors, 7, AP_PARAM_INT16, "H_SW1_H3_PHANG" },
+            { Parameters::k_param_motors, 7, AP_PARAM_INT16, "H_SW_H3_PHANG" },
             { Parameters::k_param_motors, 8, AP_PARAM_INT16, "H_SW2_H3_PHANG" },
-            { Parameters::k_param_motors, 19, AP_PARAM_INT8, "H_SW1_COL_DIR" },
+            { Parameters::k_param_motors, 19, AP_PARAM_INT8, "H_SW_COL_DIR" },
             { Parameters::k_param_motors, 19, AP_PARAM_INT8, "H_SW2_COL_DIR" },
         };
 
@@ -1388,40 +1418,91 @@ void Copter::convert_tradheli_parameters(void)
             AP_Param::convert_old_parameter(&dualheli_conversion_info[i], 1.0f);
         }
 
-        // convert swashplate 1 to known swash type for setups that match
-        AP_Int16 *swash_pos_1, *swash_pos_2, *swash_pos_3, *swash_phang, *swash_type;
-        enum ap_var_type ptype;
-        swash_pos_1 = (AP_Int16 *)AP_Param::find("H_SW1_H3_SV1_POS", &ptype);
-        swash_pos_2 = (AP_Int16 *)AP_Param::find("H_SW1_H3_SV2_POS", &ptype);
-        swash_pos_3 = (AP_Int16 *)AP_Param::find("H_SW1_H3_SV3_POS", &ptype);
-        swash_phang = (AP_Int16 *)AP_Param::find("H_SW1_H3_PHANG", &ptype);
-        swash_type = (AP_Int16 *)AP_Param::find("H_SW1_TYPE", &ptype);
-        if (swash_pos_1->get() == -60 && swash_pos_2->get() == 60 && swash_pos_3->get() == 180 && swash_phang->get() == 0 && swash_type->get() == 0) {
-            AP_Param::set_default_by_name("H_SW1_TYPE", SwashPlateType::SWASHPLATE_TYPE_H3_120);
-        }
 
-        // convert swashplate 2 to known swash type for setups that match
-        swash_pos_1 = (AP_Int16 *)AP_Param::find("H_SW2_H3_SV1_POS", &ptype);
-        swash_pos_2 = (AP_Int16 *)AP_Param::find("H_SW2_H3_SV2_POS", &ptype);
-        swash_pos_3 = (AP_Int16 *)AP_Param::find("H_SW2_H3_SV3_POS", &ptype);
-        swash_phang = (AP_Int16 *)AP_Param::find("H_SW2_H3_PHANG", &ptype);
-        swash_type = (AP_Int16 *)AP_Param::find("H_SW2_TYPE", &ptype);
-        if (swash_pos_1->get() == -60 && swash_pos_2->get() == 60 && swash_pos_3->get() == 180 && swash_phang->get() == 0 && swash_type->get() == 0) {
-            AP_Param::set_default_by_name("H_SW2_TYPE", SwashPlateType::SWASHPLATE_TYPE_H3_120);
-        }
+        // convert to known swash type for setups that match
+        AP_Int16 swash1_pos_1, swash1_pos_2, swash1_pos_3, swash1_phang, swash2_pos_1, swash2_pos_2, swash2_pos_3, swash2_phang; 
+        bool swash1_pos1_exist = AP_Param::find_old_parameter(&dualheli_conversion_info[0], &swash1_pos_1);
+        bool swash1_pos2_exist = AP_Param::find_old_parameter(&dualheli_conversion_info[1], &swash1_pos_2);
+        bool swash1_pos3_exist = AP_Param::find_old_parameter(&dualheli_conversion_info[2], &swash1_pos_3);
+        bool swash1_phang_exist = AP_Param::find_old_parameter(&dualheli_conversion_info[6], &swash1_phang);
+        bool swash2_pos1_exist = AP_Param::find_old_parameter(&dualheli_conversion_info[3], &swash2_pos_1);
+        bool swash2_pos2_exist = AP_Param::find_old_parameter(&dualheli_conversion_info[4], &swash2_pos_2);
+        bool swash2_pos3_exist = AP_Param::find_old_parameter(&dualheli_conversion_info[5], &swash2_pos_3);
+        bool swash2_phang_exist = AP_Param::find_old_parameter(&dualheli_conversion_info[7], &swash2_phang);
 
+        // SWASH 1
+        // old swash type is not in eeprom and thus type is default value of generic swash
+        if (swash1_pos1_exist || swash1_pos2_exist || swash1_pos3_exist || swash1_phang_exist) {
+            // if any params exist with the generic swash then the upgraded swash type must be generic
+            // find the new variable in the variable structures
+            enum ap_var_type ptype;
+            AP_Param *ap2;
+            ap2 = AP_Param::find("H_SW_TYPE", &ptype);
+            // make sure the pointer is valid
+            if (ap2 != nullptr) {
+                // see if we can load it from EEPROM
+                if (!ap2->configured_in_storage()) {
+                    // the new parameter is not in storage so set generic swash
+                    AP_Param::set_and_save_by_name("H_SW_TYPE", SwashPlateType::SWASHPLATE_TYPE_H3);            
+                }
+            }
+        }
+        //SWASH 2
+        // old swash type is not in eeprom and thus type is default value of generic swash
+        if (swash2_pos1_exist || swash2_pos2_exist || swash2_pos3_exist || swash2_phang_exist) {
+            // if any params exist with the generic swash then the upgraded swash type must be generic
+            // find the new variable in the variable structures
+            enum ap_var_type ptype;
+            AP_Param *ap2;
+            ap2 = AP_Param::find("H_SW2_TYPE", &ptype);
+            // make sure the pointer is valid
+            if (ap2 != nullptr) {
+                // see if we can load it from EEPROM
+                if (!ap2->configured_in_storage()) {
+                    // the new parameter is not in storage so set generic swash
+                    AP_Param::set_and_save_by_name("H_SW2_TYPE", SwashPlateType::SWASHPLATE_TYPE_H3);            
+                }
+            }
+        }
     }
-    const AP_Param::ConversionInfo allheli_conversion_info[] = {
-        { Parameters::k_param_motors, 1280, AP_PARAM_INT16, "H_RSC_CRV_000" },
-        { Parameters::k_param_motors, 1344, AP_PARAM_INT16, "H_RSC_CRV_025" },
-        { Parameters::k_param_motors, 1408, AP_PARAM_INT16, "H_RSC_CRV_050" },
-        { Parameters::k_param_motors, 1472, AP_PARAM_INT16, "H_RSC_CRV_075" },
-        { Parameters::k_param_motors, 1536, AP_PARAM_INT16, "H_RSC_CRV_100" },
+
+    // table of rsc parameters to be converted with scaling
+    const AP_Param::ConversionInfo rschelipct_conversion_info[] = {
+        { Parameters::k_param_motors, 1280, AP_PARAM_INT16, "H_RSC_THRCRV_0" },
+        { Parameters::k_param_motors, 1344, AP_PARAM_INT16, "H_RSC_THRCRV_25" },
+        { Parameters::k_param_motors, 1408, AP_PARAM_INT16, "H_RSC_THRCRV_50" },
+        { Parameters::k_param_motors, 1472, AP_PARAM_INT16, "H_RSC_THRCRV_75" },
+        { Parameters::k_param_motors, 1536, AP_PARAM_INT16, "H_RSC_THRCRV_100" },
+        { Parameters::k_param_motors, 448, AP_PARAM_INT16, "H_RSC_SETPOINT" },
+        { Parameters::k_param_motors, 768, AP_PARAM_INT16, "H_RSC_CRITICAL" },
+        { Parameters::k_param_motors, 832, AP_PARAM_INT16, "H_RSC_IDLE" },
     };
-    // convert dual heli parameters without scaling
-    uint8_t table_size = ARRAY_SIZE(allheli_conversion_info);
+    // convert heli rsc parameters with scaling
+    uint8_t table_size = ARRAY_SIZE(rschelipct_conversion_info);
     for (uint8_t i=0; i<table_size; i++) {
-        AP_Param::convert_old_parameter(&allheli_conversion_info[i], 0.1f);
+        AP_Param::convert_old_parameter(&rschelipct_conversion_info[i], 0.1f);
+    }
+
+    // table of rsc parameters to be converted without scaling
+    const AP_Param::ConversionInfo rscheli_conversion_info[] = {
+        { Parameters::k_param_motors, 512, AP_PARAM_INT8,  "H_RSC_MODE" },
+        { Parameters::k_param_motors, 640, AP_PARAM_INT8,  "H_RSC_RAMP_TIME" },
+        { Parameters::k_param_motors, 704, AP_PARAM_INT8,  "H_RSC_RUNUP_TIME" },
+        { Parameters::k_param_motors, 1216, AP_PARAM_INT16,"H_RSC_SLEWRATE" },
+    };
+    // convert heli rsc parameters without scaling
+    table_size = ARRAY_SIZE(rscheli_conversion_info);
+    for (uint8_t i=0; i<table_size; i++) {
+        AP_Param::convert_old_parameter(&rscheli_conversion_info[i], 1.0f);
+    }
+
+    // update tail speed parameter with scaling
+    AP_Int16 *tailspeed;
+    enum ap_var_type ptype;
+    tailspeed = (AP_Int16 *)AP_Param::find("H_TAIL_SPEED", &ptype);
+    if (tailspeed != nullptr && tailspeed->get() > 100 ) {
+        uint16_t tailspeed_pct = (uint16_t)(0.1f * tailspeed->get());
+        AP_Param::set_and_save_by_name("H_TAIL_SPEED", tailspeed_pct );
     }
 
 }

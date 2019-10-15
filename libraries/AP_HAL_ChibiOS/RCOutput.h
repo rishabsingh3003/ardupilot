@@ -154,6 +154,23 @@ public:
     void set_reversible_mask(uint16_t chanmask) override {
         reversible_mask |= chanmask;
     }
+
+    /*
+      setup neopixel (WS2812B) output for a given channel number, with
+      the given max number of LEDs in the chain.
+     */
+    bool set_neopixel_num_LEDs(const uint16_t chan, uint8_t num_leds) override;
+
+    /*
+      setup neopixel (WS2812B) output data for a given output channel
+      and mask of LEDs on the channel
+     */
+    void set_neopixel_rgb_data(const uint16_t chan, uint32_t ledmask, uint8_t red, uint8_t green, uint8_t blue) override;
+
+    /*
+      trigger send of neopixel data
+     */
+    void neopixel_send(void) override;
     
 private:
     struct pwm_group {
@@ -175,13 +192,15 @@ private:
         const stm32_dma_stream_t *dma;
         Shared_DMA *dma_handle;
         uint32_t *dma_buffer;
+        uint16_t dma_buffer_len;
         bool have_lock;
         bool pwm_started;
         uint32_t bit_width_mul;
         uint32_t rc_frequency;
         bool in_serial_dma;
-        uint64_t last_dshot_send_us;
+        uint64_t last_dmar_send_us;
         virtual_timer_t dma_timeout;
+        uint8_t neopixel_nleds;
         
         // serial output
         struct {
@@ -278,6 +297,9 @@ private:
     // are we using oneshot125 for the iomcu?
     bool iomcu_oneshot125;
 
+    // find a channel group given a channel number
+    struct pwm_group *find_chan(uint8_t chan, uint8_t &group_idx);
+
     // push out values to local PWM
     void push_local(void);
 
@@ -292,6 +314,7 @@ private:
     uint32_t safety_update_ms;
     uint8_t led_counter;
     int8_t safety_button_counter;
+    uint8_t safety_press_count; // 0.1s units
 
     // mask of channels to allow when safety on
     uint16_t safety_mask;
@@ -310,7 +333,13 @@ private:
     static const uint16_t dshot_min_gap_us = 100;
     uint32_t dshot_pulse_time_us;
     uint16_t telem_request_mask;
-    
+
+    /*
+      NeoPixel handling. Max of 32 LEDs uses max 12k of memory per group
+    */
+    void neopixel_send(pwm_group &group);
+    bool neopixel_pending;
+
     void dma_allocate(Shared_DMA *ctx);
     void dma_deallocate(Shared_DMA *ctx);    
     uint16_t create_dshot_packet(const uint16_t value, bool telem_request);
@@ -319,9 +348,11 @@ private:
     static void dma_irq_callback(void *p, uint32_t flags);
     static void dma_unlock(void *p);
     bool mode_requires_dma(enum output_mode mode) const;
-    bool setup_group_DMA(pwm_group &group, uint32_t bitrate, uint32_t bit_width, bool active_high);
+    bool setup_group_DMA(pwm_group &group, uint32_t bitrate, uint32_t bit_width, bool active_high, const uint16_t buffer_length);
     void send_pulses_DMAR(pwm_group &group, uint32_t buffer_length);
     void set_group_mode(pwm_group &group);
+    bool is_dshot_protocol(const enum output_mode mode) const;
+    uint32_t protocol_bitrate(const enum output_mode mode) const;
 
     // serial output support
     static const eventmask_t serial_event_mask = EVENT_MASK(1);

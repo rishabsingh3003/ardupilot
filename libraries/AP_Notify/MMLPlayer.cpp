@@ -4,6 +4,12 @@
 #include <math.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Math/AP_Math.h>
+#include <AP_Notify/AP_Notify.h>
+
+#if HAL_WITH_UAVCAN
+#include <AP_UAVCAN/AP_UAVCAN.h>
+#include <AP_BoardConfig/AP_BoardConfig_CAN.h>
+#endif
 
 extern const AP_HAL::HAL& hal;
 
@@ -51,6 +57,18 @@ void MMLPlayer::start_note(float duration, float frequency, float volume)
     _note_start_us = AP_HAL::micros();
     _note_duration_us = duration*1e6;
     hal.util->toneAlarm_set_buzzer_tone(frequency, volume, _note_duration_us/1000U);
+
+#if HAL_WITH_UAVCAN
+    // support CAN buzzers too
+    uint8_t can_num_drivers = AP::can().get_num_drivers();
+
+    for (uint8_t i = 0; i < can_num_drivers; i++) {
+        AP_UAVCAN *uavcan = AP_UAVCAN::get_uavcan(i);
+        if (uavcan != nullptr) {
+            uavcan->set_buzzer_tone(frequency, _note_duration_us*1.0e-6);
+        }
+    }
+#endif
 }
 
 char MMLPlayer::next_char()
@@ -280,6 +298,8 @@ void MMLPlayer::next_action()
 
     float note_frequency = 880.0f * expf(logf(2.0f) * ((int)note - 46) / 12.0f);
     float note_volume = _volume/255.0f;
+    note_volume *= AP::notify().get_buzz_volume() * 0.01;
+    note_volume = constrain_float(note_volume, 0, 1);
 
     note_frequency = constrain_float(note_frequency, 10, 22000);
 

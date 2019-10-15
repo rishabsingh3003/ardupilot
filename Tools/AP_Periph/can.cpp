@@ -32,6 +32,10 @@
 #include <uavcan/equipment/gnss/Auxiliary.h>
 #include <uavcan/equipment/air_data/StaticPressure.h>
 #include <uavcan/equipment/air_data/StaticTemperature.h>
+#include <uavcan/equipment/indication/BeepCommand.h>
+#include <uavcan/equipment/indication/LightsCommand.h>
+#include <ardupilot/indication/SafetyState.h>
+#include <ardupilot/indication/Button.h>
 #include <uavcan/protocol/debug/LogMessage.h>
 #include <stdio.h>
 #include <AP_HAL_ChibiOS/hwdef/common/stm32_util.h>
@@ -336,6 +340,166 @@ static void handle_allocation_response(CanardInstance* ins, CanardRxTransfer* tr
     }
 }
 
+
+/*
+  fix value of a float for canard float16 format
+ */
+static void fix_float16(float &f)
+{
+    *(uint16_t *)&f = canardConvertNativeFloatToFloat16(f);
+}
+
+
+#ifdef HAL_PERIPH_ENABLE_BUZZER
+static uint32_t buzzer_start_ms;
+static uint32_t buzzer_len_ms;
+/*
+  handle BeepCommand
+ */
+static void handle_beep_command(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    uavcan_equipment_indication_BeepCommand req;
+    if (uavcan_equipment_indication_BeepCommand_decode(transfer, transfer->payload_len, &req, nullptr) < 0) {
+        return;
+    }
+    static bool initialised;
+    if (!initialised) {
+        initialised = true;
+        hal.rcout->init();
+        hal.util->toneAlarm_init();
+    }
+    fix_float16(req.frequency);
+    fix_float16(req.duration);
+    buzzer_start_ms = AP_HAL::millis();
+    buzzer_len_ms = req.duration*1000;
+    float volume = constrain_float(periph.g.buzz_volume/100.0, 0, 1);
+    hal.util->toneAlarm_set_buzzer_tone(req.frequency, volume, uint32_t(req.duration*1000));
+}
+
+/*
+  update buzzer
+ */
+static void can_buzzer_update(void)
+{
+    if (buzzer_start_ms != 0) {
+        uint32_t now = AP_HAL::millis();
+        if (now - buzzer_start_ms > buzzer_len_ms) {
+            hal.util->toneAlarm_set_buzzer_tone(0, 0, 0);
+            buzzer_start_ms = 0;
+        }
+    }
+}
+#endif // HAL_PERIPH_ENABLE_BUZZER
+
+#ifdef HAL_GPIO_PIN_SAFE_LED
+static uint8_t safety_state;
+
+/*
+  handle SafetyState
+ */
+static void handle_safety_state(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    ardupilot_indication_SafetyState req;
+    if (ardupilot_indication_SafetyState_decode(transfer, transfer->payload_len, &req, nullptr) < 0) {
+        return;
+    }
+    safety_state = req.status;
+}
+
+#ifdef HAL_PERIPH_NEOPIXEL_COUNT
+/*
+  handle lightscommand
+ */
+static void handle_lightscommand(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    uavcan_equipment_indication_LightsCommand req;
+    uint8_t arraybuf[UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_MAX_SIZE];
+    uint8_t *arraybuf_ptr = arraybuf;
+    if (uavcan_equipment_indication_LightsCommand_decode(transfer, transfer->payload_len, &req, &arraybuf_ptr) < 0) {
+        return;
+    }
+    for (uint8_t i=0; i<req.commands.len; i++) {
+        uavcan_equipment_indication_SingleLightCommand &cmd = req.commands.data[i];
+        // to get the right color proportions we scale the green so that is uses the
+        // same number of bits as red and blue
+        const uint8_t red = cmd.color.red<<3;
+        const uint8_t green = (cmd.color.green>>1)<<3;
+        const uint8_t blue = cmd.color.blue<<3;
+        hal.rcout->set_neopixel_rgb_data(HAL_PERIPH_NEOPIXEL_CHAN, (1U<<HAL_PERIPH_NEOPIXEL_COUNT)-1,
+                                         red, green, blue);
+    }
+    hal.rcout->neopixel_send();
+}
+#endif
+
+/*
+  update safety LED
+ */
+static void can_safety_LED_update(void)
+{
+    static uint32_t last_update_ms;
+    switch (safety_state) {
+    case ARDUPILOT_INDICATION_SAFETYSTATE_STATUS_SAFETY_OFF:
+        palWriteLine(HAL_GPIO_PIN_SAFE_LED, SAFE_LED_ON);
+        break;
+    case ARDUPILOT_INDICATION_SAFETYSTATE_STATUS_SAFETY_ON: {
+        uint32_t now = AP_HAL::millis();
+        if (now - last_update_ms > 100) {
+            last_update_ms = now;
+            static uint8_t led_counter;
+            const uint16_t led_pattern = 0x5500;
+            led_counter = (led_counter+1) % 16;
+            palWriteLine(HAL_GPIO_PIN_SAFE_LED, (led_pattern & (1U << led_counter))?!SAFE_LED_ON:SAFE_LED_ON);
+        }
+        break;
+    }
+    default:
+        palWriteLine(HAL_GPIO_PIN_SAFE_LED, !SAFE_LED_ON);
+        break;
+    }
+}
+#endif // HAL_GPIO_PIN_SAFE_LED
+
+
+#ifdef HAL_GPIO_PIN_SAFE_BUTTON
+/*
+  update safety button
+ */
+static void can_safety_button_update(void)
+{
+    static uint32_t last_update_ms;
+    static uint8_t counter;
+    uint32_t now = AP_HAL::millis();
+    // send at 10Hz when pressed
+    if (!palReadLine(HAL_GPIO_PIN_SAFE_BUTTON)) {
+        counter = 0;
+        return;
+    }
+    if (now - last_update_ms < 100) {
+        return;
+    }
+    if (counter < 255) {
+        counter++;
+    }
+
+    last_update_ms = now;
+    ardupilot_indication_Button pkt {};
+    pkt.button = ARDUPILOT_INDICATION_BUTTON_BUTTON_SAFETY;
+    pkt.press_time = counter;
+
+    uint8_t buffer[ARDUPILOT_INDICATION_BUTTON_MAX_SIZE];
+    uint16_t total_size = ardupilot_indication_Button_encode(&pkt, buffer);
+
+    canardBroadcast(&canard,
+                    ARDUPILOT_INDICATION_BUTTON_SIGNATURE,
+                    ARDUPILOT_INDICATION_BUTTON_ID,
+                    &transfer_id,
+                    CANARD_TRANSFER_PRIORITY_LOW,
+                    &buffer[0],
+                    total_size);
+}
+#endif // HAL_GPIO_PIN_SAFE_BUTTON
+
 /**
  * This callback is invoked by the library when a new message or request or response is received.
  */
@@ -376,6 +540,24 @@ static void onTransferReceived(CanardInstance* ins,
     case UAVCAN_PROTOCOL_PARAM_EXECUTEOPCODE_ID:
         handle_param_executeopcode(ins, transfer);
         break;
+
+#ifdef HAL_PERIPH_ENABLE_BUZZER
+    case UAVCAN_EQUIPMENT_INDICATION_BEEPCOMMAND_ID:
+        handle_beep_command(ins, transfer);
+        break;
+#endif
+
+#ifdef HAL_GPIO_PIN_SAFE_LED
+    case ARDUPILOT_INDICATION_SAFETYSTATE_ID:
+        handle_safety_state(ins, transfer);
+        break;
+#endif
+
+#ifdef HAL_PERIPH_NEOPIXEL_COUNT
+    case UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_ID:
+        handle_lightscommand(ins, transfer);
+        break;
+#endif
     }
 }
 
@@ -425,6 +607,21 @@ static bool shouldAcceptTransfer(const CanardInstance* ins,
     case UAVCAN_PROTOCOL_PARAM_EXECUTEOPCODE_ID:
         *out_data_type_signature = UAVCAN_PROTOCOL_PARAM_EXECUTEOPCODE_SIGNATURE;
         return true;
+#ifdef HAL_PERIPH_ENABLE_BUZZER
+    case UAVCAN_EQUIPMENT_INDICATION_BEEPCOMMAND_ID:
+        *out_data_type_signature = UAVCAN_EQUIPMENT_INDICATION_BEEPCOMMAND_SIGNATURE;
+        return true;
+#endif
+#ifdef HAL_GPIO_PIN_SAFE_LED
+    case ARDUPILOT_INDICATION_SAFETYSTATE_ID:
+        *out_data_type_signature = ARDUPILOT_INDICATION_SAFETYSTATE_SIGNATURE;
+        return true;
+#endif
+#ifdef HAL_PERIPH_NEOPIXEL_COUNT
+    case UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_ID:
+        *out_data_type_signature = UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_SIGNATURE;
+        return true;
+#endif
     default:
         break;
     }
@@ -660,16 +857,17 @@ void AP_Periph_FW::can_update()
     can_mag_update();
     can_gps_update();
     can_baro_update();
+#ifdef HAL_PERIPH_ENABLE_BUZZER
+    can_buzzer_update();
+#endif
+#ifdef HAL_GPIO_PIN_SAFE_LED
+    can_safety_LED_update();
+#endif
+#ifdef HAL_GPIO_PIN_SAFE_BUTTON
+    can_safety_button_update();
+#endif
     processTx();
     processRx();
-}
-
-/*
-  fix value of a float for canard float16 format
- */
-static void fix_float16(float &f)
-{
-    *(uint16_t *)&f = canardConvertNativeFloatToFloat16(f);
 }
 
 /*
@@ -900,7 +1098,7 @@ void can_printf(const char *fmt, ...)
     va_start(ap, fmt);
     uint32_t n = vsnprintf(tbuf, sizeof(tbuf), fmt, ap);
     va_end(ap);
-    pkt.text.len = n;
+    pkt.text.len = MIN(n, sizeof(tbuf));
     pkt.text.data = (uint8_t *)&tbuf[0];
 
     uint32_t len = uavcan_protocol_debug_LogMessage_encode(&pkt, buffer);

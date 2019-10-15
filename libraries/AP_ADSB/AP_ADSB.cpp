@@ -200,6 +200,23 @@ void AP_ADSB::deinit(void)
     }
 }
 
+bool AP_ADSB::is_valid_callsign(uint16_t octal)
+{
+    // treat "octal" as decimal and test if any decimal digit is > 7
+    if (octal > 7777) {
+        return false;
+    }
+
+    while (octal != 0) {
+        if (octal % 10 > 7) {
+            return false;
+        }
+        octal /= 10;
+    }
+
+    return true;
+}
+
 /*
  * periodic update to handle vehicle timeouts and trigger collision detection
  */
@@ -252,7 +269,7 @@ void AP_ADSB::update(void)
 
     if (out_state.cfg.squawk_octal_param != out_state.cfg.squawk_octal) {
         // param changed, check that it's a valid octal
-        if (!is_valid_octal(out_state.cfg.squawk_octal_param)) {
+        if (!is_valid_callsign(out_state.cfg.squawk_octal_param)) {
             // invalid, reset it to default
             out_state.cfg.squawk_octal_param = ADSB_SQUAWK_OCTAL_DEFAULT;
         }
@@ -844,12 +861,12 @@ void AP_ADSB::set_callsign(const char* str, const bool append_icao)
 
 void AP_ADSB::push_sample(adsb_vehicle_t &vehicle)
 {
-    samples.push_back(vehicle);
+    samples.push(vehicle);
 }
 
 bool AP_ADSB::next_sample(adsb_vehicle_t &vehicle)
 {
-    return samples.pop_front(vehicle);
+    return samples.pop(vehicle);
 }
 
 void AP_ADSB::handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg)

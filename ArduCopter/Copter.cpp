@@ -127,6 +127,9 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(three_hz_loop,          3,     75),
     SCHED_TASK_CLASS(AP_ServoRelayEvents,  &copter.ServoRelayEvents,      update_events, 50,     75),
     SCHED_TASK_CLASS(AP_Baro,              &copter.barometer,           accumulate,      50,  90),
+#if AC_FENCE == ENABLED
+    SCHED_TASK_CLASS(AC_Fence,             &copter.fence,               update,          10, 100),
+#endif
 #if PRECISION_LANDING == ENABLED
     SCHED_TASK(update_precland,      400,     50),
 #endif
@@ -193,7 +196,9 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #ifdef USERHOOK_SUPERSLOWLOOP
     SCHED_TASK(userhook_SuperSlowLoop, 1,   75),
 #endif
+#if BUTTON_ENABLED == ENABLED
     SCHED_TASK_CLASS(AP_Button,            &copter.g2.button,           update,           5, 100),
+#endif
 #if STATS_ENABLED == ENABLED
     SCHED_TASK_CLASS(AP_Stats,             &copter.g2.stats,            update,           1, 100),
 #endif
@@ -302,6 +307,8 @@ void Copter::throttle_loop()
 
     // compensate for ground effect (if enabled)
     update_ground_effect_detector();
+
+    update_dynamic_notch();
 }
 
 // update_batt_compass - read battery and compass
@@ -382,8 +389,7 @@ void Copter::twentyfive_hz_logging()
         Log_Write_EKF_POS();
     }
 
-    // log IMU data if we're not already logging at the higher rate
-    if (should_log(MASK_LOG_IMU) && !should_log(MASK_LOG_IMU_RAW)) {
+    if (should_log(MASK_LOG_IMU)) {
         logger.Write_IMU();
     }
 #endif
@@ -587,7 +593,7 @@ void Copter::publish_osd_info()
 Copter::Copter(void)
     : logger(g.log_bitmask),
     flight_modes(&g.flight_mode1),
-    control_mode(STABILIZE),
+    control_mode(Mode::Number::STABILIZE),
     simple_cos_yaw(1.0f),
     super_simple_cos_yaw(1.0),
     land_accel_ef_filter(LAND_DETECTOR_ACCEL_LPF_CUTOFF),

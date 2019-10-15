@@ -223,6 +223,7 @@ struct PACKED log_GPA {
     uint16_t hacc;
     uint16_t vacc;
     uint16_t sacc;
+    float    yaw_accuracy;
     uint8_t  have_vv;
     uint32_t sample_ms;
     uint16_t delta_ms;
@@ -1137,6 +1138,7 @@ struct PACKED log_Performance {
     uint32_t spi_count;
     uint32_t i2c_count;
     uint32_t i2c_isr_count;
+    uint32_t extra_loop_us;
 };
 
 struct PACKED log_SRTL {
@@ -1168,6 +1170,7 @@ struct PACKED log_OADijkstra {
     LOG_PACKET_HEADER;
     uint64_t time_us;
     uint8_t state;
+    uint8_t error_id;
     uint8_t curr_point;
     uint8_t tot_points;
     int32_t final_lat;
@@ -1221,10 +1224,10 @@ struct PACKED log_Arm_Disarm {
 #define ESC_UNITS "sqvAO-"
 #define ESC_MULTS "FBBBB-"
 
-#define GPA_LABELS "TimeUS,VDop,HAcc,VAcc,SAcc,VV,SMS,Delta"
-#define GPA_FMT   "QCCCCBIH"
-#define GPA_UNITS "smmmn-ss"
-#define GPA_MULTS "FBBBB-CC"
+#define GPA_LABELS "TimeUS,VDop,HAcc,VAcc,SAcc,YAcc,VV,SMS,Delta"
+#define GPA_FMT   "QCCCCfBIH"
+#define GPA_UNITS "smmmnd-ss"
+#define GPA_MULTS "FBBBB0-CC"
 
 // see "struct GPS_State" and "Write_GPS":
 #define GPS_LABELS "TimeUS,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt,Spd,GCrs,VZ,Yaw,U"
@@ -1388,13 +1391,13 @@ struct PACKED log_Arm_Disarm {
     { LOG_PROXIMITY_MSG, sizeof(log_Proximity), \
       "PRX", "QBfffffffffff", "TimeUS,Health,D0,D45,D90,D135,D180,D225,D270,D315,DUp,CAn,CDis", "s-mmmmmmmmmhm", "F-00000000000" }, \
     { LOG_PERFORMANCE_MSG, sizeof(log_Performance),                     \
-      "PM",  "QHHIIHIIIII", "TimeUS,NLon,NLoop,MaxT,Mem,Load,IntE,IntEC,SPIC,I2CC,I2CI", "s---b%-----", "F---0A-----" }, \
+      "PM",  "QHHIIHIIIIII", "TimeUS,NLon,NLoop,MaxT,Mem,Load,IntE,IntEC,SPIC,I2CC,I2CI,ExUS", "s---b%-----s", "F---0A-----F" }, \
     { LOG_SRTL_MSG, sizeof(log_SRTL), \
       "SRTL", "QBHHBfff", "TimeUS,Active,NumPts,MaxPts,Action,N,E,D", "s----mmm", "F----000" }, \
     { LOG_OA_BENDYRULER_MSG, sizeof(log_OABendyRuler), \
       "OABR","QBHHfLLLL","TimeUS,Active,DesYaw,Yaw,Mar,DLat,DLng,OALat,OALng", "sbddmDUDU", "F----GGGG" }, \
     { LOG_OA_DIJKSTRA_MSG, sizeof(log_OADijkstra), \
-      "OADJ","QBBBLLLL","TimeUS,State,CurrPoint,TotPoints,DLat,DLng,OALat,OALng", "sbbbDUDU", "F---GGGG" }
+      "OADJ","QBBBBLLLL","TimeUS,State,Err,CurrPoint,TotPoints,DLat,DLng,OALat,OALng", "sbbbbDUDU", "F----GGGG" }
 
 // messages for more advanced boards
 #define LOG_EXTRA_STRUCTURES \
