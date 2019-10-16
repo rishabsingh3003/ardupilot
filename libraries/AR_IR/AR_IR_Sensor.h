@@ -8,9 +8,10 @@ class AR_IR
 {
 public:
 	AR_IR();
+  ~AR_IR();
 
 
-   float readIR();
+   float readIR(int sensor_no);
 
 protected:
   AP_HAL::AnalogSource *_IR_pin_analog_source;
