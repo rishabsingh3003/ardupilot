@@ -100,6 +100,7 @@ private:
     void set_height_agl(void);
     void _update_rangefinder(float range_value);
     void _set_signal_handlers(void) const;
+    float _update_irsensor(void);
 
     struct gps_data {
         double latitude;
