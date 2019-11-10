@@ -19,7 +19,7 @@ float AR_IR::readIR(int sensor_pin)
 float voltage=0;
 //gcs().send_text(MAV_SEVERITY_INFO, "FLAGB");
 _IR_pin_analog_source->set_pin(sensor_pin);
- voltage  = _IR_pin_analog_source->voltage_average();
+ voltage  = _IR_pin_analog_source->read_latest();
 
 //gcs().send_text(MAV_SEVERITY_INFO, "FLAGA");
 return voltage;

@@ -10,14 +10,15 @@ void ModeLineFollower::update()
     get_pilot_desired_steering_and_throttle(desired_steering, desired_throttle);
     // i = millis();
     g2.motors.set_throttle(desired_throttle);
-    gcs().send_text(MAV_SEVERITY_INFO, "FLAG1");
+   // gcs().send_text(MAV_SEVERITY_INFO, "FLAG1");
     
     
     //set analog pins 
     AR_IR* IR2 = new AR_IR;
-    IR_Reading_Right= IR2->readIR(14);// pin 14 and 13 correspond to ADC pins on my pixhawk, will be taken from parameters later
+    IR_Reading_Right= IR2->readIR(16);// pin 14 and 13 correspond to ADC pins on my pixhawk, will be taken from parameters later
     IR_Reading_Left = IR2->readIR(13);
     delete IR2;
+    IR_Reading_Right = g2.wp_nav.crosstrack_error();
     gcs().send_text(MAV_SEVERITY_INFO, "IR value %5.3f",(double)IR_Reading_Right);
     
     float steering_out;
