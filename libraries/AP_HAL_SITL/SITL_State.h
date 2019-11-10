@@ -100,7 +100,7 @@ private:
     void set_height_agl(void);
     void _update_rangefinder(float range_value);
     void _set_signal_handlers(void) const;
-    float _update_irsensor(void);
+    void _update_irsensor();
 
     struct gps_data {
         double latitude;
@@ -168,7 +168,7 @@ private:
 #if AP_TERRAIN_AVAILABLE
     AP_Terrain *_terrain;
 #endif
-
+    
     SocketAPM _sitl_rc_in{true};
     SITL::SITL *_sitl;
     uint16_t _rcin_port;

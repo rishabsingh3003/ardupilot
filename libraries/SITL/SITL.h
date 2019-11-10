@@ -216,7 +216,8 @@ public:
     AP_Vector3f gps_pos_offset;     // XYZ position of the GPS antenna phase centre relative to the body frame origin (m)
     AP_Vector3f rngfnd_pos_offset;  // XYZ position of the range finder zero range datum relative to the body frame origin (m)
     AP_Vector3f optflow_pos_offset; // XYZ position of the optical flow sensor focal point relative to the body frame origin (m)
-
+    AP_Vector3f ir1_pos_offset; //XYZ postion of the first IR sensor
+    AP_Vector3f ir2_pos_offset; //XYZ postion of the second IR sensor
     // temperature control
     AP_Float temp_start;
     AP_Float temp_flight;
