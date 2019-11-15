@@ -53,8 +53,10 @@ float ADCSource::read_latest() {
         return _sitlState->voltage2_pin_value;
     
     case 16:
-        return _sitlState->ir_pin_value;
+        return _sitlState->ir1_pin_value;
 
+    case 17:
+        return _sitlState->ir2_pin_value;
     case ANALOG_INPUT_NONE:
     default:
         return 0.0f;
