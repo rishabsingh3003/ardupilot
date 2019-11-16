@@ -557,6 +557,9 @@ private:
     // constrain states
     void ConstrainStates();
 
+    // constrain earth field using WMM tables
+    void MagTableConstrain(void);
+
     // fuse selected position, velocity and height measurements
     void FuseVelPosNED();
 
@@ -801,6 +804,9 @@ private:
     // Input is 1-sigma uncertainty in published declination
     void FuseDeclination(float declErr);
 
+    // return magnetic declination in radians
+    float MagDeclination(void) const;
+
     // Propagate PVA solution forward from the fusion time horizon to the current time horizon
     // using a simple observer
     void calcOutputStates();
@@ -1022,8 +1028,11 @@ private:
     resetDataSource velResetSource; // preferred source of data for a velocity reset
 
     // variables used to calculate a vertical velocity that is kinematically consistent with the vertical position
-    float posDownDerivative;        // Rate of change of vertical position (dPosD/dt) in m/s. This is the first time derivative of PosD.
-    float posDown;                  // Down position state used in calculation of posDownRate
+    struct {
+        float pos;
+        float vel;
+        float acc;
+    } vertCompFiltState;
 
     // variables used by the pre-initialisation GPS checks
     struct Location gpsloc_prev;    // LLH location of previous GPS measurement
@@ -1280,6 +1289,11 @@ private:
     AP_HAL::Util::perf_counter_t  _perf_FuseOptFlow;
     AP_HAL::Util::perf_counter_t  _perf_FuseBodyOdom;
     AP_HAL::Util::perf_counter_t  _perf_test[10];
+
+    // earth field from WMM tables
+    bool have_table_earth_field;   // true when we have initialised table_earth_field_ga
+    Vector3f table_earth_field_ga; // earth field from WMM tables
+    float table_declination;       // declination in radians from the tables
 
     // timing statistics
     struct ekf_timing timing;

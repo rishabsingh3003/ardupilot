@@ -453,7 +453,7 @@ void Plane::update_navigation()
               are within the maximum of the stopping distance and the
               RTL_RADIUS
              */
-            set_mode(mode_qrtl, MODE_REASON_UNKNOWN);
+            set_mode(mode_qrtl, ModeReason::UNKNOWN);
             break;
         } else if (g.rtl_autoland == 1 &&
             !auto_state.checked_for_autoland &&
@@ -462,7 +462,7 @@ void Plane::update_navigation()
             // we've reached the RTL point, see if we have a landing sequence
             if (mission.jump_to_landing_sequence()) {
                 // switch from RTL -> AUTO
-                set_mode(mode_auto, MODE_REASON_UNKNOWN);
+                set_mode(mode_auto, ModeReason::UNKNOWN);
             }
 
             // prevent running the expensive jump_to_landing_sequence
@@ -474,7 +474,7 @@ void Plane::update_navigation()
             // Go directly to the landing sequence
             if (mission.jump_to_landing_sequence()) {
                 // switch from RTL -> AUTO
-                set_mode(mode_auto, MODE_REASON_UNKNOWN);
+                set_mode(mode_auto, ModeReason::UNKNOWN);
             }
 
             // prevent running the expensive jump_to_landing_sequence
@@ -491,6 +491,7 @@ void Plane::update_navigation()
     case Mode::Number::LOITER:
     case Mode::Number::AVOID_ADSB:
     case Mode::Number::GUIDED:
+    case Mode::Number::TAKEOFF:
         update_loiter(radius);
         break;
 
@@ -617,7 +618,7 @@ void Plane::update_flight_stage(void)
             } else {
                 set_flight_stage(AP_Vehicle::FixedWing::FLIGHT_NORMAL);
             }
-        } else {
+        } else if (control_mode != &mode_takeoff) {
             // If not in AUTO then assume normal operation for normal TECS operation.
             // This prevents TECS from being stuck in the wrong stage if you switch from
             // AUTO to, say, FBWB during a landing, an aborted landing or takeoff.

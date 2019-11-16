@@ -91,9 +91,9 @@ void ModeLand::nogps_run()
     // process pilot inputs
     if (!copter.failsafe.radio) {
         if ((g.throttle_behavior & THR_BEHAVE_HIGH_THROTTLE_CANCELS_LAND) != 0 && copter.rc_throttle_control_in_filter.get() > LAND_CANCEL_TRIGGER_THR){
-            Log_Write_Event(DATA_LAND_CANCELLED_BY_PILOT);
+            AP::logger().Write_Event(LogEvent::LAND_CANCELLED_BY_PILOT);
             // exit land if throttle is high
-            copter.set_mode(Mode::Number::ALT_HOLD, MODE_REASON_THROTTLE_LAND_ESCAPE);
+            copter.set_mode(Mode::Number::ALT_HOLD, ModeReason::THROTTLE_LAND_ESCAPE);
         }
 
         if (g.land_repositioning) {
@@ -145,7 +145,7 @@ void ModeLand::do_not_use_GPS()
 
 // set_mode_land_with_pause - sets mode to LAND and triggers 4 second delay before descent starts
 //  this is always called from a failsafe so we trigger notification to pilot
-void Copter::set_mode_land_with_pause(mode_reason_t reason)
+void Copter::set_mode_land_with_pause(ModeReason reason)
 {
     set_mode(Mode::Number::LAND, reason);
     land_pause = true;

@@ -1,5 +1,9 @@
 #include "Copter.h"
 
+#if HAL_WITH_UAVCAN
+ #include <AP_ToshibaCAN/AP_ToshibaCAN.h>
+#endif
+
 // performs pre-arm checks. expects to be called at 1hz.
 void AP_Arming_Copter::update(void)
 {
@@ -252,10 +256,12 @@ bool AP_Arming_Copter::motor_checks(bool display_failure)
     // if this is a multicopter using ToshibaCAN ESCs ensure MOT_PMW_MIN = 1000, MOT_PWM_MAX = 2000
 #if HAL_WITH_UAVCAN && (FRAME_CONFIG != HELI_FRAME)
     bool tcan_active = false;
+    uint8_t tcan_index = 0;
     const uint8_t num_drivers = AP::can().get_num_drivers();
     for (uint8_t i = 0; i < num_drivers; i++) {
         if (AP::can().get_protocol_type(i) == AP_BoardConfig_CAN::Protocol_Type_ToshibaCAN) {
             tcan_active = true;
+            tcan_index = i;
         }
     }
     if (tcan_active) {
@@ -265,6 +271,27 @@ bool AP_Arming_Copter::motor_checks(bool display_failure)
         }
         if (copter.motors->get_pwm_output_max() != 2000) {
             check_failed(display_failure, "TCAN ESCs require MOT_PWM_MAX=2000");
+            return false;
+        }
+
+        // check we have an ESC present for every SERVOx_FUNCTION = motorx
+        // find and report first missing ESC, extra ESCs are OK
+        AP_ToshibaCAN *tcan = AP_ToshibaCAN::get_tcan(tcan_index);
+        const uint16_t motors_mask = copter.motors->get_motor_mask();
+        const uint16_t esc_mask = tcan->get_present_mask();
+        uint8_t escs_missing = 0;
+        uint8_t first_missing = 0;
+        for (uint8_t i = 0; i < 16; i++) {
+            uint32_t bit = 1UL << i;
+            if (((motors_mask & bit) > 0) && ((esc_mask & bit) == 0)) {
+                escs_missing++;
+                if (first_missing == 0) {
+                    first_missing = i+1;
+                }
+            }
+        }
+        if (escs_missing > 0) {
+            check_failed(display_failure, "TCAN missing %d escs, check #%d", (int)escs_missing, (int)first_missing);
             return false;
         }
     }
@@ -666,7 +693,7 @@ bool AP_Arming_Copter::arm(const AP_Arming::Method method, const bool do_arming_
     if (!ahrs.home_is_set()) {
         // Reset EKF altitude if home hasn't been set yet (we use EKF altitude as substitute for alt above home)
         ahrs.resetHeightDatum();
-        AP::logger().Write_Event(DATA_EKF_ALT_RESET);
+        AP::logger().Write_Event(LogEvent::EKF_ALT_RESET);
 
         // we have reset height, so arming height is zero
         copter.arming_altitude_m = 0;
@@ -701,7 +728,7 @@ bool AP_Arming_Copter::arm(const AP_Arming::Method method, const bool do_arming_
     // finally actually arm the motors
     copter.motors->armed(true);
 
-    AP::logger().Write_Event(DATA_ARMED);
+    AP::logger().Write_Event(LogEvent::ARMED);
 
     // log flight mode in case it was changed while vehicle was disarmed
     AP::logger().Write_Mode((uint8_t)copter.control_mode, copter.control_mode_reason);
@@ -770,7 +797,7 @@ bool AP_Arming_Copter::disarm()
     copter.set_land_complete(true);
     copter.set_land_complete_maybe(true);
 
-    AP::logger().Write_Event(DATA_DISARMED);
+    AP::logger().Write_Event(LogEvent::DISARMED);
 
     // send disarm command to motors
     copter.motors->armed(false);

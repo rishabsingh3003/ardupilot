@@ -202,24 +202,28 @@ bool ModeAuto::reached_destination() const
     return true;
 }
 
-// set desired heading in centidegrees (vehicle will turn to this heading)
-void ModeAuto::set_desired_heading_and_speed(float yaw_angle_cd, float target_speed)
+// set desired speed in m/s
+bool ModeAuto::set_desired_speed(float speed)
 {
-    // call parent
-    Mode::set_desired_heading_and_speed(yaw_angle_cd, target_speed);
-
-    _submode = Auto_HeadingAndSpeed;
-    _reached_heading = false;
-}
-
-// return true if vehicle has reached desired heading
-bool ModeAuto::reached_heading()
-{
-    if (_submode == Auto_HeadingAndSpeed) {
-        return _reached_heading;
+    switch (_submode) {
+    case Auto_WP:
+    case Auto_Stop:
+        if (!is_negative(speed)) {
+            g2.wp_nav.set_desired_speed(speed);
+            return true;
+        }
+        return false;
+    case Auto_HeadingAndSpeed:
+        _desired_speed = speed;
+        return true;
+    case Auto_RTL:
+        return rover.mode_rtl.set_desired_speed(speed);
+    case Auto_Loiter:
+        return rover.mode_loiter.set_desired_speed(speed);
+    case Auto_Guided:
+        return rover.mode_guided.set_desired_speed(speed);
     }
-    // we should never reach here but just in case, return true to allow missions to continue
-    return true;
+    return false;
 }
 
 // start RTL (within auto)
@@ -437,15 +441,15 @@ void ModeAuto::exit_mission()
     // send message
     gcs().send_text(MAV_SEVERITY_NOTICE, "Mission Complete");
 
-    if (g2.mis_done_behave == MIS_DONE_BEHAVE_LOITER && rover.set_mode(rover.mode_loiter, MODE_REASON_MISSION_END)) {
+    if (g2.mis_done_behave == MIS_DONE_BEHAVE_LOITER && start_loiter()) {
         return;
     }
 
-    if (g2.mis_done_behave == MIS_DONE_BEHAVE_ACRO && rover.set_mode(rover.mode_acro, MODE_REASON_MISSION_END)) {
+    if (g2.mis_done_behave == MIS_DONE_BEHAVE_ACRO && rover.set_mode(rover.mode_acro, ModeReason::MISSION_END)) {
         return;
     }
 
-    rover.set_mode(rover.mode_hold, MODE_REASON_MISSION_END);
+    start_stop();
 }
 
 // verify_command_callback - callback function called from ap-mission at 10hz or higher when a command is being run
@@ -590,7 +594,7 @@ void ModeAuto::do_nav_guided_enable(const AP_Mission::Mission_Command& cmd)
     }
 }
 
-// do_set_yaw_speed - turn to a specified heading and achieve and given speed
+// do_set_yaw_speed - turn to a specified heading and achieve a given speed
 void ModeAuto::do_nav_set_yaw_speed(const AP_Mission::Mission_Command& cmd)
 {
     float desired_heading_cd;
@@ -604,9 +608,13 @@ void ModeAuto::do_nav_set_yaw_speed(const AP_Mission::Mission_Command& cmd)
         desired_heading_cd = cmd.content.set_yaw_speed.angle_deg * 100.0f;
     }
 
-    // set auto target
+    // set targets
     const float speed_max = g2.wp_nav.get_default_speed();
-    set_desired_heading_and_speed(desired_heading_cd, constrain_float(cmd.content.set_yaw_speed.speed, -speed_max, speed_max));
+    _desired_speed = constrain_float(cmd.content.set_yaw_speed.speed, -speed_max, speed_max);
+    _desired_yaw_cd = desired_heading_cd;
+    _reached_heading = false;
+    _reached_destination = false;
+    _submode = Auto_HeadingAndSpeed;
 }
 
 /********************************************************************************/
@@ -700,7 +708,11 @@ bool ModeAuto::verify_nav_guided_enable(const AP_Mission::Mission_Command& cmd)
 // verify_yaw - return true if we have reached the desired heading
 bool ModeAuto::verify_nav_set_yaw_speed()
 {
-    return reached_heading();
+    if (_submode == Auto_HeadingAndSpeed) {
+        return _reached_heading;
+    }
+    // we should never reach here but just in case, return true to allow missions to continue
+    return true;
 }
 
 /********************************************************************************/

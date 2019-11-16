@@ -24,16 +24,6 @@ extern const AP_HAL::HAL& hal;
 #define PROXIMITY_MAX_RANGE 200.0f
 #define PROXIMITY_ACCURACY 0.1f
 
-/* 
-   The constructor also initialises the proximity sensor. 
-*/
-AP_Proximity_MorseSITL::AP_Proximity_MorseSITL(AP_Proximity &_frontend,
-                                     AP_Proximity::Proximity_State &_state):
-    AP_Proximity_Backend(_frontend, _state),
-    sitl(AP::sitl())
-{
-}
-
 // update the state of the sensor
 void AP_Proximity_MorseSITL::update(void)
 {
@@ -41,11 +31,11 @@ void AP_Proximity_MorseSITL::update(void)
     SITL::float_array &ranges = sitl->state.scanner.ranges;
     if (points.length != ranges.length ||
         points.length == 0) {
-        set_status(AP_Proximity::Proximity_NoData);
+        set_status(AP_Proximity::Status::NoData);
         return;
     }
 
-    set_status(AP_Proximity::Proximity_Good);
+    set_status(AP_Proximity::Status::Good);
 
     memset(_distance_valid, 0, sizeof(_distance_valid));
     memset(_angle, 0, sizeof(_angle));

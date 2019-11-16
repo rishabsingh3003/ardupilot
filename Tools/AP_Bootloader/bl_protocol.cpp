@@ -41,6 +41,7 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Math/AP_Math.h>
+#include <AP_Math/crc.h>
 #include "ch.h"
 #include "hal.h"
 #include "hwdef.h"
@@ -48,6 +49,7 @@
 #include "bl_protocol.h"
 #include "support.h"
 #include "can.h"
+#include <AP_HAL_ChibiOS/hwdef/common/watchdog.h>
 
 // #pragma GCC optimize("O0")
 
@@ -231,6 +233,16 @@ jump_to_app()
         return;
     }
 
+#if HAL_USE_CAN == TRUE
+    // for CAN firmware we start the watchdog before we run the
+    // application code, to ensure we catch a bad firmare. If we get a
+    // watchdog reset and the firmware hasn't changed the RTC flag to
+    // indicate that it has been running OK for 30s then we will stay
+    // in bootloader
+    stm32_watchdog_init();
+    stm32_watchdog_pat();
+#endif
+
     flash_set_keep_unlocked(false);
     
     led_set(LED_OFF);
@@ -308,38 +320,6 @@ cout_word(uint32_t val)
 {
     cout((uint8_t *)&val, 4);
 }
-
-static uint32_t
-crc32(const uint8_t *src, unsigned len, unsigned state)
-{
-    static uint32_t crctab[256];
-
-    /* check whether we have generated the CRC table yet */
-    /* this is much smaller than a static table */
-    if (crctab[1] == 0) {
-        for (unsigned i = 0; i < 256; i++) {
-            uint32_t c = i;
-
-            for (unsigned j = 0; j < 8; j++) {
-                if (c & 1) {
-                    c = 0xedb88320U ^ (c >> 1);
-
-                } else {
-                    c = c >> 1;
-                }
-            }
-
-            crctab[i] = c;
-        }
-    }
-
-    for (unsigned i = 0; i < len; i++) {
-        state = crctab[(state ^ src[i]) & 0xff] ^ (state >> 8);
-    }
-
-    return state;
-}
-
 
 /*
   we use a write buffer for flashing, both for efficiency and to
@@ -722,7 +702,7 @@ bootloader(unsigned timeout)
                 } else {
                     bytes = flash_func_read_word(p);
                 }
-                sum = crc32((uint8_t *)&bytes, sizeof(bytes), sum);
+                sum = crc32_small(sum, (uint8_t *)&bytes, sizeof(bytes));
             }
 
             cout_word(sum);

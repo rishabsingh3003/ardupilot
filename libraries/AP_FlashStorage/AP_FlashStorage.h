@@ -39,10 +39,10 @@
 
 #include <AP_HAL/AP_HAL.h>
 
-#if defined(STM32F1)
+#if defined(STM32F1) || defined(STM32F3)
 /*
-  the STM32F1 can't change individual bits from 1 to 0 unless all bits in
-  the 16 bit word are 1
+  the STM32F1 and STM32F3 can't change individual bits from 1 to 0
+  unless all bits in the 16 bit word are 1
  */
 #define AP_FLASHSTORAGE_MULTI_WRITE 0
 #else
@@ -160,7 +160,7 @@ private:
     bool load_sector(uint8_t sector);
 
     // erase a sector and write header
-    bool erase_sector(uint8_t sector);
+    bool erase_sector(uint8_t sector, bool mark_available);
 
     // erase all sectors and reset
     bool erase_all();

@@ -446,11 +446,11 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_do_set_roi(const Location &roi_loc)
     return MAV_RESULT_ACCEPTED;
 }
 
-bool GCS_MAVLINK_Sub::set_home_to_current_location(bool lock) {
-    return sub.set_home_to_current_location(lock);
+bool GCS_MAVLINK_Sub::set_home_to_current_location(bool _lock) {
+    return sub.set_home_to_current_location(_lock);
 }
-bool GCS_MAVLINK_Sub::set_home(const Location& loc, bool lock) {
-    return sub.set_home(loc, lock);
+bool GCS_MAVLINK_Sub::set_home(const Location& loc, bool _lock) {
+    return sub.set_home(loc, _lock);
 }
 
 
@@ -458,13 +458,13 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_lon
 {
     switch (packet.command) {
     case MAV_CMD_NAV_LOITER_UNLIM:
-        if (!sub.set_mode(POSHOLD, MODE_REASON_GCS_COMMAND)) {
+        if (!sub.set_mode(POSHOLD, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_FAILED;
         }
         return MAV_RESULT_ACCEPTED;
 
     case MAV_CMD_NAV_LAND:
-        if (!sub.set_mode(SURFACE, MODE_REASON_GCS_COMMAND)) {
+        if (!sub.set_mode(SURFACE, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_FAILED;
         }
         return MAV_RESULT_ACCEPTED;
@@ -494,7 +494,7 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_lon
         return MAV_RESULT_FAILED;
 
     case MAV_CMD_MISSION_START:
-        if (sub.motors.armed() && sub.set_mode(AUTO, MODE_REASON_GCS_COMMAND)) {
+        if (sub.motors.armed() && sub.set_mode(AUTO, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_ACCEPTED;
         }
         return MAV_RESULT_FAILED;
@@ -764,7 +764,6 @@ void GCS_MAVLINK_Sub::handleMessage(const mavlink_message_t &msg)
 uint64_t GCS_MAVLINK_Sub::capabilities() const
 {
     return (MAV_PROTOCOL_CAPABILITY_MISSION_FLOAT |
-            MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT |
             MAV_PROTOCOL_CAPABILITY_MISSION_INT |
             MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_LOCAL_NED |
             MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_GLOBAL_INT |
@@ -825,11 +824,6 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_flight_termination(const mavlink_command_long
     return MAV_RESULT_FAILED;
 }
 
-bool GCS_MAVLINK_Sub::set_mode(uint8_t mode)
-{
-    return sub.set_mode((control_mode_t)mode, MODE_REASON_GCS_COMMAND);
-}
-
 int32_t GCS_MAVLINK_Sub::global_position_int_alt() const {
     if (!sub.ap.depth_sensor_present) {
         return 0;
@@ -842,7 +836,3 @@ int32_t GCS_MAVLINK_Sub::global_position_int_relative_alt() const {
     }
     return GCS_MAVLINK::global_position_int_relative_alt();
 }
-
-// dummy method to avoid linking AFS
-bool AP_AdvancedFailsafe::gcs_terminate(bool should_terminate, const char *reason) { return false; }
-AP_AdvancedFailsafe *AP::advancedfailsafe() { return nullptr; }

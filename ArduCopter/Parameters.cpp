@@ -173,7 +173,7 @@ const AP_Param::Info Copter::var_info[] = {
     // @Param: FS_GCS_ENABLE
     // @DisplayName: Ground Station Failsafe Enable
     // @Description: Controls whether failsafe will be invoked (and what action to take) when connection with Ground station is lost for at least 5 seconds. NB. The GCS Failsafe is only active when RC_OVERRIDE is being used to control the vehicle.
-    // @Values: 0:Disabled,1:Enabled always RTL,2:Enabled Continue with Mission in Auto Mode,3:Enabled always SmartRTL or RTL,4:Enabled always SmartRTL or Land
+    // @Values: 0:Disabled,1:Enabled always RTL,2:Enabled Continue with Mission in Auto Mode (Deprecated in 4.0+),3:Enabled always SmartRTL or RTL,4:Enabled always SmartRTL or Land,5:Enabled always land (4.0+ Only)
     // @User: Standard
     GSCALAR(failsafe_gcs, "FS_GCS_ENABLE", FS_GCS_ENABLED_ALWAYS_RTL),
 
@@ -237,7 +237,7 @@ const AP_Param::Info Copter::var_info[] = {
     // @Param: FS_THR_ENABLE
     // @DisplayName: Throttle Failsafe Enable
     // @Description: The throttle failsafe allows you to configure a software failsafe activated by a setting on the throttle input channel
-    // @Values: 0:Disabled,1:Enabled always RTL,2:Enabled Continue with Mission in Auto Mode,3:Enabled always Land,4:Enabled always SmartRTL or RTL,5:Enabled always SmartRTL or Land
+    // @Values:  0:Disabled,1:Enabled always RTL,2:Enabled Continue with Mission in Auto Mode (Deprecated in 4.0+),3:Enabled always Land,4:Enabled always SmartRTL or RTL,5:Enabled always SmartRTL or Land
     // @User: Standard
     GSCALAR(failsafe_throttle,  "FS_THR_ENABLE",   FS_THR_ENABLED_ALWAYS_RTL),
 
@@ -262,42 +262,42 @@ const AP_Param::Info Copter::var_info[] = {
     // @Param: FLTMODE1
     // @DisplayName: Flight Mode 1
     // @Description: Flight mode when Channel 5 pwm is <= 1230
-    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
+    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag,25:SystemID
     // @User: Standard
     GSCALAR(flight_mode1, "FLTMODE1",               (uint8_t)FLIGHT_MODE_1),
 
     // @Param: FLTMODE2
     // @DisplayName: Flight Mode 2
     // @Description: Flight mode when Channel 5 pwm is >1230, <= 1360
-    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
+    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag,25:SystemID
     // @User: Standard
     GSCALAR(flight_mode2, "FLTMODE2",               (uint8_t)FLIGHT_MODE_2),
 
     // @Param: FLTMODE3
     // @DisplayName: Flight Mode 3
     // @Description: Flight mode when Channel 5 pwm is >1360, <= 1490
-    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
+    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag,25:SystemID
     // @User: Standard
     GSCALAR(flight_mode3, "FLTMODE3",               (uint8_t)FLIGHT_MODE_3),
 
     // @Param: FLTMODE4
     // @DisplayName: Flight Mode 4
     // @Description: Flight mode when Channel 5 pwm is >1490, <= 1620
-    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
+    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag,25:SystemID
     // @User: Standard
     GSCALAR(flight_mode4, "FLTMODE4",               (uint8_t)FLIGHT_MODE_4),
 
     // @Param: FLTMODE5
     // @DisplayName: Flight Mode 5
     // @Description: Flight mode when Channel 5 pwm is >1620, <= 1749
-    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
+    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag,25:SystemID
     // @User: Standard
     GSCALAR(flight_mode5, "FLTMODE5",               (uint8_t)FLIGHT_MODE_5),
 
     // @Param: FLTMODE6
     // @DisplayName: Flight Mode 6
     // @Description: Flight mode when Channel 5 pwm is >=1750
-    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag
+    // @Values: 0:Stabilize,1:Acro,2:AltHold,3:Auto,4:Guided,5:Loiter,6:RTL,7:Circle,9:Land,11:Drift,13:Sport,14:Flip,15:AutoTune,16:PosHold,17:Brake,18:Throw,19:Avoid_ADSB,20:Guided_NoGPS,21:Smart_RTL,22:FlowHold,23:Follow,24:ZigZag,25:SystemID
     // @User: Standard
     GSCALAR(flight_mode6, "FLTMODE6",               (uint8_t)FLIGHT_MODE_6),
 
@@ -455,7 +455,7 @@ const AP_Param::Info Copter::var_info[] = {
     // @Description: Type of trainer used in acro mode
     // @Values: 0:Disabled,1:Leveling,2:Leveling and Limited
     // @User: Advanced
-    GSCALAR(acro_trainer,   "ACRO_TRAINER",     ACRO_TRAINER_LIMITED),
+    GSCALAR(acro_trainer,   "ACRO_TRAINER",     (uint8_t)ModeAcro::Trainer::LIMITED),
 
     // @Param: ACRO_RP_EXPO
     // @DisplayName: Acro Roll/Pitch Expo
@@ -647,7 +647,7 @@ const AP_Param::Info Copter::var_info[] = {
     
 #if RANGEFINDER_ENABLED == ENABLED
     // @Group: RNGFND
-    // @Path: ../libraries/AP_RangeFinder/RangeFinder.cpp
+    // @Path: ../libraries/AP_RangeFinder/AP_RangeFinder.cpp
     GOBJECT(rangefinder,   "RNGFND", RangeFinder),
 #endif
 
@@ -934,6 +934,27 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(oa, "OA_", 33, ParametersG2, AP_OAPathPlanner),
 #endif
 
+#if MODE_SYSTEMID_ENABLED == ENABLED
+    // @Group: SID
+    // @Path: mode_systemid.cpp
+    AP_SUBGROUPPTR(mode_systemid_ptr, "SID", 34, ParametersG2, ModeSystemId),
+#endif
+
+    // @Param: FS_VIBE_ENABLE
+    // @DisplayName: Vibration Failsafe enable
+    // @Description: This enables the vibration failsafe which will use modified altitude estimation and control during high vibrations
+    // @Values: 0:Disabled, 1:Enabled
+    // @User: Standard
+    AP_GROUPINFO("FS_VIBE_ENABLE", 35, ParametersG2, fs_vibe_enabled, 1),
+
+    // @Param: FS_OPTIONS
+    // @DisplayName: Failsafe options bitmask
+    // @Description: Bitmask of additional options for battery, radio, & GCS failsafes. 0 (default) disables all options.
+    // @Values: 0:Disabled, 1:Continue if in Auto on RC failsafe only, 2:Continue if in Auto on GCS failsafe only, 3:Continue if in Auto on RC and/or GCS failsafe, 4:Continue if in Guided on RC failsafe only, 8:Continue if landing on any failsafe, 16:Continue if in pilot controlled modes on GCS failsafe, 19:Continue if in Auto on RC and/or GCS failsafe and continue if in pilot controlled modes on GCS failsafe
+    // @Bitmask: 0:Continue if in Auto on RC failsafe, 1:Continue if in Auto on GCS failsafe, 2:Continue if in Guided on RC failsafe, 3:Continue if landing on any failsafe, 4:Continue if in pilot controlled modes on GCS failsafe
+    // @User: Advanced
+    AP_GROUPINFO("FS_OPTIONS", 36, ParametersG2, fs_options, 0),
+
     AP_GROUPEND
 };
 
@@ -997,7 +1018,7 @@ ParametersG2::ParametersG2(void)
     , beacon(copter.serial_manager)
 #endif
 #if PROXIMITY_ENABLED == ENABLED
-    , proximity(copter.serial_manager)
+    , proximity()
 #endif
 #if ADVANCED_FAILSAFE == ENABLED
     ,afs(copter.mode_auto.mission)
@@ -1016,6 +1037,9 @@ ParametersG2::ParametersG2(void)
 #endif
 #if AUTOTUNE_ENABLED == ENABLED
     ,autotune_ptr(&copter.autotune)
+#endif
+#if MODE_SYSTEMID_ENABLED == ENABLED
+    ,mode_systemid_ptr(&copter.mode_systemid)
 #endif
 {
     AP_Param::setup_object_defaults(this, var_info);
@@ -1087,6 +1111,9 @@ void Copter::load_parameters(void)
     // convert landing gear parameters
     convert_lgr_parameters();
 
+    // convert fs_options parameters
+    convert_fs_options_params();
+
     hal.console->printf("load_all took %uus\n", (unsigned)(micros() - before));
 
     // setup AP_Param frame type flags
@@ -1094,7 +1121,7 @@ void Copter::load_parameters(void)
 
 }
 
-// handle conversion of PID gains from Copter-3.3 to Copter-3.4
+// handle conversion of PID gains
 void Copter::convert_pid_parameters(void)
 {
     // conversion info
@@ -1124,6 +1151,7 @@ void Copter::convert_pid_parameters(void)
         { Parameters::k_param_pid_rate_yaw,   7, AP_PARAM_FLOAT, "ATC_RAT_YAW_ILMI" },
 #endif
     };
+    // conversion from Copter-3.3 to Copter-3.4
     const AP_Param::ConversionInfo angle_and_filt_conversion_info[] = {
         { Parameters::k_param_p_stabilize_roll, 0, AP_PARAM_FLOAT, "ATC_ANG_RLL_P" },
         { Parameters::k_param_p_stabilize_pitch, 0, AP_PARAM_FLOAT, "ATC_ANG_PIT_P" },
@@ -1140,7 +1168,7 @@ void Copter::convert_pid_parameters(void)
         { Parameters::k_param_pid_accel_z, 1, AP_PARAM_FLOAT, "PSC_ACCZ_I" },
         { Parameters::k_param_pid_accel_z, 2, AP_PARAM_FLOAT, "PSC_ACCZ_D" },
         { Parameters::k_param_pid_accel_z, 5, AP_PARAM_FLOAT, "PSC_ACCZ_IMAX" },
-        { Parameters::k_param_pid_accel_z, 6, AP_PARAM_FLOAT, "PSC_ACCZ_FILT" },
+        { Parameters::k_param_pid_accel_z, 6, AP_PARAM_FLOAT, "PSC_ACCZ_FLTE" },
         { Parameters::k_param_p_alt_hold, 0, AP_PARAM_FLOAT, "PSC_POSZ_P" },
         { Parameters::k_param_p_pos_xy, 0, AP_PARAM_FLOAT, "PSC_POSXY_P" },
     };
@@ -1217,7 +1245,8 @@ void Copter::convert_pid_parameters(void)
     AP_Param::set_defaults_from_table(heli_defaults_table, ARRAY_SIZE(heli_defaults_table));
 #endif
 
-    // attitude control filter parameter changes (from _FILT to FLTE or FLTD) for Copter-3.7
+    // attitude and position control filter parameter changes (from _FILT to FLTD, FLTE, FLTT) for Copter-4.0
+    // magic numbers shown below are discovered by setting AP_PARAM_KEY_DUMP = 1
     const AP_Param::ConversionInfo ff_and_filt_conversion_info[] = {
 #if FRAME_CONFIG == HELI_FRAME
         // tradheli moves ATC_RAT_RLL/PIT_FILT to FLTE, ATC_RAT_YAW_FILT to FLTE
@@ -1225,14 +1254,17 @@ void Copter::convert_pid_parameters(void)
         { Parameters::k_param_attitude_control, 387, AP_PARAM_FLOAT, "ATC_RAT_PIT_FLTE" },
         { Parameters::k_param_attitude_control, 388, AP_PARAM_FLOAT, "ATC_RAT_YAW_FLTE" },
 #else
-        // multicopters move ATC_RAT_RLL/PIT_FILT to FLTD, ATC_RAT_YAW_FILT to FLTE
+        // multicopters move ATC_RAT_RLL/PIT_FILT to FLTD & FLTT, ATC_RAT_YAW_FILT to FLTE
         { Parameters::k_param_attitude_control, 385, AP_PARAM_FLOAT, "ATC_RAT_RLL_FLTD" },
+        { Parameters::k_param_attitude_control, 385, AP_PARAM_FLOAT, "ATC_RAT_RLL_FLTT" },
         { Parameters::k_param_attitude_control, 386, AP_PARAM_FLOAT, "ATC_RAT_PIT_FLTD" },
+        { Parameters::k_param_attitude_control, 386, AP_PARAM_FLOAT, "ATC_RAT_PIT_FLTT" },
         { Parameters::k_param_attitude_control, 387, AP_PARAM_FLOAT, "ATC_RAT_YAW_FLTE" },
         { Parameters::k_param_attitude_control, 449, AP_PARAM_FLOAT, "ATC_RAT_RLL_FF" },
         { Parameters::k_param_attitude_control, 450, AP_PARAM_FLOAT, "ATC_RAT_PIT_FF" },
         { Parameters::k_param_attitude_control, 451, AP_PARAM_FLOAT, "ATC_RAT_YAW_FF" },
 #endif
+        { Parameters::k_param_pos_control, 388, AP_PARAM_FLOAT, "PSC_ACCZ_FLTE" },
     };
     uint8_t filt_table_size = ARRAY_SIZE(ff_and_filt_conversion_info);
     for (uint8_t i=0; i<filt_table_size; i++) {
@@ -1507,3 +1539,33 @@ void Copter::convert_tradheli_parameters(void)
 
 }
 #endif
+
+void Copter::convert_fs_options_params(void)
+{
+    // If FS_OPTIONS has already been configured and we don't change it.
+    enum ap_var_type ptype;
+    AP_Int32 *fs_opt = (AP_Int32 *)AP_Param::find("FS_OPTIONS", &ptype);
+
+    if (fs_opt == nullptr || fs_opt->configured_in_storage() || ptype != AP_PARAM_INT32) {
+        return;
+    }
+
+    // Variable to capture the new FS_OPTIONS setting
+    int32_t fs_options_converted = 0;
+
+    // If FS_THR_ENABLED is 2 (continue mission), change to RTL and add continue mission to the new FS_OPTIONS parameter
+    if (g.failsafe_throttle == FS_THR_ENABLED_CONTINUE_MISSION) {
+        fs_options_converted |= int32_t(FailsafeOption::RC_CONTINUE_IF_AUTO);
+        AP_Param::set_and_save_by_name("FS_THR_ENABLE", FS_THR_ENABLED_ALWAYS_RTL);
+    }
+
+    // If FS_GCS_ENABLED is 2 (continue mission), change to RTL and add continue mission to the new FS_OPTIONS parameter
+    if (g.failsafe_gcs == FS_GCS_ENABLED_CONTINUE_MISSION) {
+        fs_options_converted |= int32_t(FailsafeOption::GCS_CONTINUE_IF_AUTO);
+        AP_Param::set_and_save_by_name("FS_GCS_ENABLE", FS_GCS_ENABLED_ALWAYS_RTL);
+    }
+
+    // Write the new value to FS_OPTIONS
+    // AP_Param::set_and_save_by_name("FS_OPTIONS", fs_options_converted);
+    fs_opt->set_and_save(fs_options_converted);
+}

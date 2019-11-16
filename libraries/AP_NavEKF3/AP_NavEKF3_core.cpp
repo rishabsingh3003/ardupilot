@@ -252,6 +252,7 @@ void NavEKF3_core::InitialiseVariables()
     lastYawReset_ms = 0;
     tiltAlignComplete = false;
     yawAlignComplete = false;
+    have_table_earth_field = false;
     stateIndexLim = 23;
     baroStoreIndex = 0;
     rangeStoreIndex = 0;
@@ -281,8 +282,7 @@ void NavEKF3_core::InitialiseVariables()
     gpsVertVelFilt = 0.0f;
     gpsHorizVelFilt = 0.0f;
     memset(&statesArray, 0, sizeof(statesArray));
-    posDownDerivative = 0.0f;
-    posDown = 0.0f;
+    memset(&vertCompFiltState, 0, sizeof(vertCompFiltState));
     posVelFusionDelayed = false;
     optFlowFusionDelayed = false;
     flowFusionActive = false;
@@ -384,6 +384,9 @@ void NavEKF3_core::InitialiseVariables()
     storedRangeBeacon.reset();
     storedBodyOdm.reset();
     storedWheelOdm.reset();
+
+    // initialise pre-arm message
+    hal.util->snprintf(prearm_fail_string, sizeof(prearm_fail_string), "EKF3 still initialising");
 
     InitialiseVariablesMag();
 }
@@ -759,6 +762,24 @@ void NavEKF3_core::calcOutputStates()
 
     // sum delta velocities to get velocity
     outputDataNew.velocity += delVelNav;
+
+    // Implement third order complementary filter for height and height rate
+    // Reference Paper :
+    // Optimizing the Gains of the Baro-Inertial Vertical Channel
+    // Widnall W.S, Sinha P.K,
+    // AIAA Journal of Guidance and Control, 78-1307R
+
+    // Perform filter calculation using backwards Euler integration
+    // Coefficients selected to place all three filter poles at omega
+    const float CompFiltOmega = M_2PI * constrain_float(frontend->_hrt_filt_freq, 0.1f, 30.0f);
+    float omega2 = CompFiltOmega * CompFiltOmega;
+    float pos_err = outputDataNew.position.z - vertCompFiltState.pos;
+    float integ1_input = pos_err * omega2 * CompFiltOmega * imuDataNew.delVelDT;
+    vertCompFiltState.acc += integ1_input;
+    float integ2_input = delVelNav.z + (vertCompFiltState.acc + pos_err * omega2 * 3.0f) * imuDataNew.delVelDT;
+    vertCompFiltState.vel += integ2_input;
+    float integ3_input = (vertCompFiltState.vel + pos_err * CompFiltOmega * 3.0f) * imuDataNew.delVelDT;
+    vertCompFiltState.pos += integ3_input; 
 
     // apply a trapezoidal integration to velocities to calculate position
     outputDataNew.position += (outputDataNew.velocity + lastVelocity) * (imuDataNew.delVelDT*0.5f);
@@ -1409,8 +1430,8 @@ void NavEKF3_core::StoreOutputReset()
     }
     outputDataDelayed = outputDataNew;
     // reset the states for the complementary filter used to provide a vertical position derivative output
-    posDown = stateStruct.position.z;
-    posDownDerivative = stateStruct.velocity.z;
+    vertCompFiltState.pos = stateStruct.position.z;
+    vertCompFiltState.vel = stateStruct.velocity.z;
 }
 
 // Reset the stored output quaternion history to current EKF state
@@ -1522,6 +1543,22 @@ void NavEKF3_core::ConstrainVariances()
     }
 }
 
+// constrain states using WMM tables and specified limit
+void NavEKF3_core::MagTableConstrain(void)
+{
+    // constrain to error from table earth field
+    float limit_ga = frontend->_mag_ef_limit * 0.001f;
+    stateStruct.earth_magfield.x = constrain_float(stateStruct.earth_magfield.x,
+                                                   table_earth_field_ga.x-limit_ga,
+                                                   table_earth_field_ga.x+limit_ga);
+    stateStruct.earth_magfield.y = constrain_float(stateStruct.earth_magfield.y,
+                                                   table_earth_field_ga.y-limit_ga,
+                                                   table_earth_field_ga.y+limit_ga);
+    stateStruct.earth_magfield.z = constrain_float(stateStruct.earth_magfield.z,
+                                                   table_earth_field_ga.z-limit_ga,
+                                                   table_earth_field_ga.z+limit_ga);
+}
+
 // constrain states to prevent ill-conditioning
 void NavEKF3_core::ConstrainStates()
 {
@@ -1538,7 +1575,13 @@ void NavEKF3_core::ConstrainStates()
     // the accelerometer bias limit is controlled by a user adjustable parameter
     for (uint8_t i=13; i<=15; i++) statesArray[i] = constrain_float(statesArray[i],-frontend->_accBiasLim*dtEkfAvg,frontend->_accBiasLim*dtEkfAvg);
     // earth magnetic field limit
-    for (uint8_t i=16; i<=18; i++) statesArray[i] = constrain_float(statesArray[i],-1.0f,1.0f);
+    if (frontend->_mag_ef_limit <= 0 || !have_table_earth_field) {
+        // constrain to +/-1Ga
+        for (uint8_t i=16; i<=18; i++) statesArray[i] = constrain_float(statesArray[i],-1.0f,1.0f);
+    } else {
+        // use table constrain
+        MagTableConstrain();
+    }
     // body magnetic field limit
     for (uint8_t i=19; i<=21; i++) statesArray[i] = constrain_float(statesArray[i],-0.5f,0.5f);
     // wind velocity limit 100 m/s (could be based on some multiple of max airspeed * EAS2TAS) - TODO apply circular limit
@@ -1582,7 +1625,7 @@ Quaternion NavEKF3_core::calcQuatAndFieldStates(float roll, float pitch)
         float magHeading = atan2f(initMagNED.y, initMagNED.x);
 
         // get the magnetic declination
-        float magDecAng = use_compass() ? _ahrs->get_compass()->get_declination() : 0;
+        float magDecAng = MagDeclination();
 
         // calculate yaw angle rel to true north
         yaw = magDecAng - magHeading;
@@ -1607,7 +1650,11 @@ Quaternion NavEKF3_core::calcQuatAndFieldStates(float roll, float pitch)
         // don't do this if the earth field has already been learned
         if (!magFieldLearned) {
             initQuat.rotation_matrix(Tbn);
-            stateStruct.earth_magfield = Tbn * magDataDelayed.mag;
+            if (have_table_earth_field && frontend->_mag_ef_limit > 0) {
+                stateStruct.earth_magfield = table_earth_field_ga;
+            } else {
+                stateStruct.earth_magfield = Tbn * magDataDelayed.mag;
+            }
 
             // set the NE earth magnetic field states using the published declination
             // and set the corresponding variances and covariances

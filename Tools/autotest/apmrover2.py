@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import copy
 import os
+import shutil
 import sys
 import time
 
@@ -314,7 +315,7 @@ class AutoTestRover(AutoTest):
         self.set_rc(3, 1500)
         self.wait_mode('AUTO')
         self.wait_waypoint(1, 4, max_dist=5)
-        self.wait_mode('HOLD', timeout=300)
+        self.mavproxy.expect("Mission Complete")
         self.disarm_vehicle()
         self.progress("Mission OK")
 
@@ -325,7 +326,7 @@ class AutoTestRover(AutoTest):
         self.arm_vehicle()
         self.mavproxy.expect("Gripper Grabbed")
         self.mavproxy.expect("Gripper Released")
-        self.wait_mode("HOLD")
+        self.mavproxy.expect("Mission Complete")
         self.disarm_vehicle()
 
     def do_get_banner(self):
@@ -444,14 +445,8 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
         self.progress("NAV_CONTROLLER_OUTPUT.wp_dist looks good (%u >= %u)" %
                       (m.wp_dist, wp_dist_min,))
 
-        tstart = self.get_sim_time()
-        while True:
-            if self.get_sim_time_cached() - tstart > 600:
-                raise NotAchievedException("Did not get home")
-            self.progress("Distance home: %f (mode=%s)" %
-                          (self.distance_to_home(), self.mav.flightmode))
-            if self.mode_is('HOLD') or self.mode_is('ACRO'): # acro for balancebot
-                break
+        # wait for mission to complete
+        self.mavproxy.expect("Mission Complete")
 
         # the EKF doesn't pull us down to 0 speed:
         self.wait_groundspeed(0, 0.5, timeout=600)
@@ -2021,9 +2016,6 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
         magic_waypoint_tstart = 0
         magic_waypoint_tstop = 0
         while True:
-            if self.mode_is("HOLD", cached=True):
-                break
-
             now = self.get_sim_time_cached()
             if now - last_heartbeat_sent > 1:
                 last_heartbeat_sent = now
@@ -2036,10 +2028,14 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             if now - tstart > timeout:
                 raise AutoTestTimeoutException("Didn't complete")
             magic_waypoint = 3
-#            mc = self.mav.messages.get("MISSION_CURRENT", None)
-            mc = self.mav.recv_match(type="MISSION_CURRENT", blocking=False)
+            mc = self.mav.recv_match(type=["MISSION_CURRENT", "STATUSTEXT"],
+                                     blocking=False)
             if mc is not None:
                 print("%s" % str(mc))
+                if mc.get_type() == "STATUSTEXT":
+                    if "Mission Complete" in mc.text:
+                        break
+                    continue
                 if mc.seq == magic_waypoint:
                     print("At magic waypoint")
                     if magic_waypoint_tstart == 0:
@@ -3501,10 +3497,9 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                                           mavutil.location(expected_stopping_point.lat, expected_stopping_point.lng, 0, 0))
                 print("delta: %s want_delta<%f" % (str(delta), expected_distance_epsilon))
                 at_stopping_point = delta < expected_distance_epsilon
-
-            if at_stopping_point:
-                if t == "VFR_HUD":
-                    print("groundspeed: %f" % m.groundspeed)
+            elif t == "VFR_HUD":
+                print("groundspeed: %f" % m.groundspeed)
+                if at_stopping_point:
                     if m.groundspeed < 1:
                         self.progress("Seemed to have stopped at stopping point")
                         return
@@ -4466,7 +4461,8 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             fence_middle,
             expected_stopping_point,
             target_system=target_system,
-            target_component=target_component)
+            target_component=target_component,
+            expected_distance_epsilon=2.5)
         self.set_parameter("AVOID_ENABLE", 0)
         self.do_RTL()
 
@@ -4478,6 +4474,8 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
         self.change_mode("LOITER")
         self.wait_ready_to_arm()
         self.arm_vehicle()
+        self.change_mode("MANUAL")
+        self.reach_heading_manual(180, turn_right=False)
         self.change_mode("GUIDED")
 
         self.test_poly_fence_avoidance_dont_breach_exclusion(target_system=target_system, target_component=target_component)
@@ -4624,6 +4622,132 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             target_component=target_component,
         )
 
+    def script_source_path(self, scriptname):
+        return os.path.join(self.rootdir(), "libraries", "AP_Scripting", "examples", scriptname)
+
+    def installed_script_path(self, scriptname):
+        return os.path.join(self.rootdir(), "scripts", scriptname)
+
+    def install_example_script(self, scriptname):
+        source = self.script_source_path(scriptname)
+        dest = self.installed_script_path(scriptname)
+        destdir = os.path.dirname(dest)
+        if not os.path.exists(destdir):
+            os.mkdir(destdir)
+        self.progress("Copying (%s) to (%s)" % (source, dest))
+        shutil.copy(source, dest)
+
+    def remove_example_script(self, scriptname):
+        dest = self.installed_script_path(scriptname)
+        try:
+            os.unlink(dest)
+        except IOError:
+            pass
+        except OSError:
+            pass
+
+    def test_scripting_simple_loop(self):
+        self.start_subtest("Scripting simple loop")
+        ex = None
+        example_script = "simple_loop.lua"
+        messages = []
+        def my_message_hook(mav, m):
+            if m.get_type() != 'STATUSTEXT':
+                return
+            messages.append(m)
+        self.install_message_hook(my_message_hook)
+        try:
+            self.set_parameter("SCR_ENABLE", 1)
+            self.install_example_script(example_script)
+            self.reboot_sitl()
+            self.delay_sim_time(10)
+        except Exception as e:
+            ex = e
+        self.remove_example_script(example_script)
+        self.reboot_sitl()
+
+        self.remove_message_hook(my_message_hook)
+
+        if ex is not None:
+            raise ex
+
+        # check all messages to see if we got our message
+        count = 0
+        for m in messages:
+            if "hello, world" in m.text:
+                count += 1
+        self.progress("Got %u hellos" % count)
+        if count < 3:
+            raise NotAchievedException("Expected at least three hellos")
+
+    def test_scripting_internal_test(self):
+        self.start_subtest("Scripting internal test")
+        ex = None
+        example_script = "scripting_test.lua"
+        messages = []
+        def my_message_hook(mav, m):
+            if m.get_type() != 'STATUSTEXT':
+                return
+            messages.append(m)
+        self.install_message_hook(my_message_hook)
+        try:
+            self.set_parameter("SCR_ENABLE", 1)
+            self.set_parameter("SCR_HEAP_SIZE", 65536) # this is more heap then we need, but this script will keep getting bigger
+            self.install_example_script(example_script)
+            self.reboot_sitl()
+            self.delay_sim_time(10)
+        except Exception as e:
+            ex = e
+        self.remove_example_script(example_script)
+        self.reboot_sitl()
+
+        self.remove_message_hook(my_message_hook)
+
+        if ex is not None:
+            raise ex
+
+        # check all messages to see if we got our message
+        success = False
+        for m in messages:
+            if "Internal tests passed" in m.text:
+                success = True
+        self.progress("Success")
+        if not success :
+            raise NotAchievedException("Scripting internal test failed")
+
+    def test_scripting_hello_world(self):
+        self.start_subtest("Scripting hello world")
+        ex = None
+        example_script = "hello_world.lua"
+        messages = []
+        def my_message_hook(mav, m):
+            if m.get_type() != 'STATUSTEXT':
+                return
+            messages.append(m)
+        self.install_message_hook(my_message_hook)
+        try:
+            self.set_parameter("SCR_ENABLE", 1)
+            self.install_example_script(example_script)
+            self.reboot_sitl()
+        except Exception as e:
+            ex = e
+        self.remove_example_script(example_script)
+        self.reboot_sitl()
+
+        self.remove_message_hook(my_message_hook)
+
+        if ex is not None:
+            raise ex
+
+        # check all messages to see if we got our message
+        for m in messages:
+            if "hello, world" in m.text:
+                return # success!
+        raise NotAchievedException("Did not get expected text")
+
+    def test_scripting(self):
+        self.test_scripting_hello_world()
+        self.test_scripting_simple_loop()
 
     def tests(self):
         '''return list of all tests'''
@@ -4668,7 +4792,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
 
             ("GetCapabilities",
              "Get Capabilities",
-             self.do_get_autopilot_capabilities),
+             self.test_get_autopilot_capabilities),
 
             ("DO_SET_MODE",
              "Set mode via MAV_COMMAND_DO_SET_MODE",
@@ -4778,6 +4902,10 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             ("PolyFenceObjectAvoidanceBendyRulerEasier",
              "PolyFence object avoidance tests - easier bendy ruler test",
              self.test_poly_fence_object_avoidance_bendy_ruler_easier),
+
+            ("Scripting",
+             "Scripting test",
+             self.test_scripting),
 
             ("DownLoadLogs", "Download logs", lambda:
              self.log_download(

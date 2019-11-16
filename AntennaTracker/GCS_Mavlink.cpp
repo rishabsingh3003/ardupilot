@@ -30,17 +30,18 @@ MAV_MODE GCS_MAVLINK_Tracker::base_mode() const
     // only get useful information from the custom_mode, which maps to
     // the APM flight mode and has a well defined meaning in the
     // ArduPlane documentation
-    switch (tracker.control_mode) {
-    case MANUAL:
+    switch (tracker.mode->number()) {
+    case Mode::Number::MANUAL:
         _base_mode |= MAV_MODE_FLAG_MANUAL_INPUT_ENABLED;
         break;
 
-    case STOP:
+    case Mode::Number::STOP:
         break;
 
-    case SCAN:
-    case SERVO_TEST:
-    case AUTO:
+    case Mode::Number::SCAN:
+    case Mode::Number::SERVOTEST:
+    case Mode::Number::AUTO:
+    case Mode::Number::GUIDED:
         _base_mode |= MAV_MODE_FLAG_GUIDED_ENABLED |
             MAV_MODE_FLAG_STABILIZE_ENABLED;
         // note that MAV_MODE_FLAG_AUTO_ENABLED does not match what
@@ -48,13 +49,13 @@ MAV_MODE GCS_MAVLINK_Tracker::base_mode() const
         // positions", which APM does not currently do
         break;
 
-    case INITIALISING:
+    case Mode::Number::INITIALISING:
         break;
     }
 
     // we are armed if safety switch is not disarmed
     if (hal.util->safety_switch_state() != AP_HAL::Util::SAFETY_DISARMED &&
-        tracker.control_mode != INITIALISING &&
+        tracker.mode != &tracker.mode_initialising &&
         hal.util->get_soft_armed()) {
         _base_mode |= MAV_MODE_FLAG_SAFETY_ARMED;
     }
@@ -64,12 +65,12 @@ MAV_MODE GCS_MAVLINK_Tracker::base_mode() const
 
 uint32_t GCS_Tracker::custom_mode() const
 {
-    return tracker.control_mode;
+    return (uint32_t)tracker.mode->number();
 }
 
 MAV_STATE GCS_MAVLINK_Tracker::system_status() const
 {
-    if (tracker.control_mode == INITIALISING) {
+    if (tracker.mode == &tracker.mode_initialising) {
         return MAV_STATE_CALIBRATING;
     }
     return MAV_STATE_ACTIVE;
@@ -89,6 +90,46 @@ void GCS_MAVLINK_Tracker::send_nav_controller_output() const
         alt_diff,
         0,
         0);
+}
+
+void GCS_MAVLINK_Tracker::handle_set_attitude_target(const mavlink_message_t &msg)
+{
+    // decode packet
+    mavlink_set_attitude_target_t packet;
+    mavlink_msg_set_attitude_target_decode(&msg, &packet);
+
+    // exit if vehicle is not in Guided mode
+    if (tracker.mode != &tracker.mode_guided) {
+        return;
+    }
+
+    // sanity checks:
+    if (!is_zero(packet.body_roll_rate)) {
+        return;
+    }
+    if (!(packet.type_mask & (1<<0))) {
+        // not told to ignore body roll rate
+        return;
+    }
+    if (!(packet.type_mask & (1<<6))) {
+        // not told to ignore throttle
+        return;
+    }
+    if (packet.type_mask & (1<<7)) {
+        // told to ignore attitude (we don't allow continuous motion yet)
+        return;
+    }
+    if ((packet.type_mask & (1<<3)) && (packet.type_mask&(1<<4))) {
+        // told to ignore both pitch and yaw rates - nothing to do?!
+        return;
+    }
+
+    const bool use_yaw_rate = !(packet.type_mask & (1<<2));
+
+    tracker.mode_guided.set_angle(
+        Quaternion(packet.q[0],packet.q[1],packet.q[2],packet.q[3]),
+        use_yaw_rate,
+        packet.body_yaw_rate);
 }
 
 /*
@@ -399,14 +440,17 @@ MAV_RESULT GCS_MAVLINK_Tracker::handle_command_long_packet(const mavlink_command
         return MAV_RESULT_UNSUPPORTED;
 
     case MAV_CMD_DO_SET_SERVO:
-        if (!tracker.servo_test_set_servo(packet.param1, packet.param2)) {
+        // ensure we are in servo test mode
+        tracker.set_mode(tracker.mode_servotest, ModeReason::SERVOTEST);
+
+        if (!tracker.mode_servotest.set_servo(packet.param1, packet.param2)) {
             return MAV_RESULT_FAILED;
         }
         return MAV_RESULT_ACCEPTED;
 
         // mavproxy/mavutil sends this when auto command is entered 
     case MAV_CMD_MISSION_START:
-        tracker.set_mode(AUTO, MODE_REASON_GCS_COMMAND);
+        tracker.set_mode(tracker.mode_auto, ModeReason::GCS_COMMAND);
         return MAV_RESULT_ACCEPTED;
 
     default:
@@ -414,16 +458,20 @@ MAV_RESULT GCS_MAVLINK_Tracker::handle_command_long_packet(const mavlink_command
     }
 }
 
-bool GCS_MAVLINK_Tracker::set_home_to_current_location(bool lock) {
+bool GCS_MAVLINK_Tracker::set_home_to_current_location(bool _lock) {
     return tracker.set_home(AP::gps().location());
 }
-bool GCS_MAVLINK_Tracker::set_home(const Location& loc, bool lock) {
+bool GCS_MAVLINK_Tracker::set_home(const Location& loc, bool _lock) {
     return tracker.set_home(loc);
 }
 
 void GCS_MAVLINK_Tracker::handleMessage(const mavlink_message_t &msg)
 {
     switch (msg.msgid) {
+
+    case MAVLINK_MSG_ID_SET_ATTITUDE_TARGET:
+        handle_set_attitude_target(msg);
+        break;
 
     // When mavproxy 'wp sethome' 
     case MAVLINK_MSG_ID_MISSION_WRITE_PARTIAL_LIST:
@@ -569,13 +617,6 @@ mission_failed:
 } // end handle mavlink
 
 
-uint64_t GCS_MAVLINK_Tracker::capabilities() const
-{
-    return (MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT |
-            MAV_PROTOCOL_CAPABILITY_COMPASS_CALIBRATION |
-            GCS_MAVLINK::capabilities());
-}
-
 /*
  *  a delay() callback that processes MAVLink packets. We set this as the
  *  callback in long running library initialisation routines to allow
@@ -607,23 +648,6 @@ void Tracker::mavlink_delay_cb()
     logger.EnableWrites(true);
 }
 
-/*
-  set_mode() wrapper for MAVLink SET_MODE
- */
-bool GCS_MAVLINK_Tracker::set_mode(uint8_t mode)
-{
-    switch (mode) {
-    case AUTO:
-    case MANUAL:
-    case SCAN:
-    case SERVO_TEST:
-    case STOP:
-        tracker.set_mode((enum ControlMode)mode, MODE_REASON_GCS_COMMAND);
-        return true;
-    }
-    return false;
-}
-
 // send position tracker is using
 void GCS_MAVLINK_Tracker::send_global_position_int()
 {
@@ -644,15 +668,3 @@ void GCS_MAVLINK_Tracker::send_global_position_int()
         0,                        // Z speed cm/s (+ve Down)
         tracker.ahrs.yaw_sensor); // compass heading in 1/100 degree
 }
-
-
-/* dummy methods to avoid having to link against AP_Camera */
-void AP_Camera::control_msg(const mavlink_message_t &) {}
-void AP_Camera::configure(float, float, float, float, float, float, float) {}
-void AP_Camera::control(float, float, float, float, float, float) {}
-void AP_Camera::send_feedback(mavlink_channel_t chan) {}
-/* end dummy methods to avoid having to link against AP_Camera */
-
-// dummy method to avoid linking AFS
-bool AP_AdvancedFailsafe::gcs_terminate(bool should_terminate, const char *reason) {return false;}
-AP_AdvancedFailsafe *AP::advancedfailsafe() { return nullptr; }

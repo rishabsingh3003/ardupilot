@@ -66,7 +66,9 @@ void Sub::init_ardupilot()
     g2.gripper.init();
 #endif
 
+#if AC_FENCE == ENABLED
     fence.init();
+#endif
 
     // initialise notify system
     notify.init();
@@ -300,3 +302,14 @@ bool Sub::should_log(uint32_t mask)
     return false;
 #endif
 }
+
+#include <AP_AdvancedFailsafe/AP_AdvancedFailsafe.h>
+#include <AP_Avoidance/AP_Avoidance.h>
+#include <AP_ADSB/AP_ADSB.h>
+
+// dummy method to avoid linking AFS
+bool AP_AdvancedFailsafe::gcs_terminate(bool should_terminate, const char *reason) { return false; }
+AP_AdvancedFailsafe *AP::advancedfailsafe() { return nullptr; }
+
+// dummy method to avoid linking AP_Avoidance
+AP_Avoidance *AP::ap_avoidance() { return nullptr; }

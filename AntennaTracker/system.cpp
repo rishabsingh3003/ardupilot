@@ -108,24 +108,11 @@ void Tracker::init_tracker()
     gcs().send_text(MAV_SEVERITY_INFO,"Ready to track");
     hal.scheduler->delay(1000); // Why????
 
-    switch (g.initial_mode) {
-    case MANUAL:
-        set_mode(MANUAL, MODE_REASON_STARTUP);
-        break;
-
-    case SCAN:
-        set_mode(SCAN, MODE_REASON_STARTUP);
-        break;
-
-    case STOP:
-        set_mode(STOP, MODE_REASON_STARTUP);
-        break;
-
-    case AUTO:
-    default:
-        set_mode(AUTO, MODE_REASON_STARTUP);
-        break;
+    Mode *newmode = mode_from_mode_num((Mode::Number)g.initial_mode.get());
+    if (newmode == nullptr) {
+        newmode = &mode_manual;
     }
+    set_mode(*newmode, ModeReason::STARTUP);
 
     if (g.startup_delay > 0) {
         // arm servos with trim value to allow them to start up (required
@@ -214,33 +201,57 @@ void Tracker::prepare_servos()
     SRV_Channels::output_ch_all();
 }
 
-void Tracker::set_mode(enum ControlMode mode, mode_reason_t reason)
+void Tracker::set_mode(Mode &newmode, const ModeReason reason)
 {
-    if (control_mode == mode) {
+    if (mode == &newmode) {
         // don't switch modes if we are already in the correct mode.
         return;
     }
-    control_mode = mode;
+    mode = &newmode;
 
-	switch (control_mode) {
-    case AUTO:
-    case MANUAL:
-    case SCAN:
-    case SERVO_TEST:
+    if (mode->requires_armed_servos()) {
         arm_servos();
-        break;
-
-    case STOP:
-    case INITIALISING:
+    } else {
         disarm_servos();
-        break;
     }
 
 	// log mode change
-	logger.Write_Mode(control_mode, reason);
-  gcs().send_message(MSG_HEARTBEAT);
+	logger.Write_Mode((uint8_t)mode->number(), reason);
+    gcs().send_message(MSG_HEARTBEAT);
 
     nav_status.bearing = ahrs.yaw_sensor * 0.01f;
+}
+
+bool Tracker::set_mode(const uint8_t new_mode, const ModeReason reason)
+{
+    Mode *fred = nullptr;
+    switch ((Mode::Number)new_mode) {
+    case Mode::Number::INITIALISING:
+        return false;
+    case Mode::Number::AUTO:
+        fred = &mode_auto;
+        break;
+    case Mode::Number::MANUAL:
+        fred = &mode_manual;
+        break;
+    case Mode::Number::SCAN:
+        fred = &mode_scan;
+        break;
+    case Mode::Number::SERVOTEST:
+        fred = &mode_servotest;
+        break;
+    case Mode::Number::STOP:
+        fred = &mode_stop;
+        break;
+    case Mode::Number::GUIDED:
+        fred = &mode_guided;
+        break;
+    }
+    if (fred == nullptr) {
+        return false;
+    }
+    set_mode(*fred, reason);
+    return true;
 }
 
 /*
@@ -253,3 +264,23 @@ bool Tracker::should_log(uint32_t mask)
     }
     return true;
 }
+
+
+#include <AP_Camera/AP_Camera.h>
+#include <AP_AdvancedFailsafe/AP_AdvancedFailsafe.h>
+#include <AP_Avoidance/AP_Avoidance.h>
+#include <AP_ADSB/AP_ADSB.h>
+
+/* dummy methods to avoid having to link against AP_Camera */
+void AP_Camera::control_msg(const mavlink_message_t &) {}
+void AP_Camera::configure(float, float, float, float, float, float, float) {}
+void AP_Camera::control(float, float, float, float, float, float) {}
+void AP_Camera::send_feedback(mavlink_channel_t chan) {}
+/* end dummy methods to avoid having to link against AP_Camera */
+
+// dummy method to avoid linking AFS
+bool AP_AdvancedFailsafe::gcs_terminate(bool should_terminate, const char *reason) {return false;}
+AP_AdvancedFailsafe *AP::advancedfailsafe() { return nullptr; }
+
+// dummy method to avoid linking AP_Avoidance
+AP_Avoidance *AP::ap_avoidance() { return nullptr; }

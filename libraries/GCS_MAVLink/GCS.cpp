@@ -60,7 +60,7 @@ void GCS::send_to_active_channels(uint32_t msgid, const char *pkt)
         if (!c.is_active()) {
             continue;
         }
-        if (entry->max_msg_len + c.packet_overhead() > c.get_uart()->txspace()) {
+        if (entry->max_msg_len + c.packet_overhead() > c.txspace()) {
             // no room on this channel
             continue;
         }
@@ -71,7 +71,7 @@ void GCS::send_to_active_channels(uint32_t msgid, const char *pkt)
 void GCS::send_named_float(const char *name, float value) const
 {
 
-    mavlink_named_value_float_t packet;
+    mavlink_named_value_float_t packet {};
     packet.time_boot_ms = AP_HAL::millis();
     packet.value = value;
     memcpy(packet.name, name, MIN(strlen(name), (uint8_t)MAVLINK_MSG_NAMED_VALUE_FLOAT_FIELD_NAME_LEN));
@@ -204,7 +204,7 @@ bool GCS::out_of_time() const
     }
 
     // we always want to be able to send messages out while in the error loop:
-    if (AP_BoardConfig::in_sensor_config_error()) {
+    if (AP_BoardConfig::in_config_error()) {
         return false;
     }
 

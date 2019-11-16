@@ -213,6 +213,8 @@ class generic_pin(object):
                     self.sig_dir = 'OUTPUT'
                 elif l == 'I2C':
                     self.sig_dir = 'OUTPUT'
+                elif l == 'OTG':
+                    self.sig_dir = 'OUTPUT'
                 else:
                     error("Unknown signal type %s:%s for %s!" % (self.portpin, self.label, mcu_type))
 
@@ -325,6 +327,8 @@ class generic_pin(object):
         v = 'HIGH'
         if self.type == 'OUTPUT':
             v = 'LOW'
+        elif self.label is not None and self.label.startswith('I2C'):
+            v = 'LOW'
         for e in self.extra:
             if e in values:
                 v = e
@@ -375,6 +379,8 @@ class generic_pin(object):
                 if e in speed_values:
                     v = e
             speed_str = "PIN_%s(%uU) |" % (v, self.pin)
+        elif self.is_CS():
+            speed_str = "PIN_SPEED_LOW(%uU) |" % (self.pin)
         else:
             speed_str = ""
         if self.af is not None:
@@ -384,8 +390,12 @@ class generic_pin(object):
                     v = 'PUD'
                 else:
                     v = "NOPULL"
+            elif self.label.startswith('I2C'):
+                v = "AF_OD"
             else:
                 v = "AF_PP"
+        elif self.is_CS():
+            v = "OUTPUT_PP"
         elif self.sig_dir == 'OUTPUT':
             if 'OPENDRAIN' in self.extra:
                 v = 'OUTPUT_OD'
@@ -603,6 +613,11 @@ def write_mcu_config(f):
     f.write('#define HAL_MEMORY_REGIONS %s\n' % ', '.join(regions))
     f.write('#define HAL_MEMORY_TOTAL_KB %u\n' % total_memory)
 
+    f.write('#define HAL_RAM0_START 0x%08x\n' % ram_map[0][0])
+    ram_reserve_start = get_config('RAM_RESERVE_START', default=0, type=int)
+    if ram_reserve_start > 0:
+        f.write('#define HAL_RAM_RESERVE_START 0x%08x\n' % ram_reserve_start)
+
     f.write('\n// CPU serial number (12 bytes)\n')
     f.write('#define UDID_START 0x%08x\n\n' % get_mcu_config('UDID_START', True))
 
@@ -658,6 +673,8 @@ def write_mcu_config(f):
 #define HAL_USE_I2C FALSE
 #define HAL_USE_PWM FALSE
 ''')
+    if env_vars.get('ROMFS_UNCOMPRESSED', False):
+        f.write('#define HAL_ROMFS_UNCOMPRESSED\n')
 
 def write_ldscript(fname):
     '''write ldscript.ld for this board'''
@@ -686,15 +703,23 @@ def write_ldscript(fname):
 
     print("Generating ldscript.ld")
     f = open(fname, 'w')
+    ram0_start = ram_map[0][0]
+    ram0_len = ram_map[0][1] * 1024
+
+    # possibly reserve some memory for app/bootloader comms
+    ram_reserve_start = get_config('RAM_RESERVE_START', default=0, type=int)
+    ram0_start += ram_reserve_start
+    ram0_len -= ram_reserve_start
+
     f.write('''/* generated ldscript.ld */
 MEMORY
 {
     flash : org = 0x%08x, len = %uK
-    ram0  : org = 0x%08x, len = %uk
+    ram0  : org = 0x%08x, len = %u
 }
 
 INCLUDE common.ld
-''' % (flash_base, flash_length, ram_map[0][0], ram_map[0][1]))
+''' % (flash_base, flash_length, ram0_start, ram0_len))
 
 def copy_common_linkerscript(outdir, hwdef):
     dirpath = os.path.dirname(hwdef)
@@ -974,7 +999,7 @@ def write_UART_config(f):
             f.write(
                 "#define HAL_%s_CONFIG { (BaseSequentialStream*) &SD%u, false, "
                 % (dev, n))
-            if mcu_series.startswith("STM32F1"):
+            if mcu_series.startswith("STM32F1") or mcu_series.startswith("STM32F3"):
                 f.write("%s, " % rts_line)
             else:
                 f.write("STM32_%s_RX_DMA_CONFIG, STM32_%s_TX_DMA_CONFIG, %s, " %
@@ -1192,6 +1217,7 @@ def write_PWM_config(f):
     f.write('\n')
     f.write('// PWM output config\n')
     groups = []
+    have_complementary = False
     for t in sorted(pwm_timers):
         group = len(groups) + 1
         n = int(t[3:])
@@ -1210,6 +1236,7 @@ def write_PWM_config(f):
             chan_list[chan - 1] = pwm - 1
             if compl:
                 chan_mode[chan - 1] = 'PWM_COMPLEMENTARY_OUTPUT_ACTIVE_HIGH'
+                have_complementary = True
             else:
                 chan_mode[chan - 1] = 'PWM_OUTPUT_ACTIVE_HIGH'
             alt_functions[chan - 1] = p.af
@@ -1252,6 +1279,8 @@ def write_PWM_config(f):
                  alt_functions[0], alt_functions[1], alt_functions[2], alt_functions[3],
                  pal_lines[0], pal_lines[1], pal_lines[2], pal_lines[3]))
     f.write('#define HAL_PWM_GROUPS %s\n\n' % ','.join(groups))
+    if have_complementary:
+        f.write('#define STM32_PWM_USE_ADVANCED TRUE\n')
 
 
 def write_ADC_config(f):
@@ -1443,20 +1472,20 @@ def write_hwdef_header(outfilename):
  * in the initialization code.
  * Please refer to the STM32 Reference Manual for details.
  */
-#define PIN_MODE_OUTPUT_PP(n)         (0 << (((n) & 7) * 4))
-#define PIN_MODE_OUTPUT_OD(n)         (4 << (((n) & 7) * 4))
-#define PIN_MODE_AF_PP(n)             (8 << (((n) & 7) * 4)) 
-#define PIN_MODE_AF_OD(n)             (12 << (((n) & 7) * 4))
-#define PIN_MODE_ANALOG(n)            (0 << (((n) & 7) * 4))
-#define PIN_MODE_NOPULL(n)            (4 << (((n) & 7) * 4))
-#define PIN_MODE_PUD(n)               (8 << (((n) & 7) * 4)) 
-#define PIN_SPEED_MEDIUM(n)           (1 << (((n) & 7) * 4))
-#define PIN_SPEED_LOW(n)              (2 << (((n) & 7) * 4))
-#define PIN_SPEED_HIGH(n)             (3 << (((n) & 7) * 4))
-#define PIN_ODR_HIGH(n)               (1 << (((n) & 15)))
-#define PIN_ODR_LOW(n)                (0 << (((n) & 15)))
-#define PIN_PULLUP(n)                 (1 << (((n) & 15)))
-#define PIN_PULLDOWN(n)               (0 << (((n) & 15)))
+#define PIN_MODE_OUTPUT_PP(n)         (0U << (((n) & 7) * 4))
+#define PIN_MODE_OUTPUT_OD(n)         (4U << (((n) & 7) * 4))
+#define PIN_MODE_AF_PP(n)             (8U << (((n) & 7) * 4))
+#define PIN_MODE_AF_OD(n)             (12U << (((n) & 7) * 4))
+#define PIN_MODE_ANALOG(n)            (0U << (((n) & 7) * 4))
+#define PIN_MODE_NOPULL(n)            (4U << (((n) & 7) * 4))
+#define PIN_MODE_PUD(n)               (8U << (((n) & 7) * 4))
+#define PIN_SPEED_MEDIUM(n)           (1U << (((n) & 7) * 4))
+#define PIN_SPEED_LOW(n)              (2U << (((n) & 7) * 4))
+#define PIN_SPEED_HIGH(n)             (3U << (((n) & 7) * 4))
+#define PIN_ODR_HIGH(n)               (1U << (((n) & 15)))
+#define PIN_ODR_LOW(n)                (0U << (((n) & 15)))
+#define PIN_PULLUP(n)                 (1U << (((n) & 15)))
+#define PIN_PULLDOWN(n)               (0U << (((n) & 15)))
 #define PIN_UNDEFINED(n)                PIN_INPUT_PUD(n)
 ''')
     else:

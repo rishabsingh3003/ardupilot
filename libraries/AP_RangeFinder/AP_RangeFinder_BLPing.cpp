@@ -14,11 +14,9 @@
  */
 
 #include <AP_HAL/AP_HAL.h>
-#include <AP_SerialManager/AP_SerialManager.h>
 #include <GCS_MAVLink/GCS.h>
 #include "AP_RangeFinder_BLPing.h"
 
-#define BLPING_TIMEOUT_MS       500     // sensor timeout after 0.5 sec
 #define BLPING_INIT_RATE_MS     1000    // initialise sensor at no more than 1hz
 #define BLPING_FRAME_HEADER1    0x42    // header first byte ('B')
 #define BLPING_FRAME_HEADER2    0x52    // header second byte ('R')
@@ -46,29 +44,6 @@
 // 8-n      uint8_t[]   payload         message payload
 // (n+1)-(n+2)  uint16_t    checksum    the sum of all the non-checksum bytes in the message (low byte, high byte)
 
-/* 
-   The constructor also initialises the rangefinder. Note that this
-   constructor is not called until detect() returns true, so we
-   already know that we should setup the rangefinder
-*/
-AP_RangeFinder_BLPing::AP_RangeFinder_BLPing(RangeFinder::RangeFinder_State &_state,
-                                             AP_RangeFinder_Params &_params,
-                                             uint8_t serial_instance) :
-    AP_RangeFinder_Backend(_state, _params)
-{
-    const AP_SerialManager &serial_manager = AP::serialmanager();
-    uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_Rangefinder, serial_instance);
-    if (uart != nullptr) {
-        uart->begin(serial_manager.find_baudrate(AP_SerialManager::SerialProtocol_Rangefinder, serial_instance));
-    }
-}
-
-// detect if a serial port has been setup to accept rangefinder input
-bool AP_RangeFinder_BLPing::detect(uint8_t serial_instance)
-{
-    return AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_Rangefinder, serial_instance) != nullptr;
-}
-
 /*
    update the state of the sensor
 */
@@ -77,16 +52,10 @@ void AP_RangeFinder_BLPing::update(void)
     if (uart == nullptr) {
         return;
     }
+    AP_RangeFinder_Backend_Serial::update();
 
-    const uint32_t now = AP_HAL::millis();
-
-    if (get_reading(state.distance_cm)) {
-        // update range_valid state based on distance measured
-        state.last_reading_ms = now;
-        update_status();
-    } else if (now - state.last_reading_ms > BLPING_TIMEOUT_MS) {
-        set_status(RangeFinder::RangeFinder_NoData);
-
+    if (status() == RangeFinder::Status::NoData) {
+        const uint32_t now = AP_HAL::millis();
         // initialise sensor if no distances recently
         if (now - last_init_ms > BLPING_INIT_RATE_MS) {
             last_init_ms = now;

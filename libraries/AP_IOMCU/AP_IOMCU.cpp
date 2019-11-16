@@ -44,7 +44,9 @@ enum ioevents {
 
 AP_IOMCU::AP_IOMCU(AP_HAL::UARTDriver &_uart) :
     uart(_uart)
-{}
+{
+    singleton = this;
+}
 
 #define IOMCU_DEBUG_ENABLE 0
 
@@ -53,6 +55,8 @@ AP_IOMCU::AP_IOMCU(AP_HAL::UARTDriver &_uart) :
 #else
 #define debug(fmt, args ...)
 #endif
+
+AP_IOMCU *AP_IOMCU::singleton;
 
 /*
   initialise library, starting thread
@@ -99,9 +103,9 @@ void AP_IOMCU::thread_main(void)
     uart.begin(1500*1000, 256, 256);
     uart.set_blocking_writes(true);
     uart.set_unbuffered_writes(true);
-    
+
     trigger_event(IOEVENT_INIT);
-    
+
     while (!do_shutdown) {
         eventmask_t mask = chEvtWaitAnyTimeout(~0, chTimeMS2I(10));
 
@@ -150,7 +154,7 @@ void AP_IOMCU::thread_main(void)
             }
         }
 
-        
+
         if (mask & EVENT_MASK(IOEVENT_SET_RATES)) {
             if (!write_register(PAGE_SETUP, PAGE_REG_SETUP_ALTRATE, rate.freq) ||
                 !write_register(PAGE_SETUP, PAGE_REG_SETUP_PWM_RATE_MASK, rate.chmask)) {
@@ -164,7 +168,7 @@ void AP_IOMCU::thread_main(void)
                 !modify_register(PAGE_SETUP, PAGE_REG_SETUP_FEATURES, 0,
                                  P_SETUP_FEATURES_SBUS1_OUT)) {
                 event_failed(IOEVENT_ENABLE_SBUS);
-                continue;                
+                continue;
             }
         }
 
@@ -195,7 +199,7 @@ void AP_IOMCU::thread_main(void)
                 continue;
             }
         }
-        
+
         if (mask & EVENT_MASK(IOEVENT_SET_SAFETY_MASK)) {
             if (!write_register(PAGE_SETUP, PAGE_REG_SETUP_IGNORE_SAFETY, pwm_out.safety_mask)) {
                 event_failed(IOEVENT_SET_SAFETY_MASK);
@@ -210,7 +214,7 @@ void AP_IOMCU::thread_main(void)
             read_rc_input();
             last_rc_read_ms = AP_HAL::millis();
         }
-        
+
         if (now - last_status_read_ms > 50) {
             // read status at 20Hz
             read_status();
@@ -272,7 +276,7 @@ void AP_IOMCU::send_servo_out()
                 last_servo_out_us = now;
             }
         }
-    }    
+    }
 }
 
 /*
@@ -408,7 +412,7 @@ bool AP_IOMCU::read_registers(uint8_t page, uint8_t offset, uint8_t count, uint1
     IOPacket pkt;
 
     discard_input();
-    
+
     memset(&pkt.regs[0], 0, count*2);
 
     pkt.code = CODE_READ;
@@ -428,7 +432,7 @@ bool AP_IOMCU::read_registers(uint8_t page, uint8_t offset, uint8_t count, uint1
         */
         pkt_size = 4;
     }
-    
+
     pkt.crc = crc_crc8((const uint8_t *)&pkt, pkt_size);
 
     size_t ret = write_wait((uint8_t *)&pkt, pkt_size);
@@ -445,7 +449,7 @@ bool AP_IOMCU::read_registers(uint8_t page, uint8_t offset, uint8_t count, uint1
               AP_HAL::millis(), page, offset, count);
         return false;
     }
-    
+
     uint8_t *b = (uint8_t *)&pkt;
     uint8_t n = uart.available();
     if (n < offsetof(struct IOPacket, regs)) {
@@ -509,7 +513,7 @@ bool AP_IOMCU::write_registers(uint8_t page, uint8_t offset, uint8_t count, cons
         regs += PKT_MAX_REGS;
     }
     IOPacket pkt;
-    
+
     discard_input();
 
     memset(&pkt.regs[0], 0, count*2);
@@ -537,7 +541,7 @@ bool AP_IOMCU::write_registers(uint8_t page, uint8_t offset, uint8_t count, cons
         protocol_fail_count++;
         return false;
     }
-    
+
     uint8_t *b = (uint8_t *)&pkt;
     uint8_t n = uart.available();
     for (uint8_t i=0; i<n; i++) {
@@ -757,18 +761,18 @@ bool AP_IOMCU::check_crc(void)
 {
     // flash size minus 4k bootloader
 	const uint32_t flash_size = 0x10000 - 0x1000;
-    
+
     fw = AP_ROMFS::find_decompress(fw_name, fw_size);
     if (!fw) {
         hal.console->printf("failed to find %s\n", fw_name);
         return false;
     }
-    uint32_t crc = crc_crc32(0, fw, fw_size);
+    uint32_t crc = crc32_small(0, fw, fw_size);
 
     // pad CRC to max size
 	for (uint32_t i=0; i<flash_size-fw_size; i++) {
 		uint8_t b = 0xff;
-		crc = crc_crc32(crc, &b, 1);
+        crc = crc32_small(crc, &b, 1);
 	}
 
     uint32_t io_crc = 0;
@@ -781,7 +785,7 @@ bool AP_IOMCU::check_crc(void)
     if (io_crc == crc) {
         hal.console->printf("IOMCU: CRC ok\n");
         crc_is_ok = true;
-        free(fw);
+        AP_ROMFS::free(fw);
         fw = nullptr;
         return true;
     } else {
@@ -792,12 +796,12 @@ bool AP_IOMCU::check_crc(void)
     write_registers(PAGE_SETUP, PAGE_REG_SETUP_REBOOT_BL, 1, &magic);
 
     if (!upload_fw()) {
-        free(fw);
+        AP_ROMFS::free(fw);
         fw = nullptr;
-        AP_BoardConfig::sensor_config_error("Failed to update IO firmware");
+        AP_BoardConfig::config_error("Failed to update IO firmware");
     }
-    
-    free(fw);
+
+    AP_ROMFS::free(fw);
     fw = nullptr;
     return false;
 }
@@ -846,7 +850,7 @@ void AP_IOMCU::set_safety_mask(uint16_t chmask)
 {
     if (pwm_out.safety_mask != chmask) {
         pwm_out.safety_mask = chmask;
-        trigger_event(IOEVENT_SET_SAFETY_MASK);        
+        trigger_event(IOEVENT_SET_SAFETY_MASK);
     }
 }
 
@@ -998,5 +1002,12 @@ void AP_IOMCU::check_iomcu_reset(void)
     trigger_event(IOEVENT_SET_RATES);
     trigger_event(IOEVENT_SET_DEFAULT_RATE);
 }
+
+
+namespace AP {
+    AP_IOMCU *iomcu(void) {
+        return AP_IOMCU::get_singleton();
+    }
+};
 
 #endif // HAL_WITH_IO_MCU

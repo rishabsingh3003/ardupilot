@@ -54,6 +54,9 @@ void Copter::update_land_detector()
 #endif
             set_land_complete(false);
         }
+    } else if (standby_active) {
+        // land detector will not run in standby mode
+        land_detector_count = 0;
     } else {
 
 #if FRAME_CONFIG == HELI_FRAME
@@ -99,9 +102,9 @@ void Copter::set_land_complete(bool b)
     land_detector_count = 0;
 
     if(b){
-        Log_Write_Event(DATA_LAND_COMPLETE);
+        AP::logger().Write_Event(LogEvent::LAND_COMPLETE);
     } else {
-        Log_Write_Event(DATA_NOT_LANDED);
+        AP::logger().Write_Event(LogEvent::NOT_LANDED);
     }
     ap.land_complete = b;
 
@@ -129,7 +132,7 @@ void Copter::set_land_complete_maybe(bool b)
         return;
 
     if (b) {
-        Log_Write_Event(DATA_LAND_COMPLETE_MAYBE);
+        AP::logger().Write_Event(LogEvent::LAND_COMPLETE_MAYBE);
     }
     ap.land_complete_maybe = b;
 }
@@ -173,7 +176,7 @@ void Copter::update_throttle_thr_mix()
         bool descent_not_demanded = pos_control->get_desired_velocity().z >= 0.0f;
 
         if ( large_angle_request || large_angle_error || accel_moving || descent_not_demanded) {
-            attitude_control->set_throttle_mix_max();
+            attitude_control->set_throttle_mix_max(pos_control->get_vel_z_control_ratio());
         } else {
             attitude_control->set_throttle_mix_min();
         }

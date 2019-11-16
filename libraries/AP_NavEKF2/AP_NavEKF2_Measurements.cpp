@@ -5,7 +5,7 @@
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS.h>
-#include <AP_RangeFinder/RangeFinder_Backend.h>
+#include <AP_RangeFinder/AP_RangeFinder_Backend.h>
 #include <AP_GPS/AP_GPS.h>
 #include <AP_Baro/AP_Baro.h>
 
@@ -45,7 +45,7 @@ void NavEKF2_core::readRangeFinder(void)
             if (sensor == nullptr) {
                 continue;
             }
-            if ((sensor->orientation() == ROTATION_PITCH_270) && (sensor->status() == RangeFinder::RangeFinder_Good)) {
+            if ((sensor->orientation() == ROTATION_PITCH_270) && (sensor->status() == RangeFinder::Status::Good)) {
                 rngMeasIndex[sensorIndex] ++;
                 if (rngMeasIndex[sensorIndex] > 2) {
                     rngMeasIndex[sensorIndex] = 0;

@@ -28,10 +28,11 @@ extern const AP_HAL::HAL& hal;
    already know that we should setup the proximity sensor
 */
 AP_Proximity_TeraRangerTowerEvo::AP_Proximity_TeraRangerTowerEvo(AP_Proximity &_frontend,
-                                                         AP_Proximity::Proximity_State &_state,
-                                                         AP_SerialManager &serial_manager) :
+                                                         AP_Proximity::Proximity_State &_state) :
     AP_Proximity_Backend(_frontend, _state)
 {
+    const AP_SerialManager &serial_manager = AP::serialmanager();
+
     uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_Lidar360, 0);
     if (uart != nullptr) {
         uart->begin(serial_manager.find_baudrate(AP_SerialManager::SerialProtocol_Lidar360, 0));
@@ -40,11 +41,9 @@ AP_Proximity_TeraRangerTowerEvo::AP_Proximity_TeraRangerTowerEvo(AP_Proximity &_
 }
 
 // detect if a TeraRanger Tower proximity sensor is connected by looking for a configured serial port
-bool AP_Proximity_TeraRangerTowerEvo::detect(AP_SerialManager &serial_manager)
+bool AP_Proximity_TeraRangerTowerEvo::detect()
 {
-    AP_HAL::UARTDriver *uart = nullptr;
-    uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_Lidar360, 0);
-    return uart != nullptr;
+    return (AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_Lidar360, 0) != nullptr);
 }
 
 // update the state of the sensor
@@ -65,9 +64,9 @@ void AP_Proximity_TeraRangerTowerEvo::update(void)
 
     // check for timeout and set health status
     if ((_last_distance_received_ms == 0) || (AP_HAL::millis() - _last_distance_received_ms > PROXIMITY_TRTOWER_TIMEOUT_MS)) {
-        set_status(AP_Proximity::Proximity_NoData);
+        set_status(AP_Proximity::Status::NoData);
     } else {
-        set_status(AP_Proximity::Proximity_Good);
+        set_status(AP_Proximity::Status::Good);
     }
 }
 

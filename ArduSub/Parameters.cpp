@@ -560,7 +560,7 @@ const AP_Param::Info Sub::var_info[] = {
 
 #if RANGEFINDER_ENABLED == ENABLED
     // @Group: RNGFND
-    // @Path: ../libraries/AP_RangeFinder/RangeFinder.cpp
+    // @Path: ../libraries/AP_RangeFinder/AP_RangeFinder.cpp
     GOBJECT(rangefinder,   "RNGFND", RangeFinder),
 #endif
 
@@ -640,9 +640,6 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
   constructor for g2 object
  */
 ParametersG2::ParametersG2()
-#if PROXIMITY_ENABLED == ENABLED
-    : proximity(sub.serial_manager)
-#endif
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
@@ -703,7 +700,7 @@ void Sub::load_parameters()
     AP_Param::set_default_by_name("MNT_JSTICK_SPD", 100);
     AP_Param::set_by_name("MNT_RC_IN_PAN", 7);
     AP_Param::set_by_name("MNT_RC_IN_TILT", 8);
-    AP_Param::set_default_by_name("RNGFND1_TYPE", RangeFinder::RangeFinder_TYPE_MAVLink);
+    AP_Param::set_default_by_name("RNGFND1_TYPE", (uint8_t)RangeFinder::Type::MAVLink);
 }
 
 void Sub::convert_old_parameters()

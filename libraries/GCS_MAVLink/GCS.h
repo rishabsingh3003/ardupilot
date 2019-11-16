@@ -15,6 +15,7 @@
 #include <AP_Common/Bitmask.h>
 #include <AP_Devo_Telem/AP_Devo_Telem.h>
 #include <RC_Channel/RC_Channel.h>
+#include <AP_Filesystem/AP_Filesystem_Available.h>
 
 #include "MissionItemProtocol_Waypoints.h"
 #include "MissionItemProtocol_Rally.h"
@@ -24,9 +25,9 @@
 #define GCS_DEBUG_SEND_MESSAGE_TIMINGS 0
 
 // check if a message will fit in the payload space available
-#define PAYLOAD_SIZE(chan, id) (GCS_MAVLINK::packet_overhead_chan(chan)+MAVLINK_MSG_ID_ ## id ## _LEN)
+#define PAYLOAD_SIZE(chan, id) (unsigned(GCS_MAVLINK::packet_overhead_chan(chan)+MAVLINK_MSG_ID_ ## id ## _LEN))
 #define HAVE_PAYLOAD_SPACE(chan, id) (comm_get_txspace(chan) >= PAYLOAD_SIZE(chan, id))
-#define CHECK_PAYLOAD_SIZE(id) if (comm_get_txspace(chan) < packet_overhead()+MAVLINK_MSG_ID_ ## id ## _LEN) return false
+#define CHECK_PAYLOAD_SIZE(id) if (txspace() < unsigned(packet_overhead()+MAVLINK_MSG_ID_ ## id ## _LEN)) return false
 #define CHECK_PAYLOAD_SIZE2(id) if (!HAVE_PAYLOAD_SPACE(chan, id)) return false
 
 // convenience macros for defining which ap_message ids are in which streams:
@@ -75,6 +76,17 @@ public:
 
     // returns true if we are requesting any items from the GCS:
     bool requesting_mission_items() const;
+
+    /// Check for available transmit space
+    uint16_t txspace() const {
+        if (_locked) {
+            return 0;
+        }
+        // there were concerns over return a too-large value for
+        // txspace (in case we tried to do too much with the space in
+        // a single loop):
+        return MIN(_port->txspace(), 8192U);
+    }
 
     void send_mission_ack(const mavlink_message_t &msg,
                           MAV_MISSION_TYPE mission_type,
@@ -215,7 +227,14 @@ public:
     void send_set_position_target_global_int(uint8_t target_system, uint8_t target_component, const Location& loc);
     void send_rpm() const;
 
-    bool locked() const;
+    // lock a channel, preventing use by MAVLink
+    void lock(bool _lock) {
+        _locked = _lock;
+    }
+    // returns true if this channel isn't available for MAVLink
+    bool locked() const {
+        return _locked;
+    }
 
     // return a bitmap of active channels. Used by libraries to loop
     // over active channels to send to all active channels    
@@ -285,7 +304,6 @@ protected:
     // overridable method to check for packet acceptance. Allows for
     // enforcement of GCS sysid
     bool accept_packet(const mavlink_status_t &status, const mavlink_message_t &msg);
-    virtual bool set_mode(uint8_t mode) = 0;
     void set_ekf_origin(const Location& loc);
 
     virtual MAV_MODE base_mode() const = 0;
@@ -401,6 +419,9 @@ protected:
     MAV_RESULT handle_command_battery_reset(const mavlink_command_long_t &packet);
     void handle_command_long(const mavlink_message_t &msg);
     MAV_RESULT handle_command_accelcal_vehicle_pos(const mavlink_command_long_t &packet);
+    MAV_RESULT handle_command_do_set_roi_sysid(const uint8_t sysid);
+    MAV_RESULT handle_command_do_set_roi_sysid(const mavlink_command_int_t &packet);
+    MAV_RESULT handle_command_do_set_roi_sysid(const mavlink_command_long_t &packet);
     virtual MAV_RESULT handle_command_mount(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_mag_cal(const mavlink_command_long_t &packet);
     virtual MAV_RESULT handle_command_long_packet(const mavlink_command_long_t &packet);
@@ -613,6 +634,84 @@ private:
 
     uint8_t send_parameter_async_replies();
 
+#if HAVE_FILESYSTEM_SUPPORT
+
+    enum class FTP_OP : uint8_t {
+        None = 0,
+        TerminateSession = 1,
+        ResetSessions = 2,
+        ListDirectory = 3,
+        OpenFileRO = 4,
+        ReadFile = 5,
+        CreateFile = 6,
+        WriteFile = 7,
+        RemoveFile = 8,
+        CreateDirectory = 9,
+        RemoveDirectory = 10,
+        OpenFileWO = 11,
+        TruncateFile = 12,
+        Rename = 13,
+        CalcFileCRC32 = 14,
+        BurstReadFile = 15,
+        Ack = 128,
+        Nack = 129,
+    };
+
+    enum class FTP_ERROR : uint8_t {
+        None = 0,
+        Fail = 1,
+        FailErrno = 2,
+        InvalidDataSize = 3,
+        InvalidSession = 4,
+        NoSessionsAvailable = 5,
+        EndOfFile = 6,
+        UnknownCommand = 7,
+        FileExists = 8,
+        FileProtected = 9,
+        FileNotFound = 10,
+    };
+
+    struct pending_ftp {
+        uint32_t offset;
+        mavlink_channel_t chan;        
+        uint16_t seq_number;
+        FTP_OP opcode;
+        FTP_OP req_opcode;
+        bool  burst_complete;
+        uint8_t size;
+        uint8_t session;
+        uint8_t sysid;
+        uint8_t compid;
+        uint8_t data[239];
+    };
+
+    enum class FTP_FILE_MODE {
+        Read,
+        Write,
+    };
+
+    struct ftp_state {
+        ObjectBuffer<pending_ftp> *requests;
+        ObjectBuffer<pending_ftp> *replies;
+
+        // session specific info, currently only support a single session over all links
+        int fd = -1;
+        FTP_FILE_MODE mode; // work around AP_Filesystem not supporting file modes
+        int16_t current_session;
+    };
+    static struct ftp_state ftp;
+
+    static void ftp_error(struct pending_ftp &response, FTP_ERROR error); // FTP helper method for packing a NAK
+    static int gen_dir_entry(char *dest, size_t space, const char * path, const struct dirent * entry); // FTP helper for emitting a dir response
+    static void ftp_list_dir(struct pending_ftp &request, struct pending_ftp &response);
+
+    bool ftp_init(void);
+    void handle_file_transfer_protocol(const mavlink_message_t &msg);
+    void send_ftp_replies(void);
+    void ftp_worker(void);
+    void ftp_push_replies(pending_ftp &reply);
+#endif // HAVE_FILESYSTEM_SUPPORT
+
     void send_distance_sensor(const class AP_RangeFinder_Backend *sensor, const uint8_t instance) const;
 
     virtual bool handle_guided_request(AP_Mission::Mission_Command &cmd) = 0;
@@ -694,6 +793,10 @@ private:
 #endif
 
     uint32_t last_mavlink_stats_logged;
+
+    // true if we should NOT do MAVLink on this port (usually because
+    // someone's doing SERIAL_CONTROL over mavlink)
+    bool _locked;
 };
 
 /// @class GCS
