@@ -62,7 +62,7 @@ public:
         return _use_rtscts;
     }
     
-    // simulated airspeed, sonar and battery monitor
+    // simulated airspeed, sonar battery monitor and light sensor
     uint16_t sonar_pin_value;    // pin 0
     uint16_t airspeed_pin_value; // pin 1
     uint16_t airspeed_2_pin_value; // pin 2
@@ -70,8 +70,7 @@ public:
     uint16_t current_pin_value;  // pin 12
     uint16_t voltage2_pin_value;  // pin 15
     uint16_t current2_pin_value;  // pin 14
-    int ir1_pin_value;       // pin 16
-    int ir2_pin_value;        //pin 17
+    int ir_pin_value;       // pin 16
 
     // paths for UART devices
     const char *_uart_path[7] {
