@@ -4,11 +4,10 @@
 #include <AP_HAL/AP_HAL.h>
 
 
-class AR_IR
-{
+class AR_IR {
 public:
 	AR_IR();
-  float readIR(int sensor_no);
+  float readIR(int sensor_pin);
 
 protected:
   AP_HAL::AnalogSource *_IR_pin_analog_source;
