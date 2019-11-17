@@ -545,6 +545,56 @@ class AutoTestPlane(AutoTest):
 
         self.fly_home_land_and_disarm()
 
+    def fly_deepstall(self):
+#        self.fly_deepstall_absolute()
+        self.fly_deepstall_relative()
+
+    def fly_deepstall_absolute(self):
+        self.start_subtest("DeepStall Relative Absolute")
+        self.set_parameter("LAND_TYPE", 1)
+        deepstall_elevator_pwm = 1661
+        self.set_parameter("LAND_DS_ELEV_PWM", deepstall_elevator_pwm)
+        self.load_mission("plane-deepstall-mission.txt")
+        self.change_mode("AUTO")
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.progress("Waiting for deepstall messages")
+
+        self.wait_text("Deepstall: Entry: ", timeout=240)
+
+        # assume elevator is on channel 2:
+        self.wait_servo_channel_value(2, deepstall_elevator_pwm)
+
+        self.disarm_wait(timeout=120)
+
+        self.progress("Flying home")
+        self.takeoff(10)
+        self.set_parameter("LAND_TYPE", 0)
+        self.fly_home_land_and_disarm()
+
+    def fly_deepstall_relative(self):
+        self.start_subtest("DeepStall Relative")
+        self.set_parameter("LAND_TYPE", 1)
+        deepstall_elevator_pwm = 1661
+        self.set_parameter("LAND_DS_ELEV_PWM", deepstall_elevator_pwm)
+        self.load_mission("plane-deepstall-relative-mission.txt")
+        self.change_mode("AUTO")
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.progress("Waiting for deepstall messages")
+
+        self.wait_text("Deepstall: Entry: ", timeout=240)
+
+        # assume elevator is on channel 2:
+        self.wait_servo_channel_value(2, deepstall_elevator_pwm)
+
+        self.disarm_wait(timeout=120)
+
+        self.progress("Flying home")
+        self.takeoff(10)
+        self.set_parameter("LAND_TYPE", 0)
+        self.fly_home_land_and_disarm()
+
     def fly_do_change_speed(self):
         # the following lines ensure we revert these parameter values
         # - DO_CHANGE_AIRSPEED is a permanent vehicle change!
@@ -708,10 +758,10 @@ class AutoTestPlane(AutoTest):
             # do a short flight in FBWA, watching for flaps
             # self.mavproxy.send('switch 4\n')
             # self.wait_mode('FBWA')
-            # self.wait_seconds(10)
+            # self.delay_sim_time(10)
             # self.mavproxy.send('switch 6\n')
             # self.wait_mode('MANUAL')
-            # self.wait_seconds(10)
+            # self.delay_sim_time(10)
 
             self.progress("Flaps OK")
         except Exception as e:
@@ -1325,13 +1375,23 @@ class AutoTestPlane(AutoTest):
         self.wait_mode("CIRCLE")
         self.set_rc(9, 1000)
 
-    def test_adsb(self):
-        self.wait_ready_to_arm()
-        here = self.mav.location()
-        # message ADSB_VEHICLE 37 -353632614 1491652305 0 584070 0 0 0 "bob" 3 1 255 17
-        self.set_parameter("ADSB_ENABLE", 1)
-        self.set_parameter("AVD_ENABLE", 1)
-        self.delay_sim_time(1) # TODO: work out why this is required...
+    def wait_for_collision_threat_to_clear(self):
+        '''wait to get a "clear" collision message", then slurp remaining
+        messages'''
+        last_collision = self.get_sim_time()
+        while True:
+            now = self.get_sim_time()
+            if now - last_collision > 5:
+                return
+            self.progress("Waiting for collision message")
+            m = self.mav.recv_match(type='COLLISION', blocking=True, timeout=1)
+            self.progress("Got (%s)" % str(m))
+            if m is None:
+                continue
+            last_collision = now
+
+    def test_adsb_send_threatening_adsb_message(self, here):
+        self.progress("Sending ABSD_VEHICLE message")
         self.mav.mav.adsb_vehicle_send(37, # ICAO address
                                        int(here.lat * 1e7),
                                        int(here.lng * 1e7),
@@ -1346,12 +1406,129 @@ class AutoTestPlane(AutoTest):
                                        65535, # flags
                                        17 # squawk
         )
-        self.progress("Waiting for collision message")
-        m = self.mav.recv_match(type='COLLISION', blocking=True, timeout=2)
+
+    def test_adsb(self):
+        self.context_push()
+        ex = None
+        try:
+            # message ADSB_VEHICLE 37 -353632614 1491652305 0 584070 0 0 0 "bob" 3 1 255 17
+            self.set_parameter("RC12_OPTION", 38) # avoid-adsb
+            self.set_rc(12, 2000)
+            self.set_parameter("ADSB_ENABLE", 1)
+            self.set_parameter("AVD_ENABLE", 1)
+            self.set_parameter("AVD_F_ACTION", mavutil.mavlink.MAV_COLLISION_ACTION_RTL)
+            self.reboot_sitl()
+            self.wait_ready_to_arm()
+            here = self.mav.location()
+            self.change_mode("FBWA")
+            self.delay_sim_time(2) # TODO: work out why this is required...
+            self.test_adsb_send_threatening_adsb_message(here)
+            self.progress("Waiting for collision message")
+            m = self.mav.recv_match(type='COLLISION', blocking=True, timeout=4)
+            if m is None:
+                raise NotAchievedException("Did not get collision message")
+            if m.threat_level != 2:
+                raise NotAchievedException("Expected some threat at least")
+            if m.action != mavutil.mavlink.MAV_COLLISION_ACTION_RTL:
+                raise NotAchievedException("Incorrect action; want=%u got=%u" %
+                                           (mavutil.mavlink.MAV_COLLISION_ACTION_RTL, m.action))
+            self.wait_mode("RTL")
+
+            self.progress("Sending far-away ABSD_VEHICLE message")
+            self.mav.mav.adsb_vehicle_send(37, # ICAO address
+                                           int(here.lat+1 * 1e7),
+                                           int(here.lng * 1e7),
+                                           mavutil.mavlink.ADSB_ALTITUDE_TYPE_PRESSURE_QNH,
+                                           int(here.alt*1000 + 10000), # 10m up
+                                           0, # heading in cdeg
+                                           0, # horizontal velocity cm/s
+                                           0, # vertical velocity cm/s
+                                           "bob".encode("ascii"), # callsign
+                                           mavutil.mavlink.ADSB_EMITTER_TYPE_LIGHT,
+                                           1, # time since last communication
+                                           65535, # flags
+                                           17 # squawk
+            )
+            self.wait_for_collision_threat_to_clear()
+            self.change_mode("FBWA")
+
+            self.progress("Disabling ADSB-avoidance with RC channel")
+            self.set_rc(12, 1000)
+            self.delay_sim_time(1) # let the switch get polled
+            self.test_adsb_send_threatening_adsb_message(here)
+            m = self.mav.recv_match(type='COLLISION', blocking=True, timeout=4)
+            print("Got (%s)" % str(m))
+            if m is not None:
+                raise NotAchievedException("Got collision message when I shouldn't have")
+
+        except Exception as e:
+            ex = e
+        self.context_pop()
+        self.reboot_sitl()
+        if ex is not None:
+            raise ex
+
+    def fly_do_guided_request(self, target_system=1, target_component=1):
+        self.progress("Takeoff")
+        self.takeoff(alt=50)
+        self.set_rc(3, 1500)
+        self.start_subtest("Ensure command bounced outside guided mode")
+        desired_relative_alt = 33
+        loc = self.mav.location()
+        self.location_offset_ne(loc, 300, 300)
+        loc.alt += desired_relative_alt
+        self.mav.mav.mission_item_int_send(
+            target_system,
+            target_component,
+            0, # seq
+            mavutil.mavlink.MAV_FRAME_GLOBAL,
+            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+            2, # current - guided-mode request
+            0, # autocontinue
+            0, # p1
+            0, # p2
+            0, # p3
+            0, # p4
+            int(loc.lat *1e7), # latitude
+            int(loc.lng *1e7), # longitude
+            loc.alt, # altitude
+            mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+        m = self.mav.recv_match(type='MISSION_ACK', blocking=True, timeout=5)
         if m is None:
-            raise NotAchievedException("Did not get collision message")
-        if m.threat_level != 2:
-            raise NotAchievedException("Expected some threat at least")
+            raise NotAchievedException("Did not get MISSION_ACK")
+        if m.type != mavutil.mavlink.MAV_MISSION_ERROR:
+            raise NotAchievedException("Did not get appropriate error")
+
+        self.start_subtest("Enter guided and flying somewhere constant")
+        self.change_mode("GUIDED")
+        self.mav.mav.mission_item_int_send(
+            target_system,
+            target_component,
+            0, # seq
+            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+            2, # current - guided-mode request
+            0, # autocontinue
+            0, # p1
+            0, # p2
+            0, # p3
+            0, # p4
+            int(loc.lat *1e7), # latitude
+            int(loc.lng *1e7), # longitude
+            desired_relative_alt, # altitude
+            mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+        m = self.mav.recv_match(type='MISSION_ACK', blocking=True, timeout=5)
+        if m is None:
+            raise NotAchievedException("Did not get MISSION_ACK")
+        if m.type != mavutil.mavlink.MAV_MISSION_ACCEPTED:
+            raise NotAchievedException("Did not get accepted response")
+        self.wait_location(loc, accuracy=100) # based on loiter radius
+        self.delay_sim_time(20)
+        self.wait_altitude(alt_min=desired_relative_alt-3,
+                           alt_max=desired_relative_alt+3,
+                           relative=True)
+
+        self.fly_home_land_and_disarm()
 
     def tests(self):
         '''return list of all tests'''
@@ -1379,6 +1556,10 @@ class AutoTestPlane(AutoTest):
             ("DO_REPOSITION",
              "Test mavlink DO_REPOSITION command",
              self.fly_do_reposition),
+
+            ("GuidedRequest",
+             "Test handling of MISSION_ITEM in guided mode",
+             self.fly_do_guided_request),
 
             ("MainFlight",
              "Lots of things in one flight",
@@ -1417,6 +1598,10 @@ class AutoTestPlane(AutoTest):
             ("AdvancedFailsafe",
              "Test Advanced Failsafe",
              self.test_advanced_failsafe),
+
+            ("DeepStall",
+             "Test DeepStall Landing",
+             self.fly_deepstall),
 
             ("LogDownLoad",
              "Log download",

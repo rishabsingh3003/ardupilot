@@ -94,8 +94,6 @@ PB5 GPIO_CAN1_SILENT OUTPUT PUSHPULL SPEED_LOW LOW
 define HAL_USE_CAN TRUE
 define STM32_CAN_USE_CAN1 TRUE
 
-define CAN_APP_VERSION_MAJOR 1
-define CAN_APP_VERSION_MINOR 0
 define CAN_APP_NODE_NAME "org.ardupilot.cuav_gps"
 
 # start with a fixed node ID so the board is usable without DNA
@@ -106,3 +104,6 @@ define BOOTLOADER_BAUDRATE 57600
 
 # use a small bootloader timeout
 define HAL_BOOTLOADER_TIMEOUT 1000
+
+# reserve 256 bytes for comms between app and bootloader
+RAM_RESERVE_START 256

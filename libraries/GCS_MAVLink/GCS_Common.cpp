@@ -24,7 +24,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <AP_OpticalFlow/AP_OpticalFlow.h>
 #include <AP_Vehicle/AP_Vehicle.h>
-#include <AP_RangeFinder/RangeFinder_Backend.h>
+#include <AP_RangeFinder/AP_RangeFinder_Backend.h>
 #include <AP_Airspeed/AP_Airspeed.h>
 #include <AP_Camera/AP_Camera.h>
 #include <AP_Gripper/AP_Gripper.h>
@@ -290,7 +290,7 @@ void GCS_MAVLINK::send_distance_sensor() const
     AP_Proximity *proximity = AP_Proximity::get_singleton();
     if (proximity != nullptr) {
         for (uint8_t i = 0; i < proximity->num_sensors(); i++) {
-            if (proximity->get_type(i) == AP_Proximity::Proximity_Type_RangeFinder) {
+            if (proximity->get_type(i) == AP_Proximity::Type::RangeFinder) {
                 filter_possible_proximity_sensors = true;
             }
         }
@@ -342,7 +342,7 @@ void GCS_MAVLINK::send_proximity() const
     const uint16_t dist_max = (uint16_t)(proximity->distance_max() * 100.0f); // maximum distance the sensor can measure in centimeters
 
     // send horizontal distances
-    if (proximity->get_status() == AP_Proximity::Proximity_Good) {
+    if (proximity->get_status() == AP_Proximity::Status::Good) {
         AP_Proximity::Proximity_Distance_Array dist_array;
         if (proximity->get_horizontal_distances(dist_array)) {
             for (uint8_t i = 0; i < PROXIMITY_MAX_DIRECTION; i++) {
@@ -1017,6 +1017,10 @@ void GCS_MAVLINK::update_send()
         AP::logger().handle_log_send();
     }
 
+#if HAVE_FILESYSTEM_SUPPORT
+    send_ftp_replies();
+#endif // HAVE_FILESYSTEM_SUPPORT
+
     if (!deferred_messages_initialised) {
         initialise_message_intervals_from_streamrates();
         deferred_messages_initialised = true;
@@ -1289,6 +1293,9 @@ void GCS_MAVLINK::packetReceived(const mavlink_status_t &status,
     if (!routing.check_and_forward(chan, msg)) {
         // the routing code has indicated we should not handle this packet locally
         return;
+    }
+    if (msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT) {
+        handle_mount_message(msg);
     }
     if (!accept_packet(status, msg)) {
         // e.g. enforce-sysid says we shouldn't look at this packet
@@ -2013,7 +2020,7 @@ MAV_RESULT GCS_MAVLINK::_set_mode_common(const MAV_MODE _base_mode, const uint32
     MAV_RESULT result = MAV_RESULT_UNSUPPORTED;
     // only accept custom modes because there is no easy mapping from Mavlink flight modes to AC flight modes
     if (_base_mode & MAV_MODE_FLAG_CUSTOM_MODE_ENABLED) {
-        if (set_mode(_custom_mode)) {
+        if (AP::vehicle()->set_mode(_custom_mode, ModeReason::GCS_COMMAND)) {
             result = MAV_RESULT_ACCEPTED;
         }
     } else if (_base_mode == (MAV_MODE)MAV_MODE_FLAG_DECODE_POSITION_SAFETY) {
@@ -2322,7 +2329,7 @@ bool GCS_MAVLINK::get_ap_message_interval(ap_message id, uint16_t &interval_ms) 
 
 MAV_RESULT GCS_MAVLINK::handle_command_get_message_interval(const mavlink_command_long_t &packet)
 {
-    if (comm_get_txspace(chan) < PAYLOAD_SIZE(chan, MESSAGE_INTERVAL) + PAYLOAD_SIZE(chan, COMMAND_ACK)) {
+    if (txspace() < PAYLOAD_SIZE(chan, MESSAGE_INTERVAL) + PAYLOAD_SIZE(chan, COMMAND_ACK)) {
         return MAV_RESULT_TEMPORARILY_REJECTED;
     }
 
@@ -3037,6 +3044,11 @@ void GCS_MAVLINK::handle_common_message(const mavlink_message_t &msg)
         AP::logger().handle_mavlink_msg(*this, msg);
         break;
 
+    case MAVLINK_MSG_ID_FILE_TRANSFER_PROTOCOL:
+#if HAVE_FILESYSTEM_SUPPORT
+        handle_file_transfer_protocol(msg);
+#endif // HAVE_FILESYSTEM_SUPPORT
+        break;
 
     case MAVLINK_MSG_ID_DIGICAM_CONTROL:
         {
@@ -3274,7 +3286,7 @@ MAV_RESULT GCS_MAVLINK::handle_command_flash_bootloader(const mavlink_command_lo
         return MAV_RESULT_FAILED;
     }
 
-    if (!hal.util->flash_bootloader()) {
+    if (hal.util->flash_bootloader() != AP_HAL::Util::FlashBootloader::OK) {
         return MAV_RESULT_FAILED;
     }
 
@@ -3619,6 +3631,9 @@ MAV_RESULT GCS_MAVLINK::handle_command_long_packet(const mavlink_command_long_t 
         break;
     }
 
+    case MAV_CMD_DO_SET_ROI_SYSID:
+        return handle_command_do_set_roi_sysid(packet);
+
     case MAV_CMD_DO_SET_ROI_LOCATION:
     case MAV_CMD_DO_SET_ROI:
         result = handle_command_do_set_roi(packet);
@@ -3826,6 +3841,27 @@ MAV_RESULT GCS_MAVLINK::handle_command_int_do_set_home(const mavlink_command_int
     return MAV_RESULT_ACCEPTED;
 }
 
+
+MAV_RESULT GCS_MAVLINK::handle_command_do_set_roi_sysid(const uint8_t sysid)
+{
+    AP_Mount *mount = AP::mount();
+    if (mount == nullptr) {
+        return MAV_RESULT_UNSUPPORTED;
+    }
+    mount->set_target_sysid(sysid);
+    return MAV_RESULT_ACCEPTED;
+}
+
+MAV_RESULT GCS_MAVLINK::handle_command_do_set_roi_sysid(const mavlink_command_int_t &packet)
+{
+    return handle_command_do_set_roi_sysid((uint8_t)packet.param1);
+}
+
+MAV_RESULT GCS_MAVLINK::handle_command_do_set_roi_sysid(const mavlink_command_long_t &packet)
+{
+    return handle_command_do_set_roi_sysid((uint8_t)packet.param1);
+}
+
 MAV_RESULT GCS_MAVLINK::handle_command_do_set_roi(const mavlink_command_int_t &packet)
 {
     // be aware that this method is called for both MAV_CMD_DO_SET_ROI
@@ -3841,10 +3877,17 @@ MAV_RESULT GCS_MAVLINK::handle_command_do_set_roi(const mavlink_command_int_t &p
     // x : lat
     // y : lon
     // z : alt
-    Location roi_loc;
-    roi_loc.lat = packet.x;
-    roi_loc.lng = packet.y;
-    roi_loc.alt = (int32_t)(packet.z * 100.0f);
+    Location::AltFrame frame;
+    if (!mavlink_coordinate_frame_to_location_alt_frame((MAV_FRAME)packet.frame, frame)) {
+        // unknown coordinate frame
+        return MAV_RESULT_UNSUPPORTED;
+    }
+    const Location roi_loc {
+        packet.x,
+        packet.y,
+        (int32_t)(packet.z * 100.0f),
+        frame
+    };
     return handle_command_do_set_roi(roi_loc);
 }
 
@@ -3856,10 +3899,12 @@ MAV_RESULT GCS_MAVLINK::handle_command_do_set_roi(const mavlink_command_long_t &
     // off support for MAV_CMD_DO_SET_ROI_LOCATION (which doesn't
     // support the extra fields).
 
-    Location roi_loc;
-    roi_loc.lat = (int32_t)(packet.param5 * 1.0e7f);
-    roi_loc.lng = (int32_t)(packet.param6 * 1.0e7f);
-    roi_loc.alt = (int32_t)(packet.param7 * 100.0f);
+    const Location roi_loc {
+        (int32_t)(packet.param5 * 1.0e7f),
+        (int32_t)(packet.param6 * 1.0e7f),
+        (int32_t)(packet.param7 * 100.0f),
+        Location::AltFrame::ABOVE_HOME
+    };
     return handle_command_do_set_roi(roi_loc);
 }
 
@@ -3869,6 +3914,8 @@ MAV_RESULT GCS_MAVLINK::handle_command_int_packet(const mavlink_command_int_t &p
     case MAV_CMD_DO_SET_ROI:
     case MAV_CMD_DO_SET_ROI_LOCATION:
         return handle_command_do_set_roi(packet);
+    case MAV_CMD_DO_SET_ROI_SYSID:
+        return handle_command_do_set_roi_sysid(packet);
     case MAV_CMD_DO_SET_HOME:
         return handle_command_int_do_set_home(packet);
     default:
@@ -4676,7 +4723,8 @@ bool GCS_MAVLINK::mavlink_coordinate_frame_to_location_alt_frame(const MAV_FRAME
 
 uint64_t GCS_MAVLINK::capabilities() const
 {
-    uint64_t ret = 0;
+    uint64_t ret = MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT |
+        MAV_PROTOCOL_CAPABILITY_COMPASS_CALIBRATION;
 
     AP_SerialManager::SerialProtocol mavlink_protocol = AP::serialmanager().get_mavlink_protocol(chan);
     if (mavlink_protocol == AP_SerialManager::SerialProtocol_MAVLink2) {
@@ -4692,10 +4740,16 @@ uint64_t GCS_MAVLINK::capabilities() const
     if (AP::rally()) {
         ret |= MAV_PROTOCOL_CAPABILITY_MISSION_RALLY;
     }
+
     if (AP::fence()) {
         // FIXME: plane also supports this...
         ret |= MAV_PROTOCOL_CAPABILITY_MISSION_FENCE;
     }
+
+#if HAVE_FILESYSTEM_SUPPORT
+    ret |= MAV_PROTOCOL_CAPABILITY_FTP;
+#endif // HAVE_FILESYSTEM_SUPPORT
+
     return ret;
 }
 

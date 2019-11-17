@@ -19,6 +19,9 @@ env AP_PERIPH 1
 
 STM32_ST_USE_TIMER 5
 
+# enable watchdog
+define HAL_WATCHDOG_ENABLED_DEFAULT true
+
 # crystal frequency
 OSCILLATOR_HZ 16000000
 
@@ -129,11 +132,7 @@ define STM32_CAN_USE_CAN1 TRUE
 # start with a fixed node ID so the board is usable without DNA
 define HAL_CAN_DEFAULT_NODE_ID 116
 
-define CAN_APP_VERSION_MAJOR 1
-define CAN_APP_VERSION_MINOR 0
 define CAN_APP_NODE_NAME "org.ardupilot.cuav_gps"
-
-define HAL_NO_ROMFS_SUPPORT
 
 define CH_DBG_ENABLE_STACK_CHECK TRUE
 
@@ -152,6 +151,7 @@ define AP_PARAM_MAX_EMBEDDED_PARAM 0
 # disable dual GPS and GPS blending to save flash space
 define GPS_MAX_RECEIVERS 1
 define GPS_MAX_INSTANCES 1
+define HAL_COMPASS_MAX_SENSORS 1
 
 # GPS+MAG+BARO+Buzzer+NeoPixels
 define HAL_PERIPH_ENABLE_GPS
@@ -160,3 +160,10 @@ define HAL_PERIPH_ENABLE_BARO
 define HAL_PERIPH_ENABLE_BUZZER
 define HAL_PERIPH_NEOPIXEL_COUNT 8
 define HAL_PERIPH_NEOPIXEL_CHAN 0
+define AP_PERIPH_LED_BRIGHT_DEFAULT 50
+
+# use the app descriptor needed by MissionPlanner for CAN upload
+env APP_DESCRIPTOR MissionPlanner
+
+# reserve 256 bytes for comms between app and bootloader
+RAM_RESERVE_START 256

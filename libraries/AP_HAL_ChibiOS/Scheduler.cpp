@@ -11,7 +11,7 @@
  *
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  * Code by Andrew Tridgell and Siddharth Bharat Purohit
  */
 #include <AP_HAL/AP_HAL.h>
@@ -225,7 +225,7 @@ void Scheduler::register_io_process(AP_HAL::MemberProc proc)
             return;
         }
     }
-    
+
     if (_num_io_procs < CHIBIOS_SCHEDULER_MAX_TIMER_PROCS) {
         _io_proc[_num_io_procs] = proc;
         _num_io_procs++;
@@ -268,7 +268,7 @@ void Scheduler::reboot(bool hold_in_bootloader)
 
     // disable all interrupt sources
     port_disable();
-    
+
     // reboot
     NVIC_SystemReset();
 }
@@ -543,6 +543,10 @@ void Scheduler::expect_delay_ms(uint32_t ms)
         // only for main thread
         return;
     }
+
+    // pat once immediately
+    watchdog_pat();
+
     if (ms == 0) {
         if (expect_delay_nesting > 0) {
             expect_delay_nesting--;

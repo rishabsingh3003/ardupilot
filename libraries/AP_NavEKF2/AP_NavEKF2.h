@@ -417,6 +417,7 @@ private:
     AP_Int8 _extnavDelay_ms;        // effective average delay of external nav system measurements relative to inertial measurements (msec)
     AP_Int8 _flowUse;               // Controls if the optical flow data is fused into the main navigation estimator and/or the terrain estimator.
     AP_Int16 _mag_ef_limit;         // limit on difference between WMM tables and learned earth field.
+    AP_Float _hrt_filt_freq;        // frequency of output observer height rate complementary filter in Hz
 
 // Possible values for _flowUse
 #define FLOW_USE_NONE    0
@@ -491,6 +492,26 @@ private:
 
     // time of last lane switch
     uint32_t lastLaneSwitch_ms;
+
+    enum class InitFailures {
+        UNKNOWN,
+        NO_ENABLE, 
+        NO_IMUS, 
+        NO_MASK, 
+        NO_MEM, 
+        NO_SETUP,
+        NUM_INIT_FAILURES
+    };
+    // initialization failure reasons
+    const char* initFailureReason[int(InitFailures::NUM_INIT_FAILURES)] {
+        "EKF2: unknown initialization failure",
+        "EKF2: EK2_enable is false",
+        "EKF2: no IMUs available",
+        "EKF2: EK2_IMU_MASK is zero",
+        "EKF2: insufficient memory available",
+        "EKF2: core setup failed"
+    };
+    InitFailures initFailure;
 
     // update the yaw reset data to capture changes due to a lane switch
     // new_primary - index of the ekf instance that we are about to switch to as the primary

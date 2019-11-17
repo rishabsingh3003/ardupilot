@@ -61,7 +61,7 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @Increment: 1024
     // @User: Advanced
     // @RebootRequired: True
-    AP_GROUPINFO("HEAP_SIZE", 3, AP_Scripting, _script_heap_size, 32*1024),
+    AP_GROUPINFO("HEAP_SIZE", 3, AP_Scripting, _script_heap_size, 42*1024),
 
     AP_GROUPINFO("DEBUG_LVL", 4, AP_Scripting, _debug_level, 1),
 
@@ -87,6 +87,7 @@ bool AP_Scripting::init(void) {
     if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Scripting::thread, void),
                                       "Scripting", SCRIPTING_STACK_SIZE, AP_HAL::Scheduler::PRIORITY_SCRIPTING, 0)) {
         gcs().send_text(MAV_SEVERITY_CRITICAL, "Could not create scripting stack (%d)", SCRIPTING_STACK_SIZE);
+        _enable = 0;
         return false;
     }
 
@@ -102,7 +103,7 @@ void AP_Scripting::thread(void) {
     lua->run();
 
     // only reachable if the lua backend has died for any reason
-    gcs().send_text(MAV_SEVERITY_CRITICAL, "Scripting has died");
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "Scripting has stopped");
 }
 
 AP_Scripting *AP_Scripting::_singleton = nullptr;

@@ -1893,7 +1893,7 @@ bool AP_Param::parse_param_line(char *line, char **vname, float &value, bool &re
     if (value_s == nullptr) {
         return false;
     }
-    value = atof(value_s);
+    value = strtof(value_s, NULL);
     *vname = pname;
 
     const char *flags_s = strtok_r(nullptr, ", =\t\r\n", &saveptr);
@@ -2293,7 +2293,7 @@ void AP_Param::set_defaults_from_table(const struct defaults_table_struct *table
         if (!AP_Param::set_default_by_name(table[i].name, table[i].value)) {
             char *buf = nullptr;
             if (asprintf(&buf, "param deflt fail:%s", table[i].name) > 0) {
-                AP_BoardConfig::sensor_config_error(buf);
+                AP_BoardConfig::config_error(buf);
             }
         }
     }

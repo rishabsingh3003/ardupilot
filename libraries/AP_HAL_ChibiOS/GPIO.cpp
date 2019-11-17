@@ -11,12 +11,13 @@
  *
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  * Code by Andrew Tridgell and Siddharth Bharat Purohit
  */
 #include "GPIO.h"
 
 #include <AP_BoardConfig/AP_BoardConfig.h>
+#include "hwdef/common/stm32_util.h"
 
 using namespace ChibiOS;
 
@@ -79,6 +80,15 @@ void GPIO::pinMode(uint8_t pin, uint8_t output)
             return;
         }
         g->mode = output?PAL_MODE_OUTPUT_PUSHPULL:PAL_MODE_INPUT;
+#if defined(STM32F7) || defined(STM32H7) || defined(STM32F4)
+        if (g->mode == PAL_MODE_OUTPUT_PUSHPULL) {
+            // retain OPENDRAIN if already set
+            iomode_t old_mode = palReadLineMode(g->pal_line);
+            if ((old_mode & PAL_MODE_OUTPUT_OPENDRAIN) == PAL_MODE_OUTPUT_OPENDRAIN) {
+                g->mode = PAL_MODE_OUTPUT_OPENDRAIN;
+            }
+        }
+#endif
         palSetLineMode(g->pal_line, g->mode);
         g->is_input = !output;
     }
@@ -130,7 +140,7 @@ AP_HAL::DigitalSource* GPIO::channel(uint16_t pin)
 
 extern const AP_HAL::HAL& hal;
 
-/* 
+/*
    Attach an interrupt handler to a GPIO pin number. The pin number
    must be one specified with a GPIO() marker in hwdef.dat
  */
@@ -188,7 +198,7 @@ bool GPIO::_attach_interrupt(ioline_t line, palcallback_t cb, void *p, uint8_t m
                 return false;
             }
             break;
-    }    
+    }
 
     osalSysLock();
     palevent_t *pep = pal_lld_get_line_event(line);
@@ -260,4 +270,3 @@ void pal_interrupt_cb_functor(void *arg)
     }
     (g->fn)(g->pin_num, palReadLine(g->pal_line), now);
 }
-

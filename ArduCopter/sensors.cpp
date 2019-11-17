@@ -33,7 +33,7 @@ void Copter::read_rangefinder(void)
 #if RANGEFINDER_TILT_CORRECTION == ENABLED
     const float tilt_correction = MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z);
 #else
-    const float tile_correction = 1.0f;
+    const float tilt_correction = 1.0f;
 #endif
 
     // iterate through downward and upward facing lidar
@@ -48,7 +48,7 @@ void Copter::read_rangefinder(void)
         enum Rotation rf_orient = rngfnd[i].orientation;
 
         // update health
-        rf_state.alt_healthy = ((rangefinder.status_orient(rf_orient) == RangeFinder::RangeFinder_Good) &&
+        rf_state.alt_healthy = ((rangefinder.status_orient(rf_orient) == RangeFinder::Status::Good) &&
                                 (rangefinder.range_valid_count_orient(rf_orient) >= RANGEFINDER_HEALTH_MAX));
 
         // tilt corrected but unfiltered, not glitch protected alt
@@ -199,7 +199,6 @@ void Copter::init_proximity(void)
 {
 #if PROXIMITY_ENABLED == ENABLED
     g2.proximity.init();
-    g2.proximity.set_rangefinder(&rangefinder);
 #endif
 }
 

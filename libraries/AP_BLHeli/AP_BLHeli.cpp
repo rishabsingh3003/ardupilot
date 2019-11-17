@@ -421,6 +421,7 @@ void AP_BLHeli::msp_process_command(void)
         debug("MSP_SET_MOTOR %u", nmotors);
         SRV_Channels::set_disabled_channel_mask(0xFFFF);
         motors_disabled = true;
+        EXPECT_DELAY_MS(1000);
         hal.rcout->cork();
         for (uint8_t i = 0; i < nmotors; i++) {
             if (i >= num_motors) {
@@ -524,6 +525,7 @@ bool AP_BLHeli::BL_SendBuf(const uint8_t *buf, uint16_t len)
     if (blheli.chan >= num_motors) {
         return false;
     }
+    EXPECT_DELAY_MS(1000);
     if (!hal.rcout->serial_setup_output(motor_map[blheli.chan], 19200, motor_mask)) {
         blheli.ack = ACK_D_GENERAL_ERROR;
         return false;
@@ -557,6 +559,7 @@ bool AP_BLHeli::BL_ReadBuf(uint8_t *buf, uint16_t len)
 {
     bool check_crc = isMcuConnected() && len > 0;
     uint16_t req_bytes = len+(check_crc?3:1);
+    EXPECT_DELAY_MS(1000);
     uint16_t n = hal.rcout->serial_read_bytes(blheli.buf, req_bytes);
     debug("BL_ReadBuf %u -> %u", len, n);
     if (req_bytes != n) {
@@ -594,6 +597,7 @@ uint8_t AP_BLHeli::BL_GetACK(uint16_t timeout_ms)
 {
     uint8_t ack;
     uint32_t start_ms = AP_HAL::millis();
+    EXPECT_DELAY_MS(1000);
     while (AP_HAL::millis() - start_ms < timeout_ms) {
         if (hal.rcout->serial_read_bytes(&ack, 1) == 1) {
             return ack;
@@ -1134,6 +1138,7 @@ void AP_BLHeli::run_connection_test(uint8_t chan)
     run_test.set_and_notify(0);
     bool passed = false;
     for (uint8_t tries=0; tries<5; tries++) {
+        EXPECT_DELAY_MS(3000);
         blheli.ack = ACK_OK;
         setDisconnected();
         if (BL_ConnectEx()) {
@@ -1296,6 +1301,26 @@ bool AP_BLHeli::get_telem_data(uint8_t esc_index, struct telem_data &td)
     return true;
 }
 
+// return the average motor frequency in Hz for dynamic filtering
+float AP_BLHeli::get_average_motor_frequency_hz() const
+{
+    float motor_freq = 0.0f;
+    const uint32_t now = AP_HAL::millis();
+    uint8_t valid_escs = 0;
+    // average the rpm of each motor as reported by BLHeli and convert to Hz
+    for (uint8_t i = 0; i < num_motors; i++) {
+        if (last_telem[i].timestamp_ms && (now - last_telem[i].timestamp_ms < 1000)) {
+            valid_escs++;
+            motor_freq += last_telem[i].rpm / 60.0f;
+        }
+    }
+    if (valid_escs > 0) {
+        motor_freq /= valid_escs;
+    }
+
+    return motor_freq;
+}
+
 /*
   implement the 8 bit CRC used by the BLHeli ESC telemetry protocol
  */
@@ -1342,7 +1367,7 @@ void AP_BLHeli::read_telemetry_packet(void)
     td.voltage = (buf[1]<<8) | buf[2];
     td.current = (buf[3]<<8) | buf[4];
     td.consumption = (buf[5]<<8) | buf[6];
-    td.rpm = ((buf[7]<<8) | buf[8]) * motor_poles;
+    td.rpm = ((buf[7]<<8) | buf[8]) * 200 / motor_poles;
     td.timestamp_ms = AP_HAL::millis();
 
     last_telem[last_telem_esc] = td;

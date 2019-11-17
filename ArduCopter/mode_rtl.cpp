@@ -119,7 +119,7 @@ void ModeRTL::climb_start()
     if (!wp_nav->set_wp_destination(rtl_path.climb_target)) {
         // this should not happen because rtl_build_path will have checked terrain data was available
         AP::logger().Write_Error(LogErrorSubsystem::NAVIGATION, LogErrorCode::FAILED_TO_SET_DESTINATION);
-        copter.set_mode(Mode::Number::LAND, MODE_REASON_TERRAIN_FAILSAFE);
+        copter.set_mode(Mode::Number::LAND, ModeReason::TERRAIN_FAILSAFE);
         return;
     }
     wp_nav->set_fast_waypoint(true);
@@ -285,10 +285,10 @@ void ModeRTL::descent_run()
     // process pilot's input
     if (!copter.failsafe.radio) {
         if ((g.throttle_behavior & THR_BEHAVE_HIGH_THROTTLE_CANCELS_LAND) != 0 && copter.rc_throttle_control_in_filter.get() > LAND_CANCEL_TRIGGER_THR){
-            Log_Write_Event(DATA_LAND_CANCELLED_BY_PILOT);
+            AP::logger().Write_Event(LogEvent::LAND_CANCELLED_BY_PILOT);
             // exit land if throttle is high
-            if (!copter.set_mode(Mode::Number::LOITER, MODE_REASON_THROTTLE_LAND_ESCAPE)) {
-                copter.set_mode(Mode::Number::ALT_HOLD, MODE_REASON_THROTTLE_LAND_ESCAPE);
+            if (!copter.set_mode(Mode::Number::LOITER, ModeReason::THROTTLE_LAND_ESCAPE)) {
+                copter.set_mode(Mode::Number::ALT_HOLD, ModeReason::THROTTLE_LAND_ESCAPE);
             }
         }
 
@@ -302,7 +302,7 @@ void ModeRTL::descent_run()
             // record if pilot has overridden roll or pitch
             if (!is_zero(target_roll) || !is_zero(target_pitch)) {
                 if (!copter.ap.land_repo_active) {
-                    copter.Log_Write_Event(DATA_LAND_REPO_ACTIVE);
+                    AP::logger().Write_Event(LogEvent::LAND_REPO_ACTIVE);
                 }
                 copter.ap.land_repo_active = true;
             }

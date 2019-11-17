@@ -130,6 +130,10 @@ AP_Avoidance::AP_Avoidance(AP_ADSB &adsb) :
     _adsb(adsb)
 {
     AP_Param::setup_object_defaults(this, var_info);
+    if (_singleton != nullptr) {
+        AP_HAL::panic("AP_Avoidance must be singleton");
+    }
+    _singleton = this;
 }
 
 /*
@@ -520,11 +524,11 @@ void AP_Avoidance::update()
 
     check_for_threats();
 
-    // notify GCS of most serious thread
-    handle_threat_gcs_notify(most_serious_threat());
-
     // avoid object (if necessary)
     handle_avoidance_local(most_serious_threat());
+
+    // notify GCS of most serious thread
+    handle_threat_gcs_notify(most_serious_threat());
 }
 
 void AP_Avoidance::handle_avoidance_local(AP_Avoidance::Obstacle *threat)
@@ -664,4 +668,17 @@ Vector2f AP_Avoidance::perpendicular_xy(const Location &p1, const Vector3f &v1, 
     Vector2f v1n(v1[0],v1[1]);
     Vector2f ret_xy = Vector2f::perpendicular(delta_p_n, v1n);
     return ret_xy;
+}
+
+
+// singleton instance
+AP_Avoidance *AP_Avoidance::_singleton;
+
+namespace AP {
+
+AP_Avoidance *ap_avoidance()
+{
+    return AP_Avoidance::get_singleton();
+}
+
 }

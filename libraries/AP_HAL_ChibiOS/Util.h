@@ -11,7 +11,7 @@
  *
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  * Code by Andrew Tridgell and Siddharth Bharat Purohit
  */
 #pragma once
@@ -45,10 +45,6 @@ public:
      */
     enum safety_state safety_switch_state(void) override;
 
-    // IMU temperature control
-    void set_imu_temp(float current) override;
-    void set_imu_target_temp(int8_t *target) override;
-
     // get system ID as a string
     bool get_system_id(char buf[40]) override;
     bool get_system_id_unformatted(uint8_t buf[], uint8_t &len) override;
@@ -79,17 +75,6 @@ private:
     static ToneAlarmPwmGroup _toneAlarm_pwm_group;
 #endif
 
-#if HAL_HAVE_IMU_HEATER
-    struct {
-        int8_t *target;
-        float integrator;
-        uint16_t count;
-        float sum;
-        uint32_t last_update_ms;
-        float output;
-    } heater;
-#endif
-
     /*
       set HW RTC in UTC microseconds
      */
@@ -100,7 +85,7 @@ private:
      */
     uint64_t get_hw_rtc() const override;
 #if !defined(HAL_NO_FLASH_SUPPORT) && !defined(HAL_NO_ROMFS_SUPPORT)
-    bool flash_bootloader() override;
+    FlashBootloader flash_bootloader() override;
 #endif
 
 #ifdef ENABLE_HEAP

@@ -436,6 +436,9 @@ public:
         _force_disable_gps = disable;
     }
 
+    // handle possibly fragmented RTCM injection data
+    void handle_gps_rtcm_fragment(uint8_t flags, const uint8_t *data, uint8_t len);
+
 protected:
 
     // configuration parameters
@@ -546,9 +549,8 @@ private:
     void handle_gps_inject(const mavlink_message_t &msg);
 
     //Inject a packet of raw binary to a GPS
-    void inject_data(uint8_t *data, uint16_t len);
-    void inject_data(uint8_t instance, uint8_t *data, uint16_t len);
-
+    void inject_data(const uint8_t *data, uint16_t len);
+    void inject_data(uint8_t instance, const uint8_t *data, uint16_t len);
 
     // GPS blending and switching
     Vector2f _NE_pos_offset_m[GPS_MAX_RECEIVERS]; // Filtered North,East position offset from GPS instance to blended solution in _output_state.location (m)
@@ -569,6 +571,8 @@ private:
 
     bool should_log() const;
 
+    bool needs_uart(GPS_Type type) const;
+
     // Auto configure types
     enum GPS_AUTO_CONFIG {
         GPS_AUTO_CONFIG_DISABLE = 0,
@@ -577,6 +581,9 @@ private:
 
     // used for flight testing with GPS loss
     bool _force_disable_gps;
+
+    // used to ensure we continue sending status messages if we ever detected the second GPS
+    bool has_had_second_instance;
 };
 
 namespace AP {

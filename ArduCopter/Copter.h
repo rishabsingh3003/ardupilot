@@ -227,6 +227,7 @@ public:
     friend class ModeSport;
     friend class ModeStabilize;
     friend class ModeStabilize_Heli;
+    friend class ModeSystemId;
     friend class ModeThrow;
     friend class ModeZigZag;
 
@@ -285,20 +286,21 @@ private:
         void set_target_alt_cm(float target_alt_cm);
 
         // get target and actual distances (in m) for logging purposes
-        bool get_dist_for_logging(float &target_dist, float &actual_dist) const;
+        bool get_target_dist_for_logging(float &target_dist) const;
+        float get_dist_for_logging() const;
         void invalidate_for_logging() { valid_for_logging = false; }
 
-        // surface tracking states
-        enum class SurfaceTrackingState {
-            SURFACE_TRACKING_DISABLED = 0,
-            SURFACE_TRACKING_GROUND = 1,
-            SURFACE_TRACKING_CEILING = 2
+        // surface tracking surface
+        enum class Surface {
+            NONE = 0,
+            GROUND = 1,
+            CEILING = 2
         };
-        // set direction
-        void set_state(SurfaceTrackingState state);
+        // set surface to track
+        void set_surface(Surface new_surface);
 
     private:
-        SurfaceTrackingState tracking_state = SurfaceTrackingState::SURFACE_TRACKING_GROUND;
+        Surface surface = Surface::GROUND;
         float target_dist_cm;       // desired distance in cm from ground or ceiling
         uint32_t last_update_ms;    // system time of last update to target_alt_cm
         uint32_t last_glitch_cleared_ms;    // system time of last handle glitch recovery
@@ -331,6 +333,13 @@ private:
     // system time in milliseconds of last recorded yaw reset from ekf
     uint32_t ekfYawReset_ms;
     int8_t ekf_primary_core;
+
+    // vibration check
+    struct {
+        bool high_vibes;    // true while high vibration are detected
+        uint32_t start_ms;  // system time high vibration were last detected
+        uint32_t clear_ms;  // system time high vibrations stopped
+    } vibration_check;
 
     // GCS selection
     GCS_Copter _gcs; // avoid using this; use gcs()
@@ -380,10 +389,10 @@ private:
     // This is the state of the flight control system
     // There are multiple states defined such as STABILIZE, ACRO,
     Mode::Number control_mode;
-    mode_reason_t control_mode_reason = MODE_REASON_UNKNOWN;
+    ModeReason control_mode_reason = ModeReason::UNKNOWN;
 
     Mode::Number prev_control_mode;
-    mode_reason_t prev_control_mode_reason = MODE_REASON_UNKNOWN;
+    ModeReason prev_control_mode_reason = ModeReason::UNKNOWN;
 
     RCMapper rcmap;
 
@@ -488,8 +497,7 @@ private:
 
     // Camera/Antenna mount tracking and stabilisation stuff
 #if MOUNT == ENABLED
-    // current_loc uses the baro/gps solution for altitude rather than gps only.
-    AP_Mount camera_mount{current_loc};
+    AP_Mount camera_mount;
 #endif
 
     // AC_Fence library to reduce fly-aways
@@ -581,6 +589,8 @@ private:
         float takeoff_alt_cm;
     } gndeffect_state;
 
+    bool standby_active;
+
     // set when we are upgrading parameters from 3.4
     bool upgrading_frame_params;
 
@@ -604,6 +614,14 @@ private:
         Failsafe_Action_SmartRTL       = 3,
         Failsafe_Action_SmartRTL_Land  = 4,
         Failsafe_Action_Terminate      = 5
+    };
+
+    enum class FailsafeOption {
+        RC_CONTINUE_IF_AUTO             = (1<<0),   // 1
+        GCS_CONTINUE_IF_AUTO            = (1<<1),   // 2
+        RC_CONTINUE_IF_GUIDED           = (1<<2),   // 4
+        CONTINUE_IF_LANDING             = (1<<3),   // 8
+        GCS_CONTINUE_IF_PILOT_CONTROL   = (1<<4),   // 16
     };
 
     static constexpr int8_t _failsafe_priorities[] = {
@@ -690,6 +708,7 @@ private:
     void failsafe_ekf_event();
     void failsafe_ekf_off_event(void);
     void check_ekf_reset();
+    void check_vibration();
 
     // esc_calibration.cpp
     void esc_calibration_startup_check();
@@ -699,19 +718,22 @@ private:
     void esc_calibration_setup();
 
     // events.cpp
+    bool failsafe_option(FailsafeOption opt) const;
     void failsafe_radio_on_event();
     void failsafe_radio_off_event();
     void handle_battery_failsafe(const char* type_str, const int8_t action);
     void failsafe_gcs_check();
+    void failsafe_gcs_on_event(void);
     void failsafe_gcs_off_event(void);
     void failsafe_terrain_check();
     void failsafe_terrain_set_status(bool data_ok);
     void failsafe_terrain_on_event();
     void gpsglitch_check();
-    void set_mode_RTL_or_land_with_pause(mode_reason_t reason);
-    void set_mode_SmartRTL_or_RTL(mode_reason_t reason);
-    void set_mode_SmartRTL_or_land_with_pause(mode_reason_t reason);
+    void set_mode_RTL_or_land_with_pause(ModeReason reason);
+    void set_mode_SmartRTL_or_RTL(ModeReason reason);
+    void set_mode_SmartRTL_or_land_with_pause(ModeReason reason);
     bool should_disarm_on_failsafe();
+    void do_failsafe_action(Failsafe_Action action, ModeReason reason);
 
     // failsafe.cpp
     void failsafe_enable();
@@ -726,6 +748,7 @@ private:
     // heli.cpp
     void heli_init();
     void check_dynamic_flight(void);
+    bool should_use_landing_swash() const;
     void update_heli_control_dynamics(void);
     void heli_update_landing_swash();
     void heli_update_rotor_speed_targets();
@@ -743,18 +766,20 @@ private:
     // landing_gear.cpp
     void landinggear_update();
 
+    // standby.cpp
+    void standby_update();
+
     // Log.cpp
     void Log_Write_Control_Tuning();
     void Log_Write_Performance();
     void Log_Write_Attitude();
     void Log_Write_EKF_POS();
     void Log_Write_MotBatt();
-    void Log_Write_Event(Log_Event id);
-    void Log_Write_Data(uint8_t id, int32_t value);
-    void Log_Write_Data(uint8_t id, uint32_t value);
-    void Log_Write_Data(uint8_t id, int16_t value);
-    void Log_Write_Data(uint8_t id, uint16_t value);
-    void Log_Write_Data(uint8_t id, float value);
+    void Log_Write_Data(LogDataID id, int32_t value);
+    void Log_Write_Data(LogDataID id, uint32_t value);
+    void Log_Write_Data(LogDataID id, int16_t value);
+    void Log_Write_Data(LogDataID id, uint16_t value);
+    void Log_Write_Data(LogDataID id, float value);
     void Log_Write_Parameter_Tuning(uint8_t param, float tuning_val, float tune_min, float tune_max);
     void Log_Sensor_Health();
 #if FRAME_CONFIG == HELI_FRAME
@@ -762,16 +787,19 @@ private:
 #endif
     void Log_Write_Precland();
     void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target, const Vector3f& vel_target);
+    void Log_Write_SysID_Setup(uint8_t systemID_axis, float waveform_magnitude, float frequency_start, float frequency_stop, float time_fade_in, float time_const_freq, float time_record, float time_fade_out);
+    void Log_Write_SysID_Data(float waveform_time, float waveform_sample, float waveform_freq, float angle_x, float angle_y, float angle_z, float accel_x, float accel_y, float accel_z);
     void Log_Write_Vehicle_Startup_Messages();
     void log_init(void);
 
     // mode.cpp
-    bool set_mode(Mode::Number mode, mode_reason_t reason);
+    bool set_mode(Mode::Number mode, ModeReason reason);
+    bool set_mode(const uint8_t new_mode, const ModeReason reason) override;
     void update_flight_mode();
     void notify_flight_mode();
 
     // mode_land.cpp
-    void set_mode_land_with_pause(mode_reason_t reason);
+    void set_mode_land_with_pause(ModeReason reason);
     bool landing_with_GPS();
 
     // motor_test.cpp
@@ -796,6 +824,7 @@ private:
     void convert_pid_parameters(void);
     void convert_lgr_parameters(void);
     void convert_tradheli_parameters(void);
+    void convert_fs_options_params(void);
 
     // precision_landing.cpp
     void init_precland();
@@ -929,6 +958,9 @@ private:
 #endif
 #if MODE_SPORT_ENABLED == ENABLED
     ModeSport mode_sport;
+#endif
+#if MODE_SYSTEMID_ENABLED == ENABLED
+    ModeSystemId mode_systemid;
 #endif
 #if ADSB_ENABLED == ENABLED
     ModeAvoidADSB mode_avoid_adsb;

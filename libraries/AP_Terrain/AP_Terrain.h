@@ -17,7 +17,7 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Common/Location.h>
-#include <AP_Filesystem/AP_Filesystem.h>
+#include <AP_Filesystem/AP_Filesystem_Available.h>
 
 #if HAVE_FILESYSTEM_SUPPORT && defined(HAL_BOARD_TERRAIN_DIRECTORY)
 #define AP_TERRAIN_AVAILABLE 1
@@ -153,11 +153,10 @@ public:
                                          bool extrapolate = false);
 
     /* 
-       return current height above terrain at current AHRS
-       position. 
+       return current height above terrain at current AHRS position.
 
        If extrapolate is true then extrapolate from most recently
-       available terrain data is terrain data is not available for the
+       available terrain data if terrain data is not available for the
        current location.
 
        Return true if height is available, otherwise false.

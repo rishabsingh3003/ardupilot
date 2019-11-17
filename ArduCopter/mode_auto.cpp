@@ -370,7 +370,7 @@ bool ModeAuto::is_landing() const
 
 bool ModeAuto::is_taking_off() const
 {
-    return _mode == Auto_TakeOff;
+    return ((_mode == Auto_TakeOff) && !wp_nav->reached_wp_destination());
 }
 
 bool ModeAuto::landing_gear_should_be_deployed() const
@@ -539,7 +539,7 @@ void ModeAuto::exit_mission()
     if (!copter.ap.land_complete) {
         // try to enter loiter but if that fails land
         if (!loiter_start()) {
-            set_mode(Mode::Number::LAND, MODE_REASON_MISSION_END);
+            set_mode(Mode::Number::LAND, ModeReason::MISSION_END);
         }
     } else {
         // if we've landed it's safe to disarm
@@ -741,10 +741,6 @@ bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
 void ModeAuto::takeoff_run()
 {
     auto_takeoff_run();
-    if (wp_nav->reached_wp_destination()) {
-        const Vector3f target = wp_nav->get_wp_destination();
-        wp_start(target, wp_nav->origin_and_destination_are_terrain_alt());
-    }
 }
 
 // auto_wp_run - runs the auto waypoint controller
@@ -1456,15 +1452,15 @@ void ModeAuto::do_winch(const AP_Mission::Mission_Command& cmd)
     switch (cmd.content.winch.action) {
         case WINCH_RELAXED:
             g2.winch.relax();
-            Log_Write_Event(DATA_WINCH_RELAXED);
+            AP::logger().Write_Event(LogEvent::WINCH_RELAXED);
             break;
         case WINCH_RELATIVE_LENGTH_CONTROL:
             g2.winch.release_length(cmd.content.winch.release_length, cmd.content.winch.release_rate);
-            Log_Write_Event(DATA_WINCH_LENGTH_CONTROL);
+            AP::logger().Write_Event(LogEvent::WINCH_LENGTH_CONTROL);
             break;
         case WINCH_RATE_CONTROL:
             g2.winch.set_desired_rate(cmd.content.winch.release_rate);
-            Log_Write_Event(DATA_WINCH_RATE_CONTROL);
+            AP::logger().Write_Event(LogEvent::WINCH_RATE_CONTROL);
             break;
         default:
             // do nothing
@@ -1528,7 +1524,7 @@ bool ModeAuto::verify_land()
             // check if we've reached the location
             if (copter.wp_nav->reached_wp_destination()) {
                 // get destination so we can use it for loiter target
-                Vector3f dest = copter.wp_nav->get_wp_destination();
+                const Vector3f& dest = copter.wp_nav->get_wp_destination();
 
                 // initialise landing controller
                 land_start(dest);

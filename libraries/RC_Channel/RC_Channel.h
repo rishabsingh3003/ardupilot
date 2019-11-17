@@ -173,6 +173,8 @@ public:
         DRIFT     =           73, // drift mode
         SAILBOAT_MOTOR_3POS = 74, // Sailboat motoring 3pos
         SURFACE_TRACKING =    75, // Surface tracking upwards or downwards
+        STANDBY  =            76, // Standby mode
+        TAKEOFF   =           77, // takeoff
         KILL_IMU1 =          100, // disable first IMU (for IMU failure testing)
         KILL_IMU2 =          101, // disable second IMU (for IMU failure testing)
         // if you add something here, make sure to update the documentation of the parameter in RC_Channel.cpp!
@@ -195,6 +197,7 @@ protected:
     virtual void init_aux_function(aux_func_t ch_option, aux_switch_pos_t);
     virtual void do_aux_function(aux_func_t ch_option, aux_switch_pos_t);
 
+    void do_aux_function_avoid_adsb(const aux_switch_pos_t ch_flag);
     void do_aux_function_avoid_proximity(const aux_switch_pos_t ch_flag);
     void do_aux_function_camera_trigger(const aux_switch_pos_t ch_flag);
     void do_aux_function_fence(const aux_switch_pos_t ch_flag);

@@ -5,7 +5,7 @@
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS.h>
-#include <AP_RangeFinder/RangeFinder_Backend.h>
+#include <AP_RangeFinder/AP_RangeFinder_Backend.h>
 #include <AP_GPS/AP_GPS.h>
 #include <AP_Baro/AP_Baro.h>
 
@@ -41,7 +41,7 @@ void NavEKF3_core::readRangeFinder(void)
             if (sensor == nullptr) {
                 continue;
             }
-            if ((sensor->orientation() == ROTATION_PITCH_270) && (sensor->status() == RangeFinder::RangeFinder_Good)) {
+            if ((sensor->orientation() == ROTATION_PITCH_270) && (sensor->status() == RangeFinder::Status::Good)) {
                 rngMeasIndex[sensorIndex] ++;
                 if (rngMeasIndex[sensorIndex] > 2) {
                     rngMeasIndex[sensorIndex] = 0;
@@ -140,9 +140,10 @@ void NavEKF3_core::writeWheelOdom(float delAng, float delTime, uint32_t timeStam
     // It uses the exisiting body frame velocity fusion.
     // TODO implement a dedicated wheel odometry observation model
 
+    // rate limiting to 50hz should be done by the caller
     // limit update rate to maximum allowed by sensor buffers and fusion process
     // don't try to write to buffer until the filter has been initialised
-    if (((timeStamp_ms - wheelOdmMeasTime_ms) < frontend->sensorIntervalMin_ms) || (delTime < dtEkfAvg) || !statesInitialised) {
+    if ((delTime < dtEkfAvg) || !statesInitialised) {
         return;
     }
 
@@ -606,6 +607,17 @@ void NavEKF3_core::readGpsData()
 
             }
 
+            if (gpsGoodToAlign && !have_table_earth_field) {
+                table_earth_field_ga = AP_Declination::get_earth_field_ga(gpsloc);
+                table_declination = radians(AP_Declination::get_declination(gpsloc.lat*1.0e-7,
+                                                                            gpsloc.lng*1.0e-7));
+                have_table_earth_field = true;
+                if (frontend->_mag_ef_limit > 0) {
+                    // initialise earth field from tables
+                    stateStruct.earth_magfield = table_earth_field_ga;
+                }
+            }
+
             // convert GPS measurements to local NED and save to buffer to be fused later if we have a valid origin
             if (validOrigin) {
                 gpsDataNew.pos = EKF_origin.get_distance_NE(gpsloc);
@@ -1006,4 +1018,21 @@ void NavEKF3_core::learnInactiveBiases(void)
             inactiveBias[i].accel_bias -= error * (1.0e-4f * dtEkfAvg);
         }
     }
+}
+
+/*
+  return declination in radians
+*/
+float NavEKF3_core::MagDeclination(void) const
+{
+    // if we are using the WMM tables then use the table declination
+    // to ensure consistency with the table mag field. Otherwise use
+    // the declination from the compass library
+    if (have_table_earth_field && frontend->_mag_ef_limit > 0) {
+        return table_declination;
+    }
+    if (!use_compass()) {
+        return 0;
+    }
+    return _ahrs->get_compass()->get_declination();
 }

@@ -301,14 +301,33 @@ AP_GPS::AP_GPS()
     _singleton = this;
 }
 
+// return true if a specific type of GPS uses a UART
+bool AP_GPS::needs_uart(GPS_Type type) const
+{
+    switch (type) {
+    case GPS_TYPE_NONE:
+    case GPS_TYPE_HIL:
+    case GPS_TYPE_UAVCAN:
+    case GPS_TYPE_MAV:
+        return false;
+    default:
+        break;
+    }
+    return true;
+}
+
 /// Startup initialisation.
 void AP_GPS::init(const AP_SerialManager& serial_manager)
 {
     primary_instance = 0;
 
     // search for serial ports with gps protocol
+    uint8_t uart_idx = 0;
     for (uint8_t i=0; i<GPS_MAX_RECEIVERS; i++) {
-        _port[i] = serial_manager.find_serial(AP_SerialManager::SerialProtocol_GPS, i);
+        if (needs_uart((GPS_Type)_type[i].get())) {
+            _port[i] = serial_manager.find_serial(AP_SerialManager::SerialProtocol_GPS, uart_idx);
+            uart_idx++;
+        }
     }
     _last_instance_swap_ms = 0;
 
@@ -583,6 +602,9 @@ found_gps:
         timing[instance].last_message_time_ms = now;
         timing[instance].delta_time_ms = GPS_TIMEOUT_MS;
         new_gps->broadcast_gps_type();
+        if (instance == 1) {
+            has_had_second_instance = true;
+        }
     }
 }
 
@@ -822,9 +844,13 @@ void AP_GPS::handle_gps_inject(const mavlink_message_t &msg)
 {
     mavlink_gps_inject_data_t packet;
     mavlink_msg_gps_inject_data_decode(&msg, &packet);
-    //TODO: check target
 
-    inject_data(packet.data, packet.len);
+    if (packet.len > sizeof(packet.data)) {
+        // invalid packet
+        return;
+    }
+
+    handle_gps_rtcm_fragment(0, packet.data, packet.len);
 }
 
 /*
@@ -920,7 +946,7 @@ void AP_GPS::lock_port(uint8_t instance, bool lock)
 }
 
 // Inject a packet of raw binary to a GPS
-void AP_GPS::inject_data(uint8_t *data, uint16_t len)
+void AP_GPS::inject_data(const uint8_t *data, uint16_t len)
 {
     //Support broadcasting to all GPSes.
     if (_inject_to == GPS_RTK_INJECT_TO_ALL) {
@@ -932,7 +958,7 @@ void AP_GPS::inject_data(uint8_t *data, uint16_t len)
     }
 }
 
-void AP_GPS::inject_data(uint8_t instance, uint8_t *data, uint16_t len)
+void AP_GPS::inject_data(uint8_t instance, const uint8_t *data, uint16_t len)
 {
     if (instance < GPS_MAX_RECEIVERS && drivers[instance] != nullptr) {
         drivers[instance]->inject_data(data, len);
@@ -941,21 +967,6 @@ void AP_GPS::inject_data(uint8_t instance, uint8_t *data, uint16_t len)
 
 void AP_GPS::send_mavlink_gps_raw(mavlink_channel_t chan)
 {
-    static uint32_t last_send_time_ms[MAVLINK_COMM_NUM_BUFFERS];
-    if (status(0) > AP_GPS::NO_GPS) {
-        // when we have a GPS then only send new data
-        if (last_send_time_ms[chan] == last_message_time_ms(0)) {
-            return;
-        }
-        last_send_time_ms[chan] = last_message_time_ms(0);
-    } else {
-        // when we don't have a GPS then send at 1Hz
-        uint32_t now = AP_HAL::millis();
-        if (now - last_send_time_ms[chan] < 1000) {
-            return;
-        }
-        last_send_time_ms[chan] = now;
-    }
     const Location &loc = location(0);
     float hacc = 0.0f;
     float vacc = 0.0f;
@@ -985,15 +996,10 @@ void AP_GPS::send_mavlink_gps_raw(mavlink_channel_t chan)
 #if GPS_MAX_RECEIVERS > 1
 void AP_GPS::send_mavlink_gps2_raw(mavlink_channel_t chan)
 {
-    static uint32_t last_send_time_ms[MAVLINK_COMM_NUM_BUFFERS];
-    if (num_instances < 2 || status(1) <= AP_GPS::NO_GPS) {
+    // always send the message once we've ever seen the GPS
+    if (!has_had_second_instance) {
         return;
     }
-    // when we have a GPS then only send new data
-    if (last_send_time_ms[chan] == last_message_time_ms(1)) {
-        return;
-    }
-    last_send_time_ms[chan] = last_message_time_ms(1);
 
     const Location &loc = location(1);
     mavlink_msg_gps2_raw_send(
@@ -1069,21 +1075,13 @@ bool AP_GPS::blend_health_check() const
 }
 
 /*
-   re-assemble GPS_RTCM_DATA message
+   re-assemble fragmented RTCM data
  */
-void AP_GPS::handle_gps_rtcm_data(const mavlink_message_t &msg)
+void AP_GPS::handle_gps_rtcm_fragment(uint8_t flags, const uint8_t *data, uint8_t len)
 {
-    mavlink_gps_rtcm_data_t packet;
-    mavlink_msg_gps_rtcm_data_decode(&msg, &packet);
-
-    if (packet.len > MAVLINK_MSG_GPS_RTCM_DATA_FIELD_DATA_LEN) {
-        // invalid packet
-        return;
-    }
-
-    if ((packet.flags & 1) == 0) {
+    if ((flags & 1) == 0) {
         // it is not fragmented, pass direct
-        inject_data(packet.data, packet.len);
+        inject_data(data, len);
         return;
     }
 
@@ -1096,8 +1094,8 @@ void AP_GPS::handle_gps_rtcm_data(const mavlink_message_t &msg)
         }
     }
 
-    uint8_t fragment = (packet.flags >> 1U) & 0x03;
-    uint8_t sequence = (packet.flags >> 3U) & 0x1F;
+    uint8_t fragment = (flags >> 1U) & 0x03;
+    uint8_t sequence = (flags >> 3U) & 0x1F;
 
     // see if this fragment is consistent with existing fragments
     if (rtcm_buffer->fragments_received &&
@@ -1113,15 +1111,15 @@ void AP_GPS::handle_gps_rtcm_data(const mavlink_message_t &msg)
     rtcm_buffer->fragments_received |= (1U << fragment);
 
     // copy the data
-    memcpy(&rtcm_buffer->buffer[MAVLINK_MSG_GPS_RTCM_DATA_FIELD_DATA_LEN*(uint16_t)fragment], packet.data, packet.len);
+    memcpy(&rtcm_buffer->buffer[MAVLINK_MSG_GPS_RTCM_DATA_FIELD_DATA_LEN*(uint16_t)fragment], data, len);
 
     // when we get a fragment of less than max size then we know the
     // number of fragments. Note that this means if you want to send a
     // block of RTCM data of an exact multiple of the buffer size you
     // need to send a final packet of zero length
-    if (packet.len < MAVLINK_MSG_GPS_RTCM_DATA_FIELD_DATA_LEN) {
+    if (len < MAVLINK_MSG_GPS_RTCM_DATA_FIELD_DATA_LEN) {
         rtcm_buffer->fragment_count = fragment+1;
-        rtcm_buffer->total_length = (MAVLINK_MSG_GPS_RTCM_DATA_FIELD_DATA_LEN*fragment) + packet.len;
+        rtcm_buffer->total_length = (MAVLINK_MSG_GPS_RTCM_DATA_FIELD_DATA_LEN*fragment) + len;
     } else if (rtcm_buffer->fragments_received == 0x0F) {
         // special case of 4 full fragments
         rtcm_buffer->fragment_count = 4;
@@ -1136,6 +1134,22 @@ void AP_GPS::handle_gps_rtcm_data(const mavlink_message_t &msg)
         inject_data(rtcm_buffer->buffer, rtcm_buffer->total_length);
         memset(rtcm_buffer, 0, sizeof(*rtcm_buffer));
     }
+}
+
+/*
+   re-assemble GPS_RTCM_DATA message
+ */
+void AP_GPS::handle_gps_rtcm_data(const mavlink_message_t &msg)
+{
+    mavlink_gps_rtcm_data_t packet;
+    mavlink_msg_gps_rtcm_data_decode(&msg, &packet);
+
+    if (packet.len > sizeof(packet.data)) {
+        // invalid packet
+        return;
+    }
+
+    handle_gps_rtcm_fragment(packet.flags, packet.data, packet.len);
 }
 
 void AP_GPS::Write_AP_Logger_Log_Startup_messages()

@@ -25,6 +25,7 @@
 #include "hal.h"
 #include <stdio.h>
 #include <AP_HAL_ChibiOS/hwdef/common/stm32_util.h>
+#include <AP_HAL_ChibiOS/hwdef/common/watchdog.h>
 
 extern const AP_HAL::HAL &hal;
 
@@ -47,15 +48,50 @@ void loop(void)
 
 static uint32_t start_ms;
 
+/*
+  declare constant app_descriptor in flash
+ */
+const struct app_descriptor app_descriptor __attribute__((section(".app_descriptor")));
+
 void AP_Periph_FW::init()
 {
-    hal.uartA->begin(AP_SERIALMANAGER_CONSOLE_BAUD, 32, 128);
-    hal.uartB->begin(115200, 32, 128);
+    // always run with watchdog enabled. This should have already been
+    // setup by the bootloader, but if not then enable now
+    stm32_watchdog_init();
+
+    stm32_watchdog_pat();
+
+    hal.uartA->begin(AP_SERIALMANAGER_CONSOLE_BAUD, 32, 32);
+    hal.uartB->begin(115200, 128, 256);
 
     load_parameters();
+
+    stm32_watchdog_pat();
+
     can_start();
 
     serial_manager.init();
+
+    stm32_watchdog_pat();
+
+#ifdef HAL_BOARD_AP_PERIPH_ZUBAXGNSS
+    // setup remapping register for ZubaxGNSS
+    uint32_t mapr = AFIO->MAPR;
+    mapr &= ~AFIO_MAPR_SWJ_CFG;
+    mapr |= AFIO_MAPR_SWJ_CFG_JTAGDISABLE;
+    AFIO->MAPR = mapr | AFIO_MAPR_CAN_REMAP_REMAP2 | AFIO_MAPR_SPI3_REMAP;
+#endif
+
+    printf("Booting %08x:%08x %u/%u len=%u 0x%08x\n",
+           app_descriptor.image_crc1,
+           app_descriptor.image_crc2,
+           app_descriptor.version_major, app_descriptor.version_minor,
+           app_descriptor.image_size,
+           app_descriptor.git_hash);
+
+    if (hal.util->was_watchdog_reset()) {
+        printf("Reboot after watchdog reset\n");
+    }
 
 #ifdef HAL_PERIPH_ENABLE_GPS
     gps.init(serial_manager);
@@ -74,10 +110,26 @@ void AP_Periph_FW::init()
     hal.rcout->init();
     hal.rcout->set_neopixel_num_LEDs(HAL_PERIPH_NEOPIXEL_CHAN, HAL_PERIPH_NEOPIXEL_COUNT);
 #endif
+
+#ifdef HAL_PERIPH_ENABLE_ADSB
+    adsb_init();
+#endif
+
+#ifdef HAL_PERIPH_ENABLE_AIRSPEED
+    airspeed.init();
+#endif
+
+#ifdef HAL_PERIPH_ENABLE_RANGEFINDER
+    const uint8_t sernum = 3; // uartB
+    hal.uartB->begin(g.rangefinder_baud);
+    serial_manager.set_protocol_and_baud(sernum, AP_SerialManager::SerialProtocol_Rangefinder, g.rangefinder_baud);
+    rangefinder.init(ROTATION_NONE);
+#endif
+    
     start_ms = AP_HAL::millis();
 }
 
-#if HAL_PERIPH_NEOPIXEL_COUNT == 8
+#if defined(HAL_PERIPH_NEOPIXEL_COUNT) && HAL_PERIPH_NEOPIXEL_COUNT == 8
 /*
   rotating rainbow pattern on startup
  */
@@ -149,6 +201,9 @@ void AP_Periph_FW::update()
 #ifdef HAL_PERIPH_ENABLE_BARO
         hal.uartA->printf("BARO H=%u P=%.2f T=%.2f\n", baro.healthy(), baro.get_pressure(), baro.get_temperature());
 #endif
+#ifdef HAL_PERIPH_ENABLE_RANGEFINDER
+        hal.uartA->printf("RNG %u %ucm\n", rangefinder.num_sensors(), rangefinder.distance_cm_orient(ROTATION_NONE));
+#endif
         hal.scheduler->delay(1);
         show_stack_usage();
 #endif
@@ -158,8 +213,11 @@ void AP_Periph_FW::update()
     }
     can_update();
     hal.scheduler->delay(1);
-#if HAL_PERIPH_NEOPIXEL_COUNT == 8
+#if defined(HAL_PERIPH_NEOPIXEL_COUNT) && HAL_PERIPH_NEOPIXEL_COUNT == 8
     update_rainbow();
+#endif
+#ifdef HAL_PERIPH_ENABLE_ADSB
+    adsb_update();
 #endif
 }
 
