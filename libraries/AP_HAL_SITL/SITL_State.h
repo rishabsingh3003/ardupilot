@@ -84,7 +84,8 @@ public:
     uint16_t current_pin_value;  // pin 12
     uint16_t voltage2_pin_value;  // pin 15
     uint16_t current2_pin_value;  // pin 14
-    int ir_pin_value;       // pin 16
+    uint16_t ir1_pin_value;     //pin 16
+    uint16_t ir2_pin_value;     //pin 17
 
     // paths for UART devices
     const char *_uart_path[7] {
