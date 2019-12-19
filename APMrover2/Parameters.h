@@ -6,6 +6,7 @@
 #include "AC_Sprayer/AC_Sprayer.h"
 #include "AP_Gripper/AP_Gripper.h"
 #include "AP_Rally.h"
+#include "AR_IR/AR_IR_Sensor.h"
 
 // Global parameter class.
 //
@@ -93,7 +94,6 @@ public:
         k_param_NavEKF2,
         k_param_g2,                 // 2nd block of parameters
         k_param_NavEKF3,
-
         // 140: battery controls
         k_param_battery_monitoring = 140,   // deprecated, can be deleted
         k_param_volt_div_ratio,             // deprecated, can be deleted
@@ -398,6 +398,8 @@ public:
 
     // FS options
     AP_Int32 fs_options;
+
+    AR_IR ir_sensor;
 };
 
 extern const AP_Param::Info var_info[];
