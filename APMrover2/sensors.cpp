@@ -145,3 +145,8 @@ void Rover::rpm_update(void)
         }
     }
 }
+
+void Rover::read_ir(void)
+{
+   g2.ir_sensor.read();
+}
