@@ -37,11 +37,11 @@ void SITL_State::_update_irsensor(){
 
     sensor_1.lat = _sitl->state.latitude*1.0e7;
     sensor_1.lng = _sitl->state.longitude*1.0e7;
-    sensor_1.offset_bearing(wrap_360(current_heading+90),0.75); //First sensor offset is set at 75cm 
+    sensor_1.offset_bearing(wrap_360(current_heading+90),0.25); //First sensor offset is set at 25cm 
 
     sensor_2.lat = _sitl->state.latitude*1.0e7;
     sensor_2.lng = _sitl->state.longitude*1.0e7;
-    sensor_2.offset_bearing(wrap_360(current_heading-90),0.75); //Second sensor offset is set at -75cm
+    sensor_2.offset_bearing(wrap_360(current_heading-90),0.25); //Second sensor offset is set at -25cm
     
     Vector2f start_NE, end_NE,sensor_1_offset_NE,sensor_2_offset_NE; //get vectors from origin to the points
     bool home_loc_vector = home_loc.get_vector_xy_from_origin_NE(start_NE);
@@ -57,8 +57,8 @@ void SITL_State::_update_irsensor(){
     }if(crosstrack_error_2>= max_sensor_range){
         crosstrack_error_2 = max_sensor_range;
     }
-    float voltage_sensor_1 = linear_interpolate(0,5,crosstrack_error_1,0,max_sensor_range); //convert the distance to voltage
-    float voltage_sensor_2 = linear_interpolate(0,5,crosstrack_error_2,0,max_sensor_range);
+    float voltage_sensor_1 = linear_interpolate(5,0,crosstrack_error_1,0,max_sensor_range); //convert the distance to voltage
+    float voltage_sensor_2 = linear_interpolate(5,0,crosstrack_error_2,0,max_sensor_range);
 
      
     if(home_loc_vector&projected_line_vector&sensor_1_vector&sensor_2_vector){   //check for valid origin

@@ -180,7 +180,7 @@ public:
         MODE_PWM_DSHOT1200,
         MODE_NEOPIXEL,      // same as MODE_PWM_DSHOT at 800kHz but it's an LED
     };
-    virtual void    set_output_mode(uint16_t mask, enum output_mode mode) {}
+    virtual void   set_output_mode(uint16_t mask, enum output_mode mode) {}
 
     /*
       set default update rate
