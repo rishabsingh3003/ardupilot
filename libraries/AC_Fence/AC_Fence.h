@@ -88,6 +88,18 @@ public:
     /// of the given fences.  fence_type is a bitmask here.
     float get_breach_distance(uint8_t fence_type) const;
 
+    //get distance to breach circular fence
+    float get_distance_to_breach_fence_circle() const;
+
+    //get distance to breach altitude fence
+    float get_distance_to_breach_fence_alt() const;
+
+    //get distance to breach polygon fence
+    float get_distance_to_breach_fence_polygon()const;
+    
+    //return threshold value to give approaching fence warning
+    uint16_t get_alert_time() const { return  _alert_time.get();}
+
     /// get_action - getter for user requested action on limit breach
     uint8_t get_action() const { return _action.get(); }
 
@@ -150,6 +162,7 @@ private:
     AP_Float        _circle_radius;         // circle fence radius in meters
     AP_Float        _margin;                // distance in meters that autopilot's should maintain from the fence to avoid a breach
     AP_Int8         _total;                 // number of polygon points saved in eeprom
+    AP_Int16       _alert_time;            // threshold value to give approaching fence warning
 
     // backup fences
     float           _alt_max_backup;        // backup altitude upper limit in meters used to refire the breach if the vehicle continues to move further away
