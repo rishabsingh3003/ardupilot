@@ -742,6 +742,7 @@ private:
 
     // fence.cpp
     void fence_check();
+    void warn_approaching_fence();
 
     // heli.cpp
     void heli_init();
