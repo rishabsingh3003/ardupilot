@@ -1,4 +1,5 @@
 #include "Copter.h"
+#include <GCS_MAVLink/GCS.h>
 
 // Code to integrate AC_Fence library with main ArduCopter code
 
@@ -75,6 +76,103 @@ void Copter::fence_check()
         // record clearing of breach
         AP::logger().Write_Error(LogErrorSubsystem::FAILSAFE_FENCE, LogErrorCode::ERROR_RESOLVED);
     }
+}
+
+void Copter::warn_approaching_fence()
+{
+    //return if disarmed
+    if (!motors->armed()) {
+            return;
+        }
+    
+    //time threshold for alerting the user
+    uint16_t alert_time = fence.get_alert_time();
+
+    //check if unbreached
+    if ((!fence.get_breaches()) && alert_time) {
+        uint8_t enabled_fence = fence.get_enabled_fences();
+        //variables to store time to breach particular fence
+        float time_alt = 0.0f;
+        float time_circle = 0.0f;
+        float time_poly= 0.0f;
+        //speed required to estimate time from distance 
+        float ground_speed = ahrs_view->groundspeed();
+        float vertical_speed = inertial_nav.get_velocity_z()*0.01f;
+
+        //warn according to enabled fence
+        switch (enabled_fence) {
+            case 1:
+                //only altitude fence is enabled
+                time_alt= fence.get_distance_to_breach_fence_alt()/vertical_speed; 
+                if (0<time_alt && time_alt<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Altitidue fence breach in %5.3f seconds", (double)time_alt);
+                break;
+            
+            case 2:
+                //only circle fence is enabled
+                time_circle = fence.get_distance_to_breach_fence_circle()/ground_speed;
+                if (0<time_circle && time_circle<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Circle fence breach in %5.3f seconds", (double)time_circle);
+                break;
+
+            case 3:
+                //only altitude and circle fence is enabled
+                time_alt= fence.get_distance_to_breach_fence_alt()/vertical_speed;
+                if (0<time_alt && time_alt<alert_time)
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Altitidue fence breach in %5.3f seconds", (double)time_alt);
+
+                time_circle = fence.get_distance_to_breach_fence_circle()/ground_speed;
+                if (0<time_circle && time_circle<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Circle fence breach in %5.3f seconds", (double)time_circle);
+                break;
+
+            case 4:
+                //only polygon fence is enabled
+                time_poly =fence.get_distance_to_breach_fence_polygon()/ground_speed;
+                if (0<time_poly && time_poly<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Polygon Fence breach in %5.3f seconds", (double)time_poly);
+                break;
+
+            case 5:
+                //only altitude and polygon fence is enabled
+                time_alt= fence.get_distance_to_breach_fence_alt()/vertical_speed;
+                if (0<time_alt && time_alt<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Altitidue fence breach in %5.3f seconds", (double)time_alt);
+
+                time_poly =fence.get_distance_to_breach_fence_polygon()/ground_speed;
+                if (0<time_poly && time_poly<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Polygon Fence breach in %5.3f seconds", (double)time_poly);
+                break;
+
+            case 6:
+                //only circle and polygon fence is enabled
+                time_circle = fence.get_distance_to_breach_fence_circle()/ground_speed;
+                if (0<time_circle && time_circle<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Circle fence breach in %5.3f seconds", (double)time_circle);
+                
+                time_poly =fence.get_distance_to_breach_fence_polygon()/ground_speed;
+                if (0<time_poly && time_poly<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Polygon Fence breach in %5.3f seconds", (double)time_poly);
+                break;
+
+            case 7:
+                //All fences are enabled
+                time_circle = fence.get_distance_to_breach_fence_circle()/ground_speed;
+                if (0<time_circle && time_circle<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Circle fence breach in %5.3f seconds", (double)time_circle);
+
+                time_alt= fence.get_distance_to_breach_fence_alt()/vertical_speed;
+                if (0<time_alt && time_alt<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Altitidue fence breach in %5.3f seconds", (double)time_alt);
+
+                time_poly =fence.get_distance_to_breach_fence_polygon()/ground_speed;
+                if (0<time_poly && time_poly<alert_time)  
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Polygon Fence breach in %5.3f seconds", (double)time_poly);
+                break;
+        }
+
+    }
+    
 }
 
 #endif
