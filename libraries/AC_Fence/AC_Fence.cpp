@@ -70,14 +70,22 @@ const AP_Param::GroupInfo AC_Fence::var_info[] = {
     // @Param: ALT_MIN
     // @DisplayName: Fence Minimum Altitude
     // @Description: Minimum altitude allowed before geofence triggers
-    // @Units: m
+    // @Units: m    
     // @Range: -100 100
     // @Increment: 1
     // @User: Standard
     AP_GROUPINFO_FRAME("ALT_MIN",     7,  AC_Fence,   _alt_min,       AC_FENCE_ALT_MIN_DEFAULT, AP_PARAM_FRAME_SUB),
 
+    // @Param: WARNING_TIME
+    // @DisplayName: Threshold value to give approaching fence warning
+    // @Description: Number of seconds left to approaching fence below which user should be warned. Value 0 for disabling the feature.
+    // @Units: seconds
+    // @Range: 0 100
+    // @User: Standard
+    AP_GROUPINFO("WARN_TIME",       8,  AC_Fence,   _alert_time, 0),
+
     AP_GROUPEND
-};
+};  
 
 /// Default constructor.
 AC_Fence::AC_Fence()
@@ -411,6 +419,107 @@ float AC_Fence::get_breach_distance(uint8_t fence_type) const
         max = MAX(_circle_breach_distance, max);
     }
     return max;
+}
+
+//get distance to breach circular fence
+float AC_Fence::get_distance_to_breach_fence_circle() const
+{
+    float home_distance= 0.0f;
+    Vector2f home;
+    if (AP::ahrs().get_relative_position_NE_home(home)) {
+        home_distance = home.length();
+    }
+    float dist_to_circle = _circle_radius - home_distance;
+    return dist_to_circle;
+}
+
+//get distance to breach altitude fence
+float AC_Fence::get_distance_to_breach_fence_alt() const
+{
+    float curr_alt = 0.0f;
+    AP::ahrs().get_relative_position_D_home(curr_alt);
+    curr_alt = -_curr_alt; // translate Down to Up
+    float dist_to_alt = _alt_max- _curr_alt;
+    return dist_to_alt; 
+}
+
+//get distance to breach polygon fence
+float AC_Fence::get_distance_to_breach_fence_polygon()const
+{   
+    //get position vector
+    Vector2f pos_vector;
+    if(AP::ahrs().get_relative_position_NE_origin(pos_vector)){
+    pos_vector = pos_vector *100.0f;
+    }   
+    bool distance_to_poly_updated=false;
+    float distance_to_poly = 0.0f;
+    
+    //check for distance between vehicle and inclusion polygon
+    //get polygon inclusion points
+    const uint8_t num_inclusion_polygons = _poly_loader.get_inclusion_polygon_count();
+    for (uint8_t i = 0; i < num_inclusion_polygons; i++) {
+        uint16_t num_points;
+        const Vector2f* boundary = _poly_loader.get_inclusion_polygon(i, num_points);
+        if (num_points < 3) {
+            // ignore inclusion polygons with less than 3 points
+            continue;
+        }
+        float distance_to_poly_new = Polygon_closest_distance_point(boundary, num_points,pos_vector)*0.01f;      
+        if (!distance_to_poly_updated||(distance_to_poly_new<distance_to_poly ))
+            distance_to_poly = distance_to_poly_new;
+            distance_to_poly_updated = true;
+        }
+
+    //check for distance between vehicle and exclusion polygon
+    //get polygon exclusion points
+    const uint8_t num_exclusion_polygons = _poly_loader.get_exclusion_polygon_count();
+    for (uint8_t i = 0; i < num_exclusion_polygons; i++){
+        uint16_t num_points;
+        const Vector2f* boundary = _poly_loader.get_exclusion_polygon(i, num_points);
+        if (num_points < 3) {
+            // ignore exclusion polygons with less than 3 points
+            continue;
+        }
+        float distance_to_poly_new = Polygon_closest_distance_point(boundary, num_points,pos_vector)*0.01;
+        if (!distance_to_poly_updated||(distance_to_poly_new<distance_to_poly ))
+            distance_to_poly = distance_to_poly_new;
+            distance_to_poly_updated = true;
+        }
+
+    //check for distance between vehicle and inclusion circles
+    //get circle inclusion points
+    const uint8_t num_inclusion_circles = _poly_loader.get_inclusion_circle_count();   
+    for (uint8_t i=0; i<num_inclusion_circles;i++){
+        Vector2f center_pos_cm;
+        float radius;
+         if (_poly_loader.get_inclusion_circle(i, center_pos_cm, radius)) {
+            const float dist_circle_sq = (pos_vector - center_pos_cm).length();
+            const float dist_circle_new = radius - (dist_circle_sq*0.01f);
+            if(!distance_to_poly_updated|| (dist_circle_new<distance_to_poly)){
+                distance_to_poly_updated = true;
+                distance_to_poly= dist_circle_new;
+
+            }
+        }
+    }
+
+    //check for distance between vehicle and exclusion circles
+    //get circle exclusion points   
+    const uint8_t num_exclusion_circles = _poly_loader.get_exclusion_circle_count();
+    for (uint8_t i=0; i<num_exclusion_circles;i++){
+        Vector2f center_pos_cm;
+        float radius;
+         if (_poly_loader.get_exclusion_circle(i, center_pos_cm, radius)){
+            const float dist_circle_sq = (pos_vector - center_pos_cm).length();
+            const float dist_circle_new = (dist_circle_sq*0.01f) - radius;
+            if(!distance_to_poly_updated|| (dist_circle_new<distance_to_poly)){
+                distance_to_poly_updated = true;
+                distance_to_poly= dist_circle_new;
+            }
+        }
+    }
+    //return minimum distance from all detected fences
+    return distance_to_poly;
 }
 
 /// manual_recovery_start - caller indicates that pilot is re-taking manual control so fence should be disabled for 10 seconds
