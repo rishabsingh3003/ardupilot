@@ -122,7 +122,7 @@ void ModeAcro_Heli::run()
 }
 
 
-// virtual_flybar - acts like a flybar by leaking target atttitude back to current attitude
+// virtual_flybar - acts like a flybar by leaking target attitude back to current attitude
 void ModeAcro_Heli::virtual_flybar( float &roll_out, float &pitch_out, float &yaw_out, float pitch_leak, float roll_leak)
 {
     Vector3f rate_ef_level, rate_bf_level;

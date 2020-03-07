@@ -47,7 +47,7 @@ bool ModeAutorotate::init(bool ignore_checks)
     // Display message 
     gcs().send_text(MAV_SEVERITY_INFO, "Autorotation initiated");
 
-     // Set all inial flags to on
+     // Set all initial flags to on
     _flags.entry_initial = 1;
     _flags.ss_glide_initial = 1;
     _flags.flare_initial = 1;

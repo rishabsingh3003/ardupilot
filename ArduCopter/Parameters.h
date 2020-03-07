@@ -615,7 +615,7 @@ public:
     AP_Int32 fs_options;
 
 #if MODE_AUTOROTATE_ENABLED == ENABLED
-    // Autonmous autorotation
+    // Autonomous autorotation
     AC_Autorotation arot;
 #endif
 

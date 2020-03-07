@@ -21,7 +21,7 @@ public:
         RTL =           6,  // automatic return to launching point
         CIRCLE =        7,  // automatic circular flight with automatic throttle
         LAND =          9,  // automatic landing with horizontal position control
-        DRIFT =        11,  // semi-automous position, yaw and throttle control
+        DRIFT =        11,  // semi-autonomous position, yaw and throttle control
         SPORT =        13,  // manual earth-frame angular rate control with manual throttle
         FLIP =         14,  // automatically flip the vehicle on the roll axis
         AUTOTUNE =     15,  // automatically tune the vehicle's roll and pitch gains
@@ -1455,12 +1455,12 @@ private:
     float _fwd_speed_target;        // Target forward speed (cm/s)
     float _desired_v_z;             // Desired vertical
     int32_t _pitch_target;          // Target pitch attitude to pass to attitude controller
-    float _collective_aggression;   // The 'aggresiveness' of collective appliction
+    float _collective_aggression;   // The 'aggressiveness' of collective application
     float _z_touch_down_start;      // The height in cm that the touch down phase began
     float _t_touch_down_initiate;   // The time in ms that the touch down phase began
     float now;                      // Current time in millis
     float _entry_time_start;        // Time remaining until entry phase moves on to glide phase
-    float _hs_decay;                // The head accerleration during the entry phase
+    float _hs_decay;                // The head acceleration during the entry phase
     float _bail_time;               // Timer for exiting the bail out phase (s)
     float _bail_time_start;         // Time at start of bail out
     float _des_z;                   // Desired vertical position

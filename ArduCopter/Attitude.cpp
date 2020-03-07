@@ -138,7 +138,7 @@ float Copter::get_avoidance_adjusted_climbrate(float target_rate)
 #endif
 }
 
-// set_accel_throttle_I_from_pilot_throttle - smoothes transition from pilot controlled throttle to autopilot throttle
+// set_accel_throttle_I_from_pilot_throttle - smoothens transition from pilot controlled throttle to autopilot throttle
 void Copter::set_accel_throttle_I_from_pilot_throttle()
 {
     // get last throttle input sent to attitude controller
