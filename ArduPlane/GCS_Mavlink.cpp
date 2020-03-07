@@ -1162,7 +1162,7 @@ void GCS_MAVLINK_Plane::handleMessage(const mavlink_message_t &msg)
     {
         // Only allow companion computer (or other external controller) to
         // control attitude in GUIDED mode.  We DON'T want external control
-        // in e.g., RTL, CICLE. Specifying a single mode for companion
+        // in e.g., RTL, CIRCLE. Specifying a single mode for companion
         // computer control is more safe (even more so when using
         // FENCE_ACTION = 4 for geofence failures).
         if ((plane.control_mode != &plane.mode_guided) &&
@@ -1284,7 +1284,7 @@ void GCS_MAVLINK_Plane::handleMessage(const mavlink_message_t &msg)
         mavlink_set_position_target_global_int_t pos_target;
         mavlink_msg_set_position_target_global_int_decode(&msg, &pos_target);
         // Unexpectedly, the mask is expecting "ones" for dimensions that should
-        // be IGNORNED rather than INCLUDED.  See mavlink documentation of the
+        // be IGNORED rather than INCLUDED.  See mavlink documentation of the
         // SET_POSITION_TARGET_GLOBAL_INT message, type_mask field.
         const uint16_t alt_mask = 0b1111111111111011; // (z mask at bit 3)
             

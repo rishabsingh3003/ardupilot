@@ -250,7 +250,7 @@ bool Plane::geofence_set_floor_enabled(bool floor_enable) {
 }
 
 /*
- *  return true if we have breached the geo-fence minimum altiude
+ *  return true if we have breached the geo-fence minimum altitude
  */
 bool Plane::geofence_check_minalt(void)
 {
@@ -264,7 +264,7 @@ bool Plane::geofence_check_minalt(void)
 }
 
 /*
- *  return true if we have breached the geo-fence maximum altiude
+ *  return true if we have breached the geo-fence maximum altitude
  */
 bool Plane::geofence_check_maxalt(void)
 {

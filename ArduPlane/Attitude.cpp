@@ -315,7 +315,7 @@ void Plane::stabilize_acro(float speed_scaler)
         int32_t roll_error_cd = -ToDeg(acro_state.locked_roll_err)*100;
         nav_roll_cd = ahrs.roll_sensor + roll_error_cd;
         // try to reduce the integrated angular error to zero. We set
-        // 'stabilze' to true, which disables the roll integrator
+        // 'stabilize' to true, which disables the roll integrator
         SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, rollController.get_servo_out(roll_error_cd,
                                                                                              speed_scaler,
                                                                                              true));
@@ -652,7 +652,7 @@ void Plane::update_load_factor(void)
         nav_roll_cd = constrain_int32(nav_roll_cd, -2500, 2500);
         roll_limit_cd = MIN(roll_limit_cd, 2500);
     } else if (max_load_factor < aerodynamic_load_factor) {
-        // the demanded nav_roll would take us past the aerodymamic
+        // the demanded nav_roll would take us past the aerodynamic
         // load limit. Limit our roll to a bank angle that will keep
         // the load within what the airframe can handle. We always
         // allow at least 25 degrees of roll however, to ensure the

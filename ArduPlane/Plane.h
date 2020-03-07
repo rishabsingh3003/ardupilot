@@ -245,7 +245,7 @@ private:
     OpticalFlow optflow;
 #endif
 
-    // Rally Ponints
+    // Rally Points
     AP_Rally rally;
 
 #if OSD_ENABLED == ENABLED
@@ -298,7 +298,7 @@ private:
     
     // Failsafe
     struct {
-        // Used to track if the value on channel 3 (throtttle) has fallen below the failsafe threshold
+        // Used to track if the value on channel 3 (throttle) has fallen below the failsafe threshold
         // RC receiver should be set up to output a low throttle value when signal is lost
         bool rc_failsafe;
 
@@ -586,7 +586,7 @@ private:
     // The instantaneous desired pitch angle.  Hundredths of a degree
     int32_t nav_pitch_cd;
 
-    // the aerodymamic load factor. This is calculated from the demanded
+    // the aerodynamic load factor. This is calculated from the demanded
     // roll before the roll is clipped, using 1/sqrt(cos(nav_roll))
     float aerodynamic_load_factor = 1.0f;
 
@@ -619,7 +619,7 @@ private:
 
     AP_ADSB adsb;
 
-    // avoidance of adsb enabled vehicles (normally manned vheicles)
+    // avoidance of adsb enabled vehicles (normally manned vehicles)
     AP_Avoidance_Plane avoidance_adsb{adsb};
 
     // Outback Challenge Failsafe Support
@@ -735,7 +735,7 @@ private:
     AP_Mount camera_mount;
 #endif
 
-    // Arming/Disarming mangement class
+    // Arming/Disarming management class
     AP_Arming_Plane arming;
 
     AP_Param param_loader {var_info};

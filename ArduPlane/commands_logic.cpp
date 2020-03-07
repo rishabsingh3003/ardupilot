@@ -1029,7 +1029,7 @@ bool Plane::verify_landing_vtol_approach(const AP_Mission::Mission_Command &cmd)
             }
         case APPROACH_LINE:
             {
-                // project an apporach path
+                // project an approach path
                 Location start = cmd.content.location;
                 Location end = cmd.content.location;
 

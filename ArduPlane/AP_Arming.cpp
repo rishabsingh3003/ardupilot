@@ -209,7 +209,7 @@ bool AP_Arming_Plane::disarm(const AP_Arming::Method method)
     plane.aparm.airspeed_cruise_cm.load();
 
 #if QAUTOTUNE_ENABLED
-    //save qautotune gains if enabled and success
+    //save autotune gains if enabled and success
     if (plane.control_mode == &plane.mode_qautotune) {
         plane.quadplane.qautotune.save_tuning_gains();
     } else {
