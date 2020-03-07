@@ -114,7 +114,7 @@ MAV_RESULT Rover::mavlink_motor_test_start(const GCS_MAVLINK &gcs_chan, AP_Motor
     if (!motor_test) {
         /* perform checks that it is ok to start test
            The RC calibrated check can be skipped if direct pwm is
-           suppliedo
+           supplied
         */
         if (!mavlink_motor_test_check(gcs_chan, throttle_type != 1, motor_instance, throttle_type, throttle_value)) {
             return MAV_RESULT_FAILED;
