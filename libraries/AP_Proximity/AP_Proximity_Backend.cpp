@@ -248,40 +248,43 @@ bool AP_Proximity_Backend::ignore_reading(uint16_t angle_deg) const
 }
 
 // returns true if database is ready to be pushed to and all cached data is ready
-bool AP_Proximity_Backend::database_prepare_for_push(Vector2f &current_pos, float &current_heading)
+bool AP_Proximity_Backend::database_prepare_for_push(Vector3f &current_pos, float &current_heading, float &current_pitch)
 {
     AP_OADatabase *oaDb = AP::oadatabase();
     if (oaDb == nullptr || !oaDb->healthy()) {
         return false;
     }
 
-    if (!AP::ahrs().get_relative_position_NE_origin(current_pos)) {
+    if (!AP::ahrs().get_relative_position_NED_origin(current_pos)) {
         return false;
     }
 
     current_heading = AP::ahrs().yaw_sensor * 0.01f;
+    current_pitch = AP::ahrs().pitch_sensor * 0.01f;
+    
     return true;
 }
 
 // update Object Avoidance database with Earth-frame point
 void AP_Proximity_Backend::database_push(float angle, float distance)
 {
-    Vector2f current_pos;
+    Vector3f current_pos;
     float current_heading;
-    if (database_prepare_for_push(current_pos, current_heading)) {
-        database_push(angle, distance, AP_HAL::millis(), current_pos, current_heading);
+    float current_pitch;
+    if (database_prepare_for_push(current_pos, current_heading, current_pitch)) {
+        database_push(angle, distance, AP_HAL::millis(), current_pos, current_heading, current_pitch);
     }
 }
 
 // update Object Avoidance database with Earth-frame point
-void AP_Proximity_Backend::database_push(float angle, float distance, uint32_t timestamp_ms, const Vector2f &current_pos, float current_heading)
+void AP_Proximity_Backend::database_push(float angle, float distance, uint32_t timestamp_ms, const Vector3f &current_pos, float current_heading, float current_pitch)
 {
     AP_OADatabase *oaDb = AP::oadatabase();
     if (oaDb == nullptr || !oaDb->healthy()) {
         return;
     }
-
-    Vector2f temp_pos = current_pos;
-    temp_pos.offset_bearing(wrap_180(current_heading + angle), distance);
+    Vector3f temp_pos = current_pos;
+    temp_pos.z = -temp_pos.z;
+    temp_pos.offset_bearing(wrap_180(current_heading + angle), 90 - current_pitch, distance);    
     oaDb->queue_push(temp_pos, timestamp_ms, distance);
 }
