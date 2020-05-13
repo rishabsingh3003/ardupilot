@@ -247,6 +247,11 @@ public:
         return perpendicular;
     }
 
+    // adjust position by a given bearing (in degrees) and distance
+    void offset_bearing(float bearing, float pitch, float distance);
+    static float closest_distance_between_line_and_point(const Vector3<T> &w1,
+                                                         const Vector3<T> &w2,
+                                                         const Vector3<T> &p);
 };
 
 typedef Vector3<int16_t>                Vector3i;
