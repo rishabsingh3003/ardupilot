@@ -15,11 +15,12 @@
 
 #include "AP_OABendyRuler.h"
 #include <AC_Avoidance/AP_OADatabase.h>
+#include <AC_Avoidance/AP_OAPathPlanner.h>
 #include <AC_Fence/AC_Fence.h>
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Logger/AP_Logger.h>
 
-const int16_t OA_BENDYRULER_BEARING_INC = 5;            // check every 5 degrees around vehicle
+const int16_t OA_BENDYRULER_BEARING_INC = 60;            
 const float OA_BENDYRULER_LOOKAHEAD_STEP2_RATIO = 1.0f; // step2's lookahead length as a ratio of step1's lookahead length
 const float OA_BENDYRULER_LOOKAHEAD_STEP2_MIN = 2.0f;   // step2 checks at least this many meters past step1's location
 const float OA_BENDYRULER_LOOKAHEAD_PAST_DEST = 2.0f;   // lookahead length will be at least this many meters past the destination
@@ -28,7 +29,7 @@ const float OA_BENDYRULER_LOW_SPEED_SQUARED = (0.2f * 0.2f);    // when ground c
 // run background task to find best path and update avoidance_results
 // returns true and updates origin_new and destination_new if a best path has been found
 bool AP_OABendyRuler::update(const Location& current_loc, const Location& destination, const Vector2f &ground_speed_vec, Location &origin_new, Location &destination_new)
-{
+{   
     // bendy ruler always sets origin to current_loc
     origin_new = current_loc;
 
@@ -61,9 +62,11 @@ bool AP_OABendyRuler::update(const Location& current_loc, const Location& destin
     // search in OA_BENDYRULER_BEARING_INC degree increments around the vehicle alternating left
     // and right. For each direction check if vehicle would avoid all obstacles
     float best_bearing = bearing_to_dest;
+    float best_pitch = 0.0f;
     bool have_best_bearing = false;
     float best_margin = -FLT_MAX;
     float best_margin_bearing = best_bearing;
+    float best_margin_pitch = best_pitch;
 
     for (uint8_t i = 0; i <= (170 / OA_BENDYRULER_BEARING_INC); i++) {
         for (uint8_t bdir = 0; bdir <= 1; bdir++) {
@@ -71,21 +74,29 @@ bool AP_OABendyRuler::update(const Location& current_loc, const Location& destin
             if ((i==0) && (bdir > 0)) {
                 continue;
             }
+            const float bearing_delta = i * OA_BENDYRULER_BEARING_INC * (bdir == 0 ? 1.0f : -1.0f);
+            float bearing_test = 0.0f;
+            float pitch_test = 0.0f;
             // bearing that we are probing
-            const float bearing_delta = i * OA_BENDYRULER_BEARING_INC * (bdir == 0 ? -1.0f : 1.0f);
-            const float bearing_test = wrap_180(bearing_to_dest + bearing_delta);
+            if (_bendy_type & AP_OAPathPlanner::OA_BENDY_HORIZONTAL) {
+            bearing_test = wrap_180(bearing_to_dest + bearing_delta);
+            pitch_test = 0;
+            } else if (_bendy_type & AP_OAPathPlanner::OA_BENDY_VERTICAL) {
+            bearing_test = bearing_to_dest;
+            pitch_test = bearing_delta;
+            }
 
             // ToDo: add effective groundspeed calculations using airspeed
             // ToDo: add prediction of vehicle's position change as part of turn to desired heading
 
             // test location is projected from current location at test bearing
             Location test_loc = current_loc;
-            test_loc.offset_bearing(bearing_test, lookahead_step1_dist);
-
+            test_loc.offset_bearing_and_pitch(bearing_test,pitch_test, lookahead_step1_dist);
             // calculate margin from fence for this scenario
             float margin = calc_avoidance_margin(current_loc, test_loc);
             if (margin > best_margin) {
                 best_margin_bearing = bearing_test;
+                best_pitch = pitch_test;
                 best_margin = margin;
             }
             if (margin > _margin_max) {
@@ -93,6 +104,7 @@ bool AP_OABendyRuler::update(const Location& current_loc, const Location& destin
                 // now check in there is a clear path in three directions towards the destination
                 if (!have_best_bearing) {
                     best_bearing = bearing_test;
+                    best_margin_pitch = pitch_test;
                     have_best_bearing = true;
                 } else if (fabsf(wrap_180(ground_course_deg - bearing_test)) <
                            fabsf(wrap_180(ground_course_deg - best_bearing))) {
@@ -105,16 +117,24 @@ bool AP_OABendyRuler::update(const Location& current_loc, const Location& destin
                 const float bearing_to_dest2 = test_loc.get_bearing_to(destination) * 0.01f;
                 float distance2 = constrain_float(lookahead_step2_dist, OA_BENDYRULER_LOOKAHEAD_STEP2_MIN, test_loc.get_distance(destination));
                 for (uint8_t j = 0; j < ARRAY_SIZE(test_bearings); j++) {
-                    float bearing_test2 = wrap_180(bearing_to_dest2 + test_bearings[j]);
+                    float bearing_test2 = 0.0f;
+                    float pitch_test2 = 0.0f;
+                    if (_bendy_type & AP_OAPathPlanner::OA_BENDY_HORIZONTAL){ 
+                        bearing_test2 = wrap_180(bearing_to_dest2 + test_bearings[j]);
+                        pitch_test2 =0.0f;
+                    } else if (_bendy_type & AP_OAPathPlanner::OA_BENDY_VERTICAL) {
+                        bearing_test2 = bearing_to_dest2;
+                        pitch_test2 = test_bearings[j];
+                    }
                     Location test_loc2 = test_loc;
-                    test_loc2.offset_bearing(bearing_test2, distance2);
+                    test_loc2.offset_bearing_and_pitch(bearing_test2,pitch_test2, distance2);
 
                     // calculate minimum margin to fence and obstacles for this scenario
                     float margin2 = calc_avoidance_margin(test_loc, test_loc2);
                     if (margin2 > _margin_max) {
                         // all good, now project in the chosen direction by the full distance
                         destination_new = current_loc;
-                        destination_new.offset_bearing(bearing_test, distance_to_dest);
+                        destination_new.offset_bearing_and_pitch(bearing_test,(pitch_test), distance_to_dest);
                         _current_lookahead = MIN(_lookahead, _current_lookahead * 1.1f);
                         // if the chosen direction is directly towards the destination turn off avoidance
                         const bool active = (i != 0 || j != 0);
@@ -126,22 +146,24 @@ bool AP_OABendyRuler::update(const Location& current_loc, const Location& destin
         }
     }
 
-    float chosen_bearing;
+    float chosen_bearing,chosen_pitch;
     if (have_best_bearing) {
         // none of the directions tested were OK for 2-step checks. Choose the direction
         // that was best for the first step
         chosen_bearing = best_bearing;
+        chosen_pitch = best_pitch;
         _current_lookahead = MIN(_lookahead, _current_lookahead * 1.05f);
     } else {
         // none of the possible paths had a positive margin. Choose
         // the one with the highest margin
         chosen_bearing = best_margin_bearing;
+        chosen_pitch = best_margin_pitch;
         _current_lookahead = MAX(_lookahead * 0.5f, _current_lookahead * 0.9f);
     }
 
     // calculate new target based on best effort
     destination_new = current_loc;
-    destination_new.offset_bearing(chosen_bearing, distance_to_dest);
+    destination_new.offset_bearing_and_pitch(chosen_bearing,chosen_pitch, distance_to_dest);
 
     // log results
     AP::logger().Write_OABendyRuler(true, chosen_bearing, best_margin, destination, destination_new);

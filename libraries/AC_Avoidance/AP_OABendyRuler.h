@@ -18,7 +18,7 @@ public:
     AP_OABendyRuler &operator=(const AP_OABendyRuler&) = delete;
 
     // send configuration info stored in front end parameters
-    void set_config(float lookahead, float margin_max) { _lookahead = MAX(lookahead, 1.0f); _margin_max = MAX(margin_max, 0.0f); }
+    void set_config(float lookahead, float margin_max, float bendy_type) { _lookahead = MAX(lookahead, 1.0f); _margin_max = MAX(margin_max, 0.0f); _bendy_type = bendy_type;}
 
     // run background task to find best path and update avoidance_results
     // returns true and populates origin_new and destination_new if OA is required.  returns false if OA is not required
@@ -48,6 +48,7 @@ private:
     // configuration parameters
     float _lookahead;               // object avoidance will look this many meters ahead of vehicle
     float _margin_max;              // object avoidance will ignore objects more than this many meters from vehicle
+    uint16_t _bendy_type;           // type of BendyRuler to run
 
     // internal variables used by background thread
     float _current_lookahead;       // distance (in meters) ahead of the vehicle we are looking for obstacles
