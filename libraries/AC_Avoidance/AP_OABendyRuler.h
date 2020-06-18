@@ -4,6 +4,7 @@
 #include <AP_Common/Location.h>
 #include <AP_Math/AP_Math.h>
 #include <AP_HAL/AP_HAL.h>
+#include <AP_Param/AP_Param.h>
 
 /*
  * BendyRuler avoidance algorithm for avoiding the polygon and circular fence and dynamic objects detected by the proximity sensor
@@ -11,7 +12,7 @@
 class AP_OABendyRuler {
 public:
 
-    AP_OABendyRuler() {}
+    AP_OABendyRuler() { AP_Param::setup_object_defaults(this, var_info); }
 
     /* Do not allow copies */
     AP_OABendyRuler(const AP_OABendyRuler &other) = delete;
@@ -23,6 +24,8 @@ public:
     // run background task to find best path and update avoidance_results
     // returns true and populates origin_new and destination_new if OA is required.  returns false if OA is not required
     bool update(const Location& current_loc, const Location& destination, const Vector2f &ground_speed_vec, Location &origin_new, Location &destination_new);
+
+    static const struct AP_Param::GroupInfo var_info[];
 
 private:
 
@@ -51,4 +54,6 @@ private:
 
     // internal variables used by background thread
     float _current_lookahead;       // distance (in meters) ahead of the vehicle we are looking for obstacles
+
+    AP_Float _test;
 };

@@ -25,10 +25,23 @@ const float OA_BENDYRULER_LOOKAHEAD_STEP2_MIN = 2.0f;   // step2 checks at least
 const float OA_BENDYRULER_LOOKAHEAD_PAST_DEST = 2.0f;   // lookahead length will be at least this many meters past the destination
 const float OA_BENDYRULER_LOW_SPEED_SQUARED = (0.2f * 0.2f);    // when ground course is below this speed squared, vehicle's heading will be used
 
+const AP_Param::GroupInfo AP_OABendyRuler::var_info[] = {
+
+    // @Param: TEST
+    // @DisplayName: Testing new params
+    // @Description: test
+    // @Range: 0 10000
+    // @User: Advanced
+    AP_GROUPINFO("TEST", 1, AP_OABendyRuler, _test, 11.0f),
+
+    AP_GROUPEND
+};
+
 // run background task to find best path and update avoidance_results
 // returns true and updates origin_new and destination_new if a best path has been found
 bool AP_OABendyRuler::update(const Location& current_loc, const Location& destination, const Vector2f &ground_speed_vec, Location &origin_new, Location &destination_new)
-{
+{   
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "test param: %5.3f", (double)_test);
     // bendy ruler always sets origin to current_loc
     origin_new = current_loc;
 

@@ -74,6 +74,10 @@ const AP_Param::GroupInfo AP_OAPathPlanner::var_info[] = {
     AP_GROUPINFO("OPTIONS", 5, AP_OAPathPlanner, _options, OA_OPTIONS_DEFAULT),
 #endif
 
+    // @Group: BR_
+    // @Path: AP_OABendyRuler.cpp
+    AP_SUBGROUPPTR(_oabendyruler, "BR_", 6, AP_OAPathPlanner, AP_OABendyRuler),
+
     AP_GROUPEND
 };
 
@@ -96,6 +100,7 @@ void AP_OAPathPlanner::init()
     case OA_PATHPLAN_BENDYRULER:
         if (_oabendyruler == nullptr) {
             _oabendyruler = new AP_OABendyRuler();
+            AP_Param::load_object_from_eeprom(_oabendyruler, AP_OABendyRuler::var_info);
         }
         break;
     case OA_PATHPLAN_DIJKSTRA:
