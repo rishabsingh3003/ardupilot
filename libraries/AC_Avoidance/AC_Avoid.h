@@ -135,6 +135,8 @@ private:
      */
     float get_stopping_distance(float kP, float accel_cmss, float speed_cms) const;
 
+    void get_backaway_velocity(float kP, float accel_cmss, float distance_cm, float dt, Vector2f &desired_vel_cms, Vector2f& back_direction);
+    
     /*
      * methods for avoidance in non-GPS flight modes
      */
@@ -151,6 +153,8 @@ private:
     AP_Float _dist_max;         // distance (in meters) from object at which obstacle avoidance will begin in non-GPS modes
     AP_Float _margin;           // vehicle will attempt to stay this distance (in meters) from objects while in GPS modes
     AP_Int8 _behavior;          // avoidance behaviour (slide or stop)
+    AP_Float _max_bckaway_spd;   // Maximum backaway avoidance speed (m/s)
+
 
     bool _proximity_enabled = true; // true if proximity sensor based avoidance is enabled (used to allow pilot to enable/disable)
     uint32_t _last_limit_time;      // the last time a limit was active

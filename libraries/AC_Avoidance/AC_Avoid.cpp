@@ -68,6 +68,14 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("BEHAVE", 5, AC_Avoid, _behavior, AP_AVOID_BEHAVE_DEFAULT),
 
+    // @Param: BACKUP_SPD
+    // @DisplayName: Back away speed
+    // @Description: Maximum speed that will be used to back away from obstacles in GPS modes (m/s)
+    // @Units: m/s
+    // @Range: 0 2
+    // @User: Standard
+    AP_GROUPINFO("BACKUP_SPD", 6, AC_Avoid, _max_bckaway_spd, 1.0f),
+
     AP_GROUPEND
 };
 
@@ -271,6 +279,17 @@ void AC_Avoid::limit_velocity(float kP, float accel_cmss, Vector2f &desired_vel_
         // subtract difference between desired speed and maximum acceptable speed
         desired_vel_cms += limit_direction*(max_speed - speed);
         _last_limit_time = AP_HAL::millis();
+    }
+}
+
+void AC_Avoid::get_backaway_velocity(float kP, float accel_cmss, float distance_cm, float dt, Vector2f &desired_vel_cms, Vector2f& back_direction) 
+{
+    float backaway_speed = get_max_speed(kP, accel_cmss, distance_cm, dt);
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "hello world! %5.3f", (double)backaway_speed);
+
+    desired_vel_cms += back_direction.normalized()*(-1.0f * backaway_speed);
+    if (desired_vel_cms.length() > _max_bckaway_spd) {
+        desired_vel_cms = desired_vel_cms.normalized() * (100.0f*_max_bckaway_spd);
     }
 }
 
@@ -759,16 +778,27 @@ void AC_Avoid::adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &des
         // end points of current edge
         Vector2f start = boundary[j];
         Vector2f end = boundary[i];
-        if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) {
-            // vector from current position to closest point on current edge
+
+         // vector from current position to closest point on current edge
             Vector2f limit_direction = Vector2f::closest_point(position_xy, start, end) - position_xy;
             // distance to closest point
             const float limit_distance_cm = limit_direction.length();
+
+        if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) {
+            // vector from current position to closest point on current edge
+            // Vector2f limit_direction = Vector2f::closest_point(position_xy, start, end) - position_xy;
+            // // distance to closest point
+            // const float limit_distance_cm = limit_direction.length();
             if (!is_zero(limit_distance_cm)) {
                 // We are strictly inside the given edge.
                 // Adjust velocity to not violate this edge.
                 limit_direction /= limit_distance_cm;
                 limit_velocity(kP, accel_cmss, safe_vel, limit_direction, MAX(limit_distance_cm - margin_cm, 0.0f), dt);
+                // if distance from current loc to closest point on polygon, is less than margin, we need to back up 
+                // if (is_negative(limit_distance_cm - margin_cm)) {
+                //     // backup
+                //     get_backaway_velocity(kP,accel_cmss,margin_cm-limit_distance_cm,dt,safe_vel,limit_direction);
+                // }
             } else {
                 // We are exactly on the edge - treat this as a fence breach.
                 // i.e. do not adjust velocity.
@@ -779,16 +809,18 @@ void AC_Avoid::adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &des
             Vector2f intersection;
             if (Vector2f::segment_intersection(position_xy, stopping_point_plus_margin, start, end, intersection)) {
                 // vector from current position to point on current edge
-                Vector2f limit_direction = intersection - position_xy;
-                const float limit_distance_cm = limit_direction.length();
-                if (!is_zero(limit_distance_cm)) {
-                    if (limit_distance_cm <= margin_cm) {
+                Vector2f limit_direction1 = intersection - position_xy;
+                const float limit_distance_cm1 = limit_direction1.length();
+                if (!is_zero(limit_distance_cm1)) {
+                    if (limit_distance_cm1 <= margin_cm) {
                         // we are within the margin so stop vehicle
                         safe_vel.zero();
+                        // Vector2f back_direction = Vector2f::closest_point(position_xy, start, end) - position_xy;
+                        // get_backaway_velocity(kP,accel_cmss, margin_cm - back_direction.length(), dt, safe_vel, back_direction);
                     } else {
                         // vehicle inside the given edge, adjust velocity to not violate this edge
-                        limit_direction /= limit_distance_cm;
-                        limit_velocity(kP, accel_cmss, safe_vel, limit_direction, MAX(limit_distance_cm - margin_cm, 0.0f), dt);
+                        limit_direction1 /= limit_distance_cm1;
+                        limit_velocity(kP, accel_cmss, safe_vel, limit_direction1, MAX(limit_distance_cm1 - margin_cm, 0.0f), dt);
                     }
                 } else {
                     // We are exactly on the edge - treat this as a fence breach.
@@ -797,7 +829,14 @@ void AC_Avoid::adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &des
                 }
             }
         }
+    
+      if (is_negative(limit_distance_cm - margin_cm)) {
+        // backup
+        get_backaway_velocity(kP,accel_cmss,margin_cm-limit_distance_cm,dt,safe_vel,limit_direction);
+        }
+
     }
+
 
     // set modified desired velocity vector
     if (earth_frame) {
