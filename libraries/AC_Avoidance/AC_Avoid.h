@@ -23,6 +23,7 @@
 /*
  * This class prevents the vehicle from leaving a polygon fence in
  * 2 dimensions by limiting velocity (adjust_velocity).
+ * Additionally the vehicle may back up if the margin to obstacle is breached
  */
 class AC_Avoid {
 public:
@@ -45,8 +46,12 @@ public:
      * before the fence/object.
      * Note: Vector3f version is for convenience and only adjusts x and y axis
      */
-    void adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt);
+    void adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt) {
+        bool backing_up = false;
+        adjust_velocity(kP, accel_cmss, desired_vel_cms, backing_up, dt);
+    }
     void adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, float dt);
+    void adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel_cms, bool &backing_up,float dt);
 
     // adjust desired horizontal speed so that the vehicle stops before the fence or object
     // accel (maximum acceleration/deceleration) is in m/s/s
@@ -99,28 +104,28 @@ private:
     /*
      * Adjusts the desired velocity for the circular fence.
      */
-    void adjust_velocity_circle_fence(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt);
+    void adjust_velocity_circle_fence(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backaway_vel, float dt);
 
     /*
      * Adjusts the desired velocity for inclusion and exclusion polygon fences
      */
-    void adjust_velocity_inclusion_and_exclusion_polygons(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt);
+    void adjust_velocity_inclusion_and_exclusion_polygons(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backaway_vel, float dt);
 
     /*
      * Adjusts the desired velocity for the inclusion and exclusion circles
      */
-    void adjust_velocity_inclusion_circles(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt);
-    void adjust_velocity_exclusion_circles(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt);
+    void adjust_velocity_inclusion_circles(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backaway_vel, float dt);
+    void adjust_velocity_exclusion_circles(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backaway_vel, float dt);
 
     /*
      * Adjusts the desired velocity for the beacon fence.
      */
-    void adjust_velocity_beacon_fence(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt);
+    void adjust_velocity_beacon_fence(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backaway_vel, float dt);
 
     /*
      * Adjusts the desired velocity based on output from the proximity sensor
      */
-    void adjust_velocity_proximity(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt);
+    void adjust_velocity_proximity(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backaway_vel, float dt);
 
     /*
      * Adjusts the desired velocity given an array of boundary points
@@ -128,12 +133,17 @@ private:
      *   margin is the distance (in meters) that the vehicle should stop short of the polygon
      *   stay_inside should be true for fences, false for exclusion polygons
      */
-    void adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &desired_vel_cms, const Vector2f* boundary, uint16_t num_points, bool earth_frame, float margin, float dt, bool stay_inside);
+    void adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backaway_vel, const Vector2f* boundary, uint16_t num_points, bool earth_frame, float margin, float dt, bool stay_inside);
 
     /*
      * Computes distance required to stop, given current speed.
      */
     float get_stopping_distance(float kP, float accel_cmss, float speed_cms) const;
+
+    /*
+    * Compute the back away velocity to avoid breaching margin
+    */
+    void calc_backaway_velocity(float kP, float accel_cmss, Vector2f &backaway_vel_cms, float back_distance_cm, Vector2f limit_direction, float dt);
 
     /*
      * methods for avoidance in non-GPS flight modes
@@ -151,6 +161,7 @@ private:
     AP_Float _dist_max;         // distance (in meters) from object at which obstacle avoidance will begin in non-GPS modes
     AP_Float _margin;           // vehicle will attempt to stay this distance (in meters) from objects while in GPS modes
     AP_Int8 _behavior;          // avoidance behaviour (slide or stop)
+    AP_Float _backaway_max_spd; // Maximum speed that will be used to back away (in m/s)
 
     bool _proximity_enabled = true; // true if proximity sensor based avoidance is enabled (used to allow pilot to enable/disable)
     uint32_t _last_limit_time;      // the last time a limit was active
