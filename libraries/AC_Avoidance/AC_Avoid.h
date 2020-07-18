@@ -143,7 +143,12 @@ private:
     /*
     * Compute the back away velocity to avoid breaching margin
     */
-    void calc_backaway_velocity(float kP, float accel_cmss, Vector2f &backaway_vel_cms, float back_distance_cm, Vector2f limit_direction, float dt);
+    void calc_backaway_velocity(float kP, float accel_cmss, Vector2f &quad1_back_vel_cms, Vector2f &qua2_back_vel_cms, Vector2f &quad3_back_vel_cms, Vector2f &quad4_back_vel_cms, float back_distance_cm, Vector2f limit_direction, float dt);
+
+    /*
+    *  Calculate maximum velocity vector that can be formed in each quadrant 
+    */
+    void find_max_quadrant_velocity(Vector2f &desired_vel, Vector2f &quad1_vel, Vector2f &quad2_vel, Vector2f &quad3_vel, Vector2f &quad4_vel);
 
     /*
      * methods for avoidance in non-GPS flight modes
