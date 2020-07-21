@@ -4573,6 +4573,7 @@ class AutoTestCopter(AutoTest):
         self.context_push()
         ex = None
         try:
+            self.clear_fence()
             self.load_fence("copter-avoidance-fence.txt")
             self.set_parameter("FENCE_ENABLE", 0)
             self.set_parameter("PRX_TYPE", 10)
