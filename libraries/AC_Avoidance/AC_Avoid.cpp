@@ -158,7 +158,7 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel
             desired_vel_cms = desired_backup_vel;
         }
     }
-
+    stored_backup_vel = desired_backup_vel;
     // only log results if velocity has been modified to avoid fence/obstacle
     if (desired_vel_orig != desired_vel_cms) {
         // log at not more than 10hz (adjust_velocity method can be potentially called at 400hz!)
@@ -349,6 +349,25 @@ void AC_Avoid::limit_velocity(float kP, float accel_cmss, Vector2f &desired_vel_
         desired_vel_cms += limit_direction*(max_speed - speed);
         _last_limit_time = AP_HAL::millis();
     }
+}
+
+/*
+* limits the component of acceleration in the direction opposite to back up velocity
+*/
+void AC_Avoid::limit_accel( Vector2f &desired_accel_cms) 
+{   
+    if(stored_backup_vel.is_zero() || desired_accel_cms.is_zero()) {
+        // we are not backing up or no desired accel to limit 
+        return;
+    }
+    Vector2f limit_direction = stored_backup_vel.normalized();
+    // we need to limit accel in the direction opposite to backaway vel
+    limit_direction = limit_direction * -1.0f;
+    
+    // project accel in the direction of limit direction
+    Vector2f projected_accel = desired_accel_cms.projected(limit_direction);
+    // subtract it from the desired accel
+    desired_accel_cms -= projected_accel;
 }
 
 /*

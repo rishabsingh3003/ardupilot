@@ -63,7 +63,10 @@ public:
 
     // adjust vertical climb rate so vehicle does not break the vertical fence
     void adjust_velocity_z(float kP, float accel_cmss, float& climb_rate_cms, float dt);
-
+    
+    // limits the component of acceleration in the direction opposite to back up velocity
+    void limit_accel( Vector2f &desired_accel_cms);
+    
     // adjust roll-pitch to push vehicle away from objects
     // roll and pitch value are in centi-degrees
     // angle_max is the user defined maximum lean angle for the vehicle in centi-degrees
@@ -177,7 +180,7 @@ private:
     bool _proximity_enabled = true; // true if proximity sensor based avoidance is enabled (used to allow pilot to enable/disable)
     uint32_t _last_limit_time;      // the last time a limit was active
     uint32_t last_log_ms;           // the last time simple avoidance was logged
-
+    Vector2f stored_backup_vel;     // last backup velocity
     static AC_Avoid *_singleton;
 };
 
