@@ -308,6 +308,7 @@ void AC_Loiter::calc_desired_velocity(float nav_dt)
     AC_Avoid *_avoid = AP::ac_avoid();
     if (_avoid != nullptr) {
         _avoid->adjust_velocity(_pos_control.get_pos_xy_p().kP(), _accel_cmss, desired_vel, nav_dt);
+        _avoid->limit_accel(_desired_accel);
     }
 
     // send adjusted feed forward acceleration and velocity back to the Position Controller
