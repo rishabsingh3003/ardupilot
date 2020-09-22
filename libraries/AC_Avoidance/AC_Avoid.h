@@ -91,6 +91,7 @@ public:
 
     // return true if limiting is active
     bool limits_active() const {return (AP_HAL::millis() - _last_limit_time) < AC_AVOID_ACTIVE_LIMIT_TIMEOUT_MS;};
+    bool point_on_sphere(Vector3f &center, Vector2f &point, float radius, Vector2f &closest_point);
 
     static const struct AP_Param::GroupInfo var_info[];
 

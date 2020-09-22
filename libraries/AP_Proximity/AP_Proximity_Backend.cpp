@@ -127,7 +127,7 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
 
 // get boundary points around vehicle for use by avoidance
 //   returns nullptr and sets num_points to zero if no boundary can be returned
-const Vector2f* AP_Proximity_Backend::get_boundary_points(uint16_t& num_points) const
+const Vector3f* AP_Proximity_Backend::get_boundary_points(uint16_t& num_points)
 {
     // high-level status check
     if (state.status != AP_Proximity::Status::Good) {
@@ -150,11 +150,25 @@ const Vector2f* AP_Proximity_Backend::get_boundary_points(uint16_t& num_points) 
 
     // return boundary points
     num_points = PROXIMITY_NUM_SECTORS;
-    return _boundary_point;
+
+    for (uint8_t i =0; i < PROXIMITY_NUM_SECTORS; i++) {
+        _rotated_boundary_point[i] = {_boundary_point[i].x, _boundary_point[i].y, 0.0f};
+         _rotated_boundary_point[i] = AP::ahrs().get_rotation_body_to_ned() * _rotated_boundary_point[i];
+    }
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "f1#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f", (double)_rotated_boundary_point[0].x*0.01f,_rotated_boundary_point[0].y*0.01f,_rotated_boundary_point[0].z*0.01f,_rotated_boundary_point[1].x*0.01f,_rotated_boundary_point[1].y*0.01f,_rotated_boundary_point[1].z*0.01f);
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "f2#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f", (double)_rotated_boundary_point[2].x*0.01f,_rotated_boundary_point[2].y*0.01f,_rotated_boundary_point[2].z*0.01f,_rotated_boundary_point[3].x*0.01f,_rotated_boundary_point[3].y*0.01f,_rotated_boundary_point[3].z*0.01f);
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "f3#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f", (double)_rotated_boundary_point[4].x*0.01f,_rotated_boundary_point[4].y*0.01f,_rotated_boundary_point[4].z*0.01f,_rotated_boundary_point[5].x*0.01f,_rotated_boundary_point[5].y*0.01f,_rotated_boundary_point[5].z*0.01f);
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "f4#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f", (double)_rotated_boundary_point[6].x*0.01f,_rotated_boundary_point[6].y*0.01f,_rotated_boundary_point[6].z*0.01f,_rotated_boundary_point[7].x*0.01f,_rotated_boundary_point[7].y*0.01f,_rotated_boundary_point[7].z*0.01f);
+
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "o1#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f", (double)_boundary_point[0].x*0.01f,_boundary_point[0].y*0.01f,0.0f,_boundary_point[1].x*0.01f,_boundary_point[1].y*0.01f,0.0f);
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "o2#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f", (double)_boundary_point[2].x*0.01f,_boundary_point[2].y*0.01f,0.0f,_boundary_point[3].x*0.01f,_boundary_point[3].y*0.01f,0.0f);
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "o3#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f", (double)_boundary_point[4].x*0.01f,_boundary_point[4].y*0.01f,0.0f,_boundary_point[5].x*0.01f,_boundary_point[5].y*0.01f,0.0f);
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "o4#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f", (double)_boundary_point[6].x*0.01f,_boundary_point[6].y*0.01f,0.0f,_boundary_point[7].x*0.01f,_boundary_point[7].y*0.01f,0.0f);
+    return _rotated_boundary_point;
 }
 
 // initialise the boundary and sector_edge_vector array used for object avoidance
-//   should be called if the sector_middle_deg or _setor_width_deg arrays are changed
+//   should be called if the sector_middle_deg or _sector_width_deg arrays are changed
 void AP_Proximity_Backend::init_boundary()
 {
     for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
@@ -164,7 +178,10 @@ void AP_Proximity_Backend::init_boundary()
         _boundary_point[sector] = _sector_edge_vector[sector] * PROXIMITY_BOUNDARY_DIST_DEFAULT;
     }
 }
-
+// void AP_Proximity_Backed::update_edge_vector_for_sector(const uint8_t sector, Matrix3f &body_to_ned)
+// {
+//     int x = 0;
+// }
 // update boundary points used for object avoidance based on a single sector's distance changing
 //   the boundary points lie on the line between sectors meaning two boundary points may be updated based on a single sector's distance changing
 //   the boundary point is set to the shortest distance found in the two adjacent sectors, this is a conservative boundary around the vehicle

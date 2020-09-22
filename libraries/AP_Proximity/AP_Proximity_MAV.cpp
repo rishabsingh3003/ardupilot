@@ -148,7 +148,7 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
                 }
                 if (packet_distance_m >= _distance[i]) {
                     // this is no closer than a previous distance
-                    // found from the pakcet
+                    // found from the packet
                     continue;
                 }
 

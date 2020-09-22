@@ -885,10 +885,107 @@ void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector2f &d
 
     // get boundary from proximity sensor
     uint16_t num_points = 0;
-    const Vector2f *boundary = _proximity.get_boundary_points(num_points);
-    adjust_velocity_polygon(kP, accel_cmss, desired_vel_cms, backup_vel, boundary, num_points, false, _margin, dt, true);
+    const Vector3f *boundary = _proximity.get_boundary_points(num_points);
+    //adjust_velocity_polygon(kP, accel_cmss, desired_vel_cms, backup_vel, boundary, num_points, false, _margin, dt, true);
+     
+    Vector3f position_xyz;
+    Vector2f position_xy;    
+    Vector2f safe_vel(desired_vel_cms);
+    Vector2f desired_back_vel_cms;
+    // calc margin in cm
+    const float margin_cm = MAX(_margin * 100.0f, 0.0f);
+    // for stopping
+    const float speed = safe_vel.length();
+    Vector2f stopping_point_plus_margin; 
+    if (!desired_vel_cms.is_zero()) {
+        stopping_point_plus_margin = position_xy + safe_vel*(( 2.0f + get_stopping_distance(kP, accel_cmss, speed))/speed);
+    }
+    
+     // for backing away
+    Vector2f quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel;
+    // float safe_spd = 0.0f;
+    for (uint16_t i=0; i<num_points; i++) {
+        uint16_t j = i+1;
+        if (j >= num_points) {
+            j = 0;
+        }
+        // end points of current edge
+        Vector3f start = boundary[j];
+        Vector3f end = boundary[i];
+        Vector3f closest_point_to_boundary = Vector3f::closest_point_between_line_and_point( start, end, position_xyz);
+        Vector2f closest_point_to_boundary_2d(closest_point_to_boundary.x,closest_point_to_boundary.y);
+        // exit immediately if no desired velocity
+        if (desired_vel_cms.is_zero()) {
+            continue;
+        }
+
+        if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) {
+            if (desired_vel_cms.length() < 50) {
+                limit_velocity(kP, accel_cmss, safe_vel, closest_point_to_boundary_2d.normalized(), closest_point_to_boundary.length() - margin_cm, dt);
+            } else {
+            Vector2f closest_point;
+            bool intersect = point_on_sphere(closest_point_to_boundary, stopping_point_plus_margin, margin_cm,closest_point);
+            if (intersect || !closest_point.is_zero()) {
+                limit_velocity(kP, accel_cmss, safe_vel, closest_point.normalized(), closest_point.length(), dt);
+            }
+        }}
+    }
+        // desired backup velocity is sum of maximum velocity component in each quadrant 
+    desired_back_vel_cms = quad_1_back_vel + quad_2_back_vel + quad_3_back_vel + quad_4_back_vel;
+    desired_vel_cms = safe_vel;
+    backup_vel = desired_back_vel_cms;
+
+
 }
 
+bool AC_Avoid::point_on_sphere(Vector3f &center, Vector2f &point, float radius, Vector2f &closest_point) 
+{
+    const Vector3f point_3D(point.x,point.y,0.0f);
+    const Vector3f Q = point_3D - center;
+    Vector3f u = point_3D.normalized();
+    float a = u * u;
+    float b = 2 * (u * Q);
+    float c = Q*Q - radius*radius;
+    float d = b*b - 4*a*c;
+    if (is_negative(d)) {
+        // no intersection
+        return false;
+    }
+    
+        float t1 = (-b + sqrt(d))/ (2*a);
+        float t2 = (-b - sqrt(d))/ (2*a);
+        Vector3f first_intersection;
+        Vector3f second_intersection;
+        
+        first_intersection = (point_3D + u*t1);
+        Vector2f first_intersection_2d = Vector2f(first_intersection.x,first_intersection.y);
+        
+        second_intersection = (point_3D + u*t2);
+        Vector2f second_intersection_2d = Vector2f(second_intersection.x,second_intersection.y);
+        bool first_point_on_segment = Vector2f::point_on_segment(first_intersection_2d, Vector2f(0,0),point);
+        bool second_point_on_segment = Vector2f::point_on_segment(second_intersection_2d, Vector2f(0,0),point); 
+        
+        if (!first_point_on_segment && !second_point_on_segment) {
+            return false;
+        }
+        if (first_point_on_segment && !second_point_on_segment) {
+            closest_point = first_intersection_2d;
+            return true;
+        } else if (!first_point_on_segment && second_point_on_segment) {
+            closest_point = second_intersection_2d;
+            return true;
+        }
+        float dist_from_first_int = (point_3D - first_intersection).length();
+        float dist_from_second_int = (point_3D - second_intersection).length();
+        if (dist_from_first_int > dist_from_second_int) {
+            closest_point = Vector2f(second_intersection.x, second_intersection.y);
+            return true;
+        }
+
+        closest_point = Vector2f(first_intersection.x, first_intersection.y);
+        return true;
+    
+}
 /*
  * Adjusts the desired velocity for the polygon fence.
  */
