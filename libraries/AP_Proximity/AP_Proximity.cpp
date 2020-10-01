@@ -174,6 +174,13 @@ const AP_Param::GroupInfo AP_Proximity::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("2_YAW_CORR", 18, AP_Proximity, _yaw_correction[1], 0),
 #endif
+    // @Param: TEMP
+    // @DisplayName: HEIGHT
+    // @Description: HEIGHT
+    // @Units: m
+    // @Range: 0 500
+    // @User: Standard
+    AP_GROUPINFO("_TEMP", 19, AP_Proximity, _temp, 50.0f),
 
     AP_GROUPEND
 };
@@ -358,19 +365,19 @@ bool AP_Proximity::get_horizontal_distances(Proximity_Distance_Array &prx_dist_a
 
 // get boundary points around vehicle for use by avoidance
 //   returns nullptr and sets num_points to zero if no boundary can be returned
-const Vector2f* AP_Proximity::get_boundary_points(uint8_t instance, uint16_t& num_points) const
+const Vector3f* AP_Proximity::get_boundary_points(uint8_t instance, uint16_t& num_points, uint8_t fence_type) const
 {
     if (!valid_instance(instance)) {
         num_points = 0;
         return nullptr;
     }
     // get boundary from backend
-    return drivers[instance]->get_boundary_points(num_points);
+    return drivers[instance]->get_boundary_points(num_points, fence_type);
 }
 
-const Vector2f* AP_Proximity::get_boundary_points(uint16_t& num_points) const
+const Vector3f* AP_Proximity::get_boundary_points(uint16_t& num_points, uint8_t fence_type) const
 {
-    return get_boundary_points(primary_instance, num_points);
+    return get_boundary_points(primary_instance, num_points, fence_type);
 }
 
 // get distance and angle to closest object (used for pre-arm check)

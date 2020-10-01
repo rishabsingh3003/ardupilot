@@ -127,7 +127,7 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
 
 // get boundary points around vehicle for use by avoidance
 //   returns nullptr and sets num_points to zero if no boundary can be returned
-const Vector2f* AP_Proximity_Backend::get_boundary_points(uint16_t& num_points) const
+Vector3f* AP_Proximity_Backend::get_boundary_points(uint16_t& num_points, uint8_t fence_type) const
 {
     // high-level status check
     if (state.status != AP_Proximity::Status::Good) {
@@ -136,49 +136,64 @@ const Vector2f* AP_Proximity_Backend::get_boundary_points(uint16_t& num_points) 
     }
 
     // check at least one sector has valid data, if not, exit
-    bool some_valid = false;
+    bool middle_fence = false;
+    bool top_fence = false;
+    bool bottom_fence = false;
+
     for (uint8_t i=0; i<PROXIMITY_NUM_SECTORS; i++) {
-        if (_distance_valid[i]) {
-            some_valid = true;
-            break;
+        if (_middle_fence -> _distance_valid[i]) {
+            middle_fence = true;
+        }
+        if (_top_fence -> _distance_valid[i]) {
+            top_fence = true;
+        }
+        if (_bottom_fence -> _distance_valid[i]) {
+            bottom_fence = true;
         }
     }
-    if (!some_valid) {
+
+    if (!middle_fence && !bottom_fence && !top_fence) {
         num_points = 0;
         return nullptr;
     }
 
-    // return boundary points
-    num_points = PROXIMITY_NUM_SECTORS;
-    return _boundary_point;
+    switch (fence_type) {
+        case (0):
+            if (bottom_fence) {
+                num_points = PROXIMITY_NUM_SECTORS;
+                return _bottom_fence -> _boundary_point;
+            }
+            break;
+        case (1):
+            if (middle_fence) {
+                num_points = PROXIMITY_NUM_SECTORS;
+                return _middle_fence -> _boundary_point;
+            }
+            break;
+        case (2):
+            if (top_fence) { 
+                num_points = PROXIMITY_NUM_SECTORS;
+                return _top_fence -> _boundary_point;
+            }
+            break;
+    }
+
+    num_points = 0;
+    return nullptr;
 }
 
-// initialise the boundary and sector_edge_vector array used for object avoidance
-//   should be called if the sector_middle_deg or _setor_width_deg arrays are changed
-void AP_Proximity_Backend::init_boundary()
-{
+AP_Proximity_Backend::MiniFence::MiniFence(AP_Proximity_Backend *b, uint8_t type, float z)
+{   height =z;
+    instance = type;
     for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
-        float angle_rad = radians((float)_sector_middle_deg[sector]+(PROXIMITY_SECTOR_WIDTH_DEG/2.0f));
-        _sector_edge_vector[sector].x = cosf(angle_rad) * 100.0f;
-        _sector_edge_vector[sector].y = sinf(angle_rad) * 100.0f;
-        _boundary_point[sector] = _sector_edge_vector[sector] * PROXIMITY_BOUNDARY_DIST_DEFAULT;
-    }
+        Vector2f _sector_edge_vector = b->_sector_edge_vector[sector]* PROXIMITY_BOUNDARY_DIST_DEFAULT;
+        _boundary_point[sector] = Vector3f{ _sector_edge_vector.x,_sector_edge_vector.y, height};
+    }    
+    
 }
 
-// update boundary points used for object avoidance based on a single sector's distance changing
-//   the boundary points lie on the line between sectors meaning two boundary points may be updated based on a single sector's distance changing
-//   the boundary point is set to the shortest distance found in the two adjacent sectors, this is a conservative boundary around the vehicle
-void AP_Proximity_Backend::update_boundary_for_sector(const uint8_t sector, const bool push_to_OA_DB)
+void AP_Proximity_Backend::MiniFence::update_boundary_for_sector(AP_Proximity_Backend *b ,uint8_t sector) 
 {
-    // sanity check
-    if (sector >= PROXIMITY_NUM_SECTORS) {
-        return;
-    }
-
-    if (push_to_OA_DB && _distance_valid[sector]) {
-        database_push(_angle[sector], _distance[sector]);
-    }
-
     // find adjacent sector (clockwise)
     uint8_t next_sector = sector + 1;
     if (next_sector >= PROXIMITY_NUM_SECTORS) {
@@ -197,11 +212,11 @@ void AP_Proximity_Backend::update_boundary_for_sector(const uint8_t sector, cons
     if (shortest_distance < PROXIMITY_BOUNDARY_DIST_MIN) {
         shortest_distance = PROXIMITY_BOUNDARY_DIST_MIN;
     }
-    _boundary_point[sector] = _sector_edge_vector[sector] * shortest_distance;
+    _boundary_point[sector] = Vector3f((b->_sector_edge_vector[sector].x * shortest_distance),b->_sector_edge_vector[sector].y * shortest_distance, height);
 
     // if the next sector (clockwise) has an invalid distance, set boundary to create a cup like boundary
     if (!_distance_valid[next_sector]) {
-        _boundary_point[next_sector] = _sector_edge_vector[next_sector] * shortest_distance;
+        _boundary_point[next_sector] = Vector3f(b->_sector_edge_vector[next_sector].x * shortest_distance, b->_sector_edge_vector[next_sector].y * shortest_distance, height);
     }
 
     // repeat for edge between sector and previous sector
@@ -214,13 +229,89 @@ void AP_Proximity_Backend::update_boundary_for_sector(const uint8_t sector, cons
     } else if (_distance_valid[sector]) {
         shortest_distance = _distance[sector];
     }
-    _boundary_point[prev_sector] = _sector_edge_vector[prev_sector] * shortest_distance;
+    _boundary_point[prev_sector] = Vector3f(b->_sector_edge_vector[prev_sector].x * shortest_distance, b->_sector_edge_vector[prev_sector].y * shortest_distance, height);
 
     // if the sector counter-clockwise from the previous sector has an invalid distance, set boundary to create a cup like boundary
     uint8_t prev_sector_ccw = (prev_sector == 0) ? PROXIMITY_NUM_SECTORS - 1 : prev_sector - 1;
     if (!_distance_valid[prev_sector_ccw]) {
-        _boundary_point[prev_sector_ccw] = _sector_edge_vector[prev_sector_ccw] * shortest_distance;
+        _boundary_point[prev_sector_ccw] = Vector3f(b->_sector_edge_vector[prev_sector_ccw].x * shortest_distance, b->_sector_edge_vector[prev_sector_ccw].y * shortest_distance, height);
     }
+}
+// initialise the boundary and sector_edge_vector array used for object avoidance
+//   should be called if the sector_middle_deg or _setor_width_deg arrays are changed
+void AP_Proximity_Backend::init_boundary()
+{
+    for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
+        float angle_rad = radians((float)_sector_middle_deg[sector]+(PROXIMITY_SECTOR_WIDTH_DEG/2.0f));
+        _sector_edge_vector[sector].x = cosf(angle_rad) * 100.0f;
+        _sector_edge_vector[sector].y = sinf(angle_rad) * 100.0f;
+        _boundary_point[sector] = _sector_edge_vector[sector] * PROXIMITY_BOUNDARY_DIST_DEFAULT;
+    }
+    _middle_fence = new MiniFence(this, 1, 0.0f);
+    _bottom_fence = new MiniFence(this, 2, -frontend._temp);
+    _top_fence = new MiniFence(this,3, frontend._temp);
+}
+
+// update boundary points used for object avoidance based on a single sector's distance changing
+//   the boundary points lie on the line between sectors meaning two boundary points may be updated based on a single sector's distance changing
+//   the boundary point is set to the shortest distance found in the two adjacent sectors, this is a conservative boundary around the vehicle
+void AP_Proximity_Backend::update_boundary_for_sector(const uint8_t sector, const bool push_to_OA_DB)
+{
+    // sanity check
+    if (sector >= PROXIMITY_NUM_SECTORS) {
+        return;
+    }
+
+    if (push_to_OA_DB && _distance_valid[sector]) {
+        database_push(_angle[sector], _distance[sector]);
+    }
+
+    _middle_fence ->update_boundary_for_sector(this, sector);
+    _top_fence -> update_boundary_for_sector(this,sector);
+    _bottom_fence -> update_boundary_for_sector(this, sector);
+
+    // {
+    // char buf[1000];
+    // snprintf(buf, sizeof(buf)-1, "f1#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f",
+    // _middle_fence->_boundary_point[0].x*0.01,_middle_fence->_boundary_point[0].y*0.01,_middle_fence->_boundary_point[0].z,
+    // _middle_fence->_boundary_point[1].x*0.01,_middle_fence->_boundary_point[1].y*0.01,_middle_fence->_boundary_point[1].z,
+    // _middle_fence->_boundary_point[2].x*0.01,_middle_fence->_boundary_point[2].y*0.01,_middle_fence->_boundary_point[2].z,
+    // _middle_fence->_boundary_point[3].x*0.01,_middle_fence->_boundary_point[3].y*0.01,_middle_fence->_boundary_point[3].z,
+    // _middle_fence->_boundary_point[4].x*0.01,_middle_fence->_boundary_point[4].y*0.01,_middle_fence->_boundary_point[4].z,
+    // _middle_fence->_boundary_point[5].x*0.01,_middle_fence->_boundary_point[5].y*0.01,_middle_fence->_boundary_point[5].z,
+    // _middle_fence->_boundary_point[6].x*0.01,_middle_fence->_boundary_point[6].y*0.01,_middle_fence->_boundary_point[6].z,
+    // _middle_fence->_boundary_point[7].x*0.01,_middle_fence->_boundary_point[7].y*0.01,_middle_fence->_boundary_point[7].z);
+    // buf[sizeof(buf)-1] = 0;
+    // sock.sendto(buf, strlen(buf), "127.0.0.1", 9002);
+    // }
+    // {
+    // char buf[1000];
+    // snprintf(buf, sizeof(buf)-1, "f0#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f",
+    // _bottom_fence->_boundary_point[0].x*0.01,_bottom_fence->_boundary_point[0].y*0.01,_bottom_fence->_boundary_point[0].z,
+    // _bottom_fence->_boundary_point[1].x*0.01,_bottom_fence->_boundary_point[1].y*0.01,_bottom_fence->_boundary_point[1].z,
+    // _bottom_fence->_boundary_point[2].x*0.01,_bottom_fence->_boundary_point[2].y*0.01,_bottom_fence->_boundary_point[2].z,
+    // _bottom_fence->_boundary_point[3].x*0.01,_bottom_fence->_boundary_point[3].y*0.01,_bottom_fence->_boundary_point[3].z,
+    // _bottom_fence->_boundary_point[4].x*0.01,_bottom_fence->_boundary_point[4].y*0.01,_bottom_fence->_boundary_point[4].z,
+    // _bottom_fence->_boundary_point[5].x*0.01,_bottom_fence->_boundary_point[5].y*0.01,_bottom_fence->_boundary_point[5].z,
+    // _bottom_fence->_boundary_point[6].x*0.01,_bottom_fence->_boundary_point[6].y*0.01,_bottom_fence->_boundary_point[6].z,
+    // _bottom_fence->_boundary_point[7].x*0.01,_bottom_fence->_boundary_point[7].y*0.01,_bottom_fence->_boundary_point[7].z);
+    // buf[sizeof(buf)-1] = 0;
+    // sock.sendto(buf, strlen(buf), "127.0.0.1", 9002);
+    // }
+    // {
+    // char buf[1000];
+    // snprintf(buf, sizeof(buf)-1, "f2#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f",
+    // _top_fence->_boundary_point[0].x*0.01,_top_fence->_boundary_point[0].y*0.01,_top_fence->_boundary_point[0].z,
+    // _top_fence->_boundary_point[1].x*0.01,_top_fence->_boundary_point[1].y*0.01,_top_fence->_boundary_point[1].z,
+    // _top_fence->_boundary_point[2].x*0.01,_top_fence->_boundary_point[2].y*0.01,_top_fence->_boundary_point[2].z,
+    // _top_fence->_boundary_point[3].x*0.01,_top_fence->_boundary_point[3].y*0.01,_top_fence->_boundary_point[3].z,
+    // _top_fence->_boundary_point[4].x*0.01,_top_fence->_boundary_point[4].y*0.01,_top_fence->_boundary_point[4].z,
+    // _top_fence->_boundary_point[5].x*0.01,_top_fence->_boundary_point[5].y*0.01,_top_fence->_boundary_point[5].z,
+    // _top_fence->_boundary_point[6].x*0.01,_top_fence->_boundary_point[6].y*0.01,_top_fence->_boundary_point[6].z,
+    // _top_fence->_boundary_point[7].x*0.01,_top_fence->_boundary_point[7].y*0.01,_top_fence->_boundary_point[7].z);
+    // buf[sizeof(buf)-1] = 0;
+    // sock.sendto(buf, strlen(buf), "127.0.0.1", 9002);
+    // }
 }
 
 // set status and update valid count

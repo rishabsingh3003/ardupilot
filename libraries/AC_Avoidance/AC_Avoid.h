@@ -50,7 +50,7 @@ public:
         bool backing_up = false;
         adjust_velocity(kP, accel_cmss, desired_vel_cms, backing_up, dt);
     }
-    void adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, float dt);
+    void adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, float kP_z, float accel_cmss_z, float dt);
     void adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel_cms, bool &backing_up,float dt);
 
     // adjust desired horizontal speed so that the vehicle stops before the fence or object
@@ -80,7 +80,8 @@ public:
     // uses velocity adjustment idea from Randy's second email on this thread:
     //   https://groups.google.com/forum/#!searchin/drones-discuss/obstacle/drones-discuss/QwUXz__WuqY/qo3G8iTLSJAJ
     void limit_velocity(float kP, float accel_cmss, Vector2f &desired_vel_cms, const Vector2f& limit_direction, float limit_distance_cm, float dt);
-
+    void limit_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, const Vector3f& limit_direction, float limit_distance_cm, float kP_z, float accel_cmss_z ,float dt);
+    
      // compute the speed such that the stopping distance of the vehicle will
      // be exactly the input distance.
      // kP should be non-zero for Copter which has a non-linear response
@@ -125,7 +126,7 @@ private:
     /*
      * Adjusts the desired velocity based on output from the proximity sensor
      */
-    void adjust_velocity_proximity(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backup_vel, float dt);
+    void adjust_velocity_proximity(float kP, float accel_cmss, Vector3f &desired_vel_cms, Vector3f &backup_vel, float kP_z, float accel_cmss_z, float dt);
 
     /*
      * Adjusts the desired velocity given an array of boundary points
@@ -147,7 +148,7 @@ private:
     * OUTPUT: The method then outputs four velocities (quad1/2/3/4_back_vel_cms), which correspond to the final desired backup velocity in each quadrant
     */
     void calc_backup_velocity(float kP, float accel_cmss, Vector2f &quad1_back_vel_cms, Vector2f &qua2_back_vel_cms, Vector2f &quad3_back_vel_cms, Vector2f &quad4_back_vel_cms, float back_distance_cm, Vector2f limit_direction, float dt);
-
+    void calc_backup_velocity(float kP, float accel_cmss, Vector2f &quad1_back_vel_cms, Vector2f &quad2_back_vel_cms, Vector2f &quad3_back_vel_cms, Vector2f &quad4_back_vel_cms, float back_distance_cm, Vector3f limit_direction, float kp_z, float accel_cmss_z, float back_distance_z, float& min_z_vel, float& max_z_vel, float dt);
    /*
     * Calculate maximum velocity vector that can be formed in each quadrant 
     * This method takes the desired backup velocity, and four other velocities corresponding to each quadrant

@@ -23,6 +23,7 @@
 #define PROXIMITY_SECTOR_WIDTH_DEG      45.0f   // width of sectors in degrees
 #define PROXIMITY_BOUNDARY_DIST_MIN 0.6f    // minimum distance for a boundary point.  This ensures the object avoidance code doesn't think we are outside the boundary.
 #define PROXIMITY_BOUNDARY_DIST_DEFAULT 100 // if we have no data for a sector, boundary is placed 100m out
+#include <AP_HAL/utility/Socket.h>
 
 class AP_Proximity_Backend
 {
@@ -49,7 +50,7 @@ public:
 
     // get boundary points around vehicle for use by avoidance
     //   returns nullptr and sets num_points to zero if no boundary can be returned
-    const Vector2f* get_boundary_points(uint16_t& num_points) const;
+     Vector3f* get_boundary_points(uint16_t& num_points, uint8_t fence_type) const;
 
     // get distance and angle to closest object (used for pre-arm check)
     //   returns true on success, false if no valid readings
@@ -101,4 +102,27 @@ protected:
     // fence boundary
     Vector2f _sector_edge_vector[PROXIMITY_NUM_SECTORS];    // vector for right-edge of each sector, used to speed up calculation of boundary
     Vector2f _boundary_point[PROXIMITY_NUM_SECTORS];        // bounding polygon around the vehicle calculated conservatively for object avoidance
+
+    class MiniFence
+    {
+        public:
+            MiniFence(AP_Proximity_Backend *b, uint8_t type, float height);
+            
+            void update_boundary_for_sector(AP_Proximity_Backend *b ,const uint8_t sector);
+            float _angle[PROXIMITY_NUM_SECTORS];
+            float _distance[PROXIMITY_NUM_SECTORS];
+            bool _distance_valid[PROXIMITY_NUM_SECTORS]; 
+
+            Vector3f _boundary_point[PROXIMITY_NUM_SECTORS];
+
+        private:
+            uint8_t instance;  
+            float height;
+    };
+
+    MiniFence * _middle_fence;
+    MiniFence * _bottom_fence;
+    MiniFence * _top_fence;
+    // SocketAPM sock{true};
+
 };

@@ -90,8 +90,8 @@ public:
 
     // get boundary points around vehicle for use by avoidance
     //   returns nullptr and sets num_points to zero if no boundary can be returned
-    const Vector2f* get_boundary_points(uint8_t instance, uint16_t& num_points) const;
-    const Vector2f* get_boundary_points(uint16_t& num_points) const;
+    const Vector3f* get_boundary_points(uint8_t instance, uint16_t& num_points, uint8_t fence_type) const;
+    const Vector3f* get_boundary_points(uint16_t& num_points, uint8_t fence_type) const;
 
     // get distance and angle to closest object (used for pre-arm check)
     //   returns true on success, false if no valid readings
@@ -155,6 +155,7 @@ private:
     AP_Int16 _yaw_correction[PROXIMITY_MAX_INSTANCES];
     AP_Int16 _ignore_angle_deg[PROXIMITY_MAX_IGNORE];   // angle (in degrees) of area that should be ignored by sensor (i.e. leg shows up)
     AP_Int8 _ignore_width_deg[PROXIMITY_MAX_IGNORE];    // width of beam (in degrees) that should be ignored
+    AP_Float _temp;
 
     void detect_instance(uint8_t instance);
 };

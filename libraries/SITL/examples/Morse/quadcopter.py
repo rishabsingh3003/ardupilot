@@ -68,7 +68,7 @@ engines.add_stream('socket')
 
 # Environment. Run in fast mode which gives wire-frame view, but lowers
 # CPU load a lot
-env = Environment('land-1/trees', fastmode=True)
+env = Environment('land-1/trees', fastmode=False)
 
 env.set_camera_location([10.0, -10.0, 10.0])
 env.set_camera_rotation([1.0470, 0, 0.7854])

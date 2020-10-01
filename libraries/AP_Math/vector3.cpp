@@ -448,6 +448,14 @@ float Vector3<T>::distance_to_segment(const Vector3<T> &seg_start, const Vector3
 // this is based on the explanation given here: www.fundza.com/vectors/point2line/index.html
 template <typename T>
 float Vector3<T>::closest_distance_between_line_and_point(const Vector3<T> &w1, const Vector3<T> &w2, const Vector3<T> &p)
+{    
+    const Vector3<T> nearest = closest_point_between_line_and_point(w1, w2, p);
+    const float dist = (nearest - p).length();
+    return dist;
+}
+
+template <typename T>
+Vector3<T> Vector3<T>::closest_point_between_line_and_point(const Vector3<T> &w1, const Vector3<T> &w2, const Vector3<T> &p)
 {   
     const Vector3<T> line_vec = w2-w1;
     const Vector3<T> p_vec = p - w1;
@@ -455,7 +463,7 @@ float Vector3<T>::closest_distance_between_line_and_point(const Vector3<T> &w1, 
     const float line_vec_len = line_vec.length();
     // protection against divide by zero
     if(::is_zero(line_vec_len)) {
-        return 0.0f;
+        return {0.0f, 0.0f, 0.0f};
     }
 
     const float scale = 1/line_vec_len;
@@ -465,9 +473,8 @@ float Vector3<T>::closest_distance_between_line_and_point(const Vector3<T> &w1, 
     float dot_product = unit_vec * scaled_p_vec;
     dot_product = constrain_float(dot_product,0.0f,1.0f); 
  
-    const Vector3<T> nearest = line_vec * dot_product;
-    const float dist = (nearest - p_vec).length();
-    return dist;
+    const Vector3<T> closest_point = line_vec * dot_product;
+    return (closest_point + w1);
 }
 
 // define for float
@@ -494,6 +501,7 @@ template bool Vector3<float>::is_inf(void) const;
 template float Vector3<float>::angle(const Vector3<float> &v) const;
 template float Vector3<float>::distance_to_segment(const Vector3<float> &seg_start, const Vector3<float> &seg_end) const;
 template float Vector3<float>::closest_distance_between_line_and_point(const Vector3<float> &w1, const Vector3<float> &w2, const Vector3<float> &p);
+template Vector3<float> Vector3<float>::closest_point_between_line_and_point(const Vector3<float> &w1, const Vector3<float> &w2, const Vector3<float> &p);
 // define needed ops for Vector3l
 template Vector3<int32_t> &Vector3<int32_t>::operator +=(const Vector3<int32_t> &v);
 
