@@ -27,6 +27,12 @@
  # define AP_AVOID_BEHAVE_DEFAULT AC_Avoid::BehaviourType::BEHAVIOR_SLIDE
 #endif
 
+#if APM_BUILD_TYPE(APM_BUILD_ArduCopter)
+    # define AP_AVOID_ENABLE_Z          1
+#else
+    # define AP_AVOID_ENABLE_Z          0
+#endif
+
 const AP_Param::GroupInfo AC_Avoid::var_info[] = {
 
     // @Param: ENABLE
@@ -87,17 +93,17 @@ AC_Avoid::AC_Avoid()
     AP_Param::setup_object_defaults(this, var_info);
 }
 
-void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel_cms, bool &backing_up,float dt)
+void AC_Avoid::adjust_velocity_fence(float kP, float accel_cmss, Vector3f &desired_vel_cms, Vector3f &backup_vel, float kP_z, float accel_cmss_z, float dt)
 {
     // exit immediately if disabled
     if (_enabled == AC_AVOID_DISABLED) {
         return;
     }
-
+    Vector2f desired_velocity_xy{desired_vel_cms.x, desired_vel_cms.y};
+    float desired_velocity_z = desired_vel_cms.z;
+    
     // limit acceleration
     const float accel_cmss_limited = MIN(accel_cmss, AC_AVOID_ACCEL_CMSS_MAX);
-    // make a copy of desired velocity since the one that is passed will be modified 
-    const Vector2f desired_vel_orig = desired_vel_cms;
 
     // maximum component of desired  backup velocity in each quadrant 
     Vector2f quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel;
@@ -106,40 +112,73 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel
         // Store velocity needed to back away from fence
         Vector2f backup_vel_fence;
 
-        adjust_velocity_circle_fence(kP, accel_cmss_limited, desired_vel_cms, backup_vel_fence, dt);
+        adjust_velocity_circle_fence(kP, accel_cmss_limited, desired_velocity_xy, backup_vel_fence, dt);
         find_max_quadrant_velocity(backup_vel_fence, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel);
         
         // backup_vel_fence is set to zero after each fence incase the velocity is unset from previous methods
         backup_vel_fence.zero();
-        adjust_velocity_inclusion_and_exclusion_polygons(kP, accel_cmss_limited, desired_vel_cms, backup_vel_fence, dt);
+        adjust_velocity_inclusion_and_exclusion_polygons(kP, accel_cmss_limited, desired_velocity_xy, backup_vel_fence, dt);
         find_max_quadrant_velocity(backup_vel_fence, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel);
         
         backup_vel_fence.zero();
-        adjust_velocity_inclusion_circles(kP, accel_cmss_limited, desired_vel_cms, backup_vel_fence, dt);
+        adjust_velocity_inclusion_circles(kP, accel_cmss_limited, desired_velocity_xy, backup_vel_fence, dt);
         find_max_quadrant_velocity(backup_vel_fence, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel);
         
         backup_vel_fence.zero();
-        adjust_velocity_exclusion_circles(kP, accel_cmss_limited, desired_vel_cms, backup_vel_fence, dt);
+        adjust_velocity_exclusion_circles(kP, accel_cmss_limited, desired_velocity_xy, backup_vel_fence, dt);
         find_max_quadrant_velocity(backup_vel_fence, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel);
     }
 
     if ((_enabled & AC_AVOID_STOP_AT_BEACON_FENCE) > 0) {
         // Store velocity needed to back away from beacon fence
         Vector2f backup_vel_beacon;
-        adjust_velocity_beacon_fence(kP, accel_cmss_limited, desired_vel_cms, backup_vel_beacon, dt);
+        adjust_velocity_beacon_fence(kP, accel_cmss_limited, desired_velocity_xy, backup_vel_beacon, dt);
         find_max_quadrant_velocity(backup_vel_beacon, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel);
     }
 
-    if ((_enabled & AC_AVOID_USE_PROXIMITY_SENSOR) > 0 && _proximity_enabled) {
-        // Store velocity needed to back away from physical obstacles
-        Vector2f backup_vel_proximity;
-        adjust_velocity_proximity(kP, accel_cmss_limited, desired_vel_cms, backup_vel_proximity, dt);
-        find_max_quadrant_velocity(backup_vel_proximity, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel);
-    }
+    float desired_backup_vel_z = 0.0f;
+    adjust_velocity_z(kP_z, accel_cmss_z, desired_velocity_z, desired_backup_vel_z, dt);
 
     // Desired backup velocity is sum of maximum velocity component in each quadrant 
-    Vector2f desired_backup_vel = quad_1_back_vel + quad_2_back_vel + quad_3_back_vel + quad_4_back_vel;
+    const Vector2f desired_backup_vel_xy = quad_1_back_vel + quad_2_back_vel + quad_3_back_vel + quad_4_back_vel;
+    backup_vel = Vector3f{desired_backup_vel_xy.x, desired_backup_vel_xy.y, desired_backup_vel_z};
+    desired_vel_cms = Vector3f{desired_velocity_xy.x, desired_velocity_xy.y,desired_velocity_z};
+
+}
+
+void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, float kP_z, float accel_cmss_z, bool &backing_up, float dt)
+{
+    // exit immediately if disabled
+    if (_enabled == AC_AVOID_DISABLED) {
+        return;
+    }
+
+    // limit acceleration
+    const float accel_cmss_limited = MIN(accel_cmss, AC_AVOID_ACCEL_CMSS_MAX);
+    // maximum component of desired  backup velocity in each quadrant 
+    Vector2f quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel;
+    float back_vel_up = 0.0f;
+    float back_vel_down = 0.0f;
+
+    // make a copy of desired velocity since the one that is passed will be modified 
+    // const Vector3f desired_vel_orig = desired_vel_cms;
+    if ((_enabled & AC_AVOID_USE_PROXIMITY_SENSOR) > 0 && _proximity_enabled) {
+        // Store velocity needed to back away from physical obstacles
+        Vector3f backup_vel_proximity;
+        adjust_velocity_proximity(kP, accel_cmss_limited, desired_vel_cms, backup_vel_proximity, kP_z,accel_cmss_z, dt);
+        // Vector2f backup_vel_proximity_xy(backup_vel_proximity.x,backup_vel_proximity.y);
+        find_max_quadrant_velocity_3D(backup_vel_proximity, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel, back_vel_up, back_vel_down);
+    }
     
+    // check for various fences 
+    Vector3f backup_vel_fence;
+    adjust_velocity_fence(kP, accel_cmss, desired_vel_cms, backup_vel_fence, kP_z, accel_cmss_z, dt);
+    find_max_quadrant_velocity_3D(backup_vel_fence , quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel, back_vel_up, back_vel_down);
+
+    const Vector2f desired_backup_vel_xy = quad_1_back_vel + quad_2_back_vel + quad_3_back_vel + quad_4_back_vel;
+    float desired_backup_vel_z = back_vel_down + back_vel_up;
+    Vector3f desired_backup_vel{desired_backup_vel_xy.x, desired_backup_vel_xy.y, desired_backup_vel_z};
+
     const float max_back_spd_cms = _backup_speed_max * 100.0f;
     if (!desired_backup_vel.is_zero() && is_positive(max_back_spd_cms)) {
         backing_up = true;
@@ -147,38 +186,31 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel
         if (desired_backup_vel.length() > max_back_spd_cms) {
             desired_backup_vel = desired_backup_vel.normalized() * max_back_spd_cms;
         }
+        // desired_vel_cms = desired_backup_vel;
         if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) {
-            // project desired velocity towards backup velocity 
-            Vector2f projected_vel = desired_vel_cms.projected(desired_backup_vel);
+            // project desired velocity towards backup velocity horizontally 
+            const Vector2f backup_vel_xy{desired_backup_vel.x, desired_backup_vel.y};
+            Vector2f projected_vel; 
+            if (!backup_vel_xy.is_zero()) {
+               projected_vel = Vector2f{desired_vel_cms.x, desired_vel_cms.y}.projected(Vector2f{desired_backup_vel.x, desired_backup_vel.y});
+            }
             // subtract this projection since we are already going in that direction
-            desired_vel_cms -= projected_vel;
-            desired_vel_cms += desired_backup_vel;
+            desired_vel_cms -= Vector3f(projected_vel.x, projected_vel.y, 0.0f);
+            desired_vel_cms += Vector3f(desired_backup_vel.x, desired_backup_vel.y, 0.0f);
+            // let user take control vertically if they are backing away at a greater speed than what we have calculated based on limits
+            if (is_positive(desired_backup_vel.z)) {
+                desired_vel_cms.z = MAX(desired_vel_cms.z, desired_backup_vel.z);
+            } else {
+                desired_vel_cms.z = MIN(desired_vel_cms.z, desired_backup_vel.z);
+            }
         } else {
             // back away to stopping position
             desired_vel_cms = desired_backup_vel;
         }
     }
-
-    // only log results if velocity has been modified to avoid fence/obstacle
-    if (desired_vel_orig != desired_vel_cms) {
-        // log at not more than 10hz (adjust_velocity method can be potentially called at 400hz!)
-        uint32_t now = AP_HAL::millis();
-        if ((now - _last_log_ms) > 100) {
-            _last_log_ms = now;
-            AP::logger().Write_SimpleAvoidance(true, desired_vel_orig, desired_vel_cms, backing_up);
-        }
-    }
 }
 
-// convenience function to accept Vector3f.  Only x and y are adjusted
-void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, float dt)
-{
-    Vector2f des_vel_xy(desired_vel_cms.x, desired_vel_cms.y);
-    adjust_velocity(kP, accel_cmss, des_vel_xy, dt);
-    desired_vel_cms.x = des_vel_xy.x;
-    desired_vel_cms.y = des_vel_xy.y;
-}
-
+// This method is used in most Rover modes and not in Copter
 // adjust desired horizontal speed so that the vehicle stops before the fence or object
 // accel (maximum acceleration/deceleration) is in m/s/s
 // heading is in radians
@@ -187,12 +219,15 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel
 void AC_Avoid::adjust_speed(float kP, float accel, float heading, float &speed, float dt)
 {
     // convert heading and speed into velocity vector
-    Vector2f vel_xy;
-    vel_xy.x = cosf(heading) * speed * 100.0f;
-    vel_xy.y = sinf(heading) * speed * 100.0f;
+    Vector3f vel{
+        cosf(heading) * speed * 100.0f,
+        sinf(heading) * speed * 100.0f,
+        0.0f
+    };
 
     bool backing_up  = false;
-    adjust_velocity(kP, accel * 100.0f, vel_xy, backing_up, dt);
+    adjust_velocity(kP, accel * 100.0f, vel, 0, 0, backing_up, dt);
+    const Vector2f vel_xy{vel.x, vel.y};
 
     if (backing_up) {
         // back up
@@ -214,13 +249,15 @@ void AC_Avoid::adjust_speed(float kP, float accel, float heading, float &speed, 
 }
 
 // adjust vertical climb rate so vehicle does not break the vertical fence
-void AC_Avoid::adjust_velocity_z(float kP, float accel_cmss, float& climb_rate_cms, float dt)
+void AC_Avoid::adjust_velocity_z(float kP, float accel_cmss, float& climb_rate_cms, float& backup_speed, float dt)
 {
     // exit immediately if disabled
     if (_enabled == AC_AVOID_DISABLED) {
         return;
     }
-
+    if (!AP_AVOID_ENABLE_Z) {
+        return;
+    }
     // do not adjust climb_rate if level or descending
     if (climb_rate_cms <= 0.0f) {
         return;
@@ -275,6 +312,8 @@ void AC_Avoid::adjust_velocity_z(float kP, float accel_cmss, float& climb_rate_c
         // do not allow climbing if we've breached the safe altitude
         if (alt_diff <= 0.0f) {
             climb_rate_cms = MIN(climb_rate_cms, 0.0f);
+            // also calculate backup speed that will get us back to safe altitude
+            backup_speed = -1*(get_max_speed(kP, accel_cmss_limited, -alt_diff*100.0f, dt));
             return;
         }
 
@@ -352,6 +391,55 @@ void AC_Avoid::limit_velocity(float kP, float accel_cmss, Vector2f &desired_vel_
     }
 }
 
+void AC_Avoid::limit_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, const Vector3f& limit_direction, float margin_cm, float kP_z, float accel_cmss_z ,float dt)
+{  
+    if (desired_vel_cms.is_zero()) {
+        // nothing to limit
+        return;
+    }
+    // create a margin_cm length vector in the direction of desired_vel_cms
+    // this will create larger margin towards the direction vehicle is traveling in
+    const Vector3f margin_vector = desired_vel_cms.normalized() * margin_cm;
+    
+    Vector2f velocity_xy{desired_vel_cms.x, desired_vel_cms.y};
+    const Vector2f limit_direction_xy{limit_direction.x, limit_direction.y};
+    float distance_from_fence_xy = MAX((limit_direction_xy.length() - Vector2f{margin_vector.x, margin_vector.y}.length()), 0.0f);
+    if (!limit_direction_xy.is_zero()) {
+        limit_velocity(kP, accel_cmss, velocity_xy, limit_direction_xy.normalized(), distance_from_fence_xy, dt);
+        desired_vel_cms.x = velocity_xy.x;
+        desired_vel_cms.y = velocity_xy.y;
+    }
+    
+    if (is_zero(desired_vel_cms.z)) {
+        // nothing to limit vertically 
+        return;
+    }
+
+    if (desired_vel_cms.z * limit_direction.z < 0.0f) {
+        // why limit velocity vertically when we are going the opposite direction
+        return;
+    }
+    
+    // to check if Z velocity changes
+    const float velocity_z_original = desired_vel_cms.z;
+    const float z_speed = fabsf(desired_vel_cms.z);
+    // check if z velocity is positive or negative
+    const float velocity_z_sign = z_speed/desired_vel_cms.z;
+    const float dist_z = MAX(fabsf(limit_direction.z - margin_vector.z), 0.0f); 
+    if (is_zero(dist_z)) {
+        desired_vel_cms.z = (MIN(z_speed, 0.0f));
+    } else {
+        const float max_z_speed = get_max_speed(kP_z, accel_cmss_z, dist_z, dt);
+        desired_vel_cms.z = MIN(max_z_speed, z_speed);
+    }
+    // make sure the direction of the Z velocity did not change
+    // we are only limiting speed here, not changing directions 
+    desired_vel_cms.z = fabsf(desired_vel_cms.z) * velocity_z_sign;
+    if (!is_equal(desired_vel_cms.z, velocity_z_original)) {
+        _last_limit_time = AP_HAL::millis();
+    }
+}
+
 /*
  * Compute the back away velocity required to avoid breaching margin
  * INPUT: This method requires the breach in margin distance (back_distance_cm), direction towards the breach (limit_direction)
@@ -376,6 +464,29 @@ void AC_Avoid::calc_backup_velocity(float kP, float accel_cmss, Vector2f &quad1_
     find_max_quadrant_velocity(back_direction_vel, quad1_back_vel_cms, quad2_back_vel_cms, quad3_back_vel_cms, quad4_back_vel_cms);
 }
 
+/*
+ * Compute the back away velocity required to avoid breaching margin, including vertical component
+ */
+void AC_Avoid::calc_backup_velocity(float kP, float accel_cmss, Vector2f &quad1_back_vel_cms, Vector2f &quad2_back_vel_cms, Vector2f &quad3_back_vel_cms, Vector2f &quad4_back_vel_cms, float back_distance_cm, Vector3f limit_direction, float kp_z, float accel_cmss_z, float back_distance_z, float& min_z_vel, float& max_z_vel, float dt)
+{   
+    if (is_positive(back_distance_cm)) {
+        Vector2f limit_direction_2d(limit_direction.x,limit_direction.y);
+        calc_backup_velocity(kP, accel_cmss, quad1_back_vel_cms, quad2_back_vel_cms, quad3_back_vel_cms, quad4_back_vel_cms, back_distance_cm, limit_direction_2d, dt);
+    }
+    if (!is_zero(back_distance_z)) {
+        float back_speed_z = get_max_speed(kp_z, 0.4f * accel_cmss_z, fabsf(back_distance_z), dt);
+        // Down is positive
+        if (is_positive(back_distance_z)) {
+            back_speed_z *= -1.0f;
+        } 
+        if (back_speed_z < min_z_vel) {
+            min_z_vel = back_speed_z;  
+        }
+        if (back_speed_z > max_z_vel) {
+            max_z_vel = back_speed_z;
+        }
+    }
+}
 /*
  * Calculate maximum velocity vector that can be formed in each quadrant 
  * This method takes the desired backup velocity, and four other velocities corresponding to each quadrant
@@ -402,6 +513,21 @@ void AC_Avoid::find_max_quadrant_velocity(Vector2f &desired_vel, Vector2f &quad1
     // fourth quadrant: +ve x, -ve y direction
     if (is_positive(desired_vel.x) && is_negative(desired_vel.y)) {
         quad4_vel = Vector2f{MAX(quad4_vel.x, desired_vel.x), MIN(quad4_vel.y,desired_vel.y)};
+    }
+}
+
+/*
+Calculate maximum velocity vector that can be formed in each quadrant and separately store max & min of vertical components
+*/
+void AC_Avoid::find_max_quadrant_velocity_3D(Vector3f &desired_vel, Vector2f &quad1_vel, Vector2f &quad2_vel, Vector2f &quad3_vel, Vector2f &quad4_vel, float &z_up, float &z_down)
+{   
+    Vector2f velocity_xy{desired_vel.x, desired_vel.y};
+    find_max_quadrant_velocity(velocity_xy, quad1_vel, quad2_vel, quad3_vel, quad4_vel);
+    if (is_positive(desired_vel.z) && desired_vel.z > z_up) {
+        z_up = desired_vel.z;
+    }
+    if (is_negative(desired_vel.z) && desired_vel.z < z_down) {
+        z_down = desired_vel.z;
     }
 }
 
@@ -869,7 +995,7 @@ void AC_Avoid::adjust_velocity_beacon_fence(float kP, float accel_cmss, Vector2f
 /*
  * Adjusts the desired velocity based on output from the proximity sensor
  */
-void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backup_vel, float dt)
+void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector3f &desired_vel_cms, Vector3f &backup_vel, float kP_z, float accel_cmss_z, float dt)
 {
     // exit immediately if proximity sensor is not present
     AP_Proximity *proximity = AP::proximity();
@@ -882,11 +1008,126 @@ void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector2f &d
     if (_proximity.get_status() != AP_Proximity::Status::Good) {
         return;
     }
+    
+    const AP_AHRS &_ahrs = AP::ahrs();
+    
+    // do not adjust velocity if vehicle is outside the polygon fence
+   
+    // Safe_vel will be adjusted to remain within proximity boundary fence.
+    // We need a separate vector in case adjustment fails,
+    // e.g. if we are exactly on the boundary.
+    Vector3f safe_vel{desired_vel_cms};
+    Vector2f desired_back_vel_cms_xy;
+
+    // for backing away
+    Vector2f quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel;
+    float max_back_vel_z = 0.0f;
+    float min_back_vel_z = 0.0f; 
+
+    // if boundary points are in body-frame, rotate velocity vector from earth frame to body-frame
+    Vector2f safe_vel_2d = _ahrs.earth_to_body2D(Vector2f{desired_vel_cms.x,desired_vel_cms.y});
+    safe_vel = Vector3f{safe_vel_2d.x, safe_vel_2d.y, desired_vel_cms.z};
+        
+    // calc margin in cm
+    const float margin_cm = MAX(_margin * 100.0f, 0.0f);
+    Vector3f stopping_point_plus_margin; 
+    if (!desired_vel_cms.is_zero()) {
+        // for stopping
+        const float speed = safe_vel.length();
+        stopping_point_plus_margin = safe_vel*((2.0f + margin_cm + get_stopping_distance(kP, accel_cmss, speed))/speed);
+    }
+    
+    uint16_t num_points = 0;
+    uint32_t stack_bit = 0;
+    uint8_t num_layers = 0;
 
     // get boundary from proximity sensor
-    uint16_t num_points = 0;
-    const Vector2f *boundary = _proximity.get_boundary_points(num_points);
-    adjust_velocity_polygon(kP, accel_cmss, desired_vel_cms, backup_vel, boundary, num_points, false, _margin, dt, true);
+    Vector3f (*boundary)[5] = _proximity.get_boundary_points(num_points, num_layers, stack_bit);
+    // exit if there are no points
+    if (boundary == nullptr || num_points == 0 || num_layers == 0) {
+        return;
+    }
+
+    for(uint8_t layer = 0; layer < num_layers; layer++) {
+        const uint32_t bit = 1U<<layer;
+        if (!(bit & stack_bit)) {
+            // no valid points in this layer
+            continue;
+        }          
+        
+        for (uint16_t i=0; i<num_points; i++) {
+            uint16_t j = i+1;
+            if (j >= num_points) {
+                j = 0;
+            }
+            // end points of current edge
+            const Vector3f start = boundary[j][layer];
+            const Vector3f end = boundary[i][layer];
+            const Vector3f vector_to_boundary = Vector3f::closest_point_between_line_and_point(start, end, Vector3f{0.0f, 0.0f, 0.0f});
+            const float dist_to_boundary = vector_to_boundary.length();
+            if (is_zero(dist_to_boundary)) {
+                continue;
+            }
+            // back away if vehicle has breached margin
+            if (is_negative(dist_to_boundary - margin_cm)) {
+                const float angle_xy = asinf(vector_to_boundary.z/dist_to_boundary);
+                const float xy_back_dist = cosf(angle_xy)*(margin_cm-dist_to_boundary);
+                const float z_back_dist = sinf(angle_xy)*(margin_cm-dist_to_boundary);
+                calc_backup_velocity(kP, accel_cmss, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel, xy_back_dist, vector_to_boundary,kP_z,accel_cmss_z,z_back_dist,min_back_vel_z, max_back_vel_z, dt);
+            }
+            
+            // exit immediately if no desired velocity
+            if (desired_vel_cms.is_zero()) {
+                continue;
+            }
+
+            if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) {
+                // vector from current position to closest point on current edge
+                Vector3f limit_direction = vector_to_boundary;
+                // distance to closest point
+                const float limit_distance_cm = limit_direction.length();
+                if (!is_zero(limit_distance_cm)) {
+                    // We are strictly inside the given edge.
+                    // Adjust velocity to not violate this edge.
+                    limit_velocity(kP, accel_cmss, safe_vel, limit_direction, margin_cm, kP_z, accel_cmss_z, dt);
+                } else {
+                    // We are exactly on the edge - treat this as a fence breach.
+                    // i.e. do not adjust velocity.
+                    continue;
+                }
+            } else {
+                // vector from current position to point on current edge
+                Vector3f limit_direction;
+                // find intersection with line segment
+                const float limit_distance_cm = Vector3f::segment_to_segment_dist(Vector3f(0.0f, 0.0f, 0.0f), stopping_point_plus_margin, start, end, limit_direction);
+                if (!is_zero(limit_distance_cm)) {
+                    if (limit_distance_cm <= margin_cm) {
+                        // we are within the margin so stop vehicle
+                        safe_vel.zero();
+                    } else {
+                        // vehicle inside the given edge, adjust velocity to not violate this edge
+                        // limit_direction.normalize();
+                        limit_velocity(kP, accel_cmss, safe_vel, limit_direction, margin_cm, kP_z, accel_cmss_z, dt);
+                    }
+                } else {
+                    // We are exactly on the edge - treat this as a fence breach.
+                    // i.e. do not adjust velocity.
+                    return;
+                }
+            }
+        }
+    }
+
+    // desired backup velocity is sum of maximum velocity component in each quadrant 
+    desired_back_vel_cms_xy = quad_1_back_vel + quad_2_back_vel + quad_3_back_vel + quad_4_back_vel;
+    const float desired_back_vel_cms_z = max_back_vel_z + min_back_vel_z;
+
+    // set modified desired velocity vector or back away velocity vector
+    // if points were in body-frame, rotate resulting vector back to earth-frame
+    safe_vel_2d = _ahrs.body_to_earth2D(Vector2f{safe_vel.x,safe_vel.y});
+    desired_vel_cms = Vector3f{safe_vel_2d.x, safe_vel_2d.y, safe_vel.z};
+    Vector2f backup_vel_xy = _ahrs.body_to_earth2D(desired_back_vel_cms_xy);
+    backup_vel = Vector3f{backup_vel_xy.x, backup_vel_xy.y, desired_back_vel_cms_z};
 }
 
 /*
