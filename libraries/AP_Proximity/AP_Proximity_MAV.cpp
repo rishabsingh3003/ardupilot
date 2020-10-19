@@ -167,10 +167,82 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         // update proximity sectors validity and boundary point
         for (uint8_t i = 0; i < PROXIMITY_NUM_SECTORS; i++) {
             mark_distance_valid((get_distance(i) >= _distance_min) && (get_distance(i) <= _distance_max), i);
-            _distance_valid[i] = (_distance[i] >= _distance_min) && (_distance[i] <= _distance_max);
             if (sector_updated[i]) {
                 update_boundary_for_sector(i, false);
             }
         }
     }
+
+    if (msg.msgid == MAVLINK_MSG_ID_OBSTACLE_DISTANCE_3D) {
+        mavlink_obstacle_distance_3d_t packet;
+        mavlink_msg_obstacle_distance_3d_decode(&msg, &packet);
+
+        uint32_t previous_sys_time = _last_update_ms;
+        _last_update_ms = AP_HAL::millis();
+        // time_diff will check if the new message arrived significantly later than the last message
+        uint32_t time_diff = _last_update_ms - previous_sys_time;
+
+        uint32_t previous_msg_timestamp = _last_3d_msg_update_ms;
+        _last_3d_msg_update_ms = packet.time_boot_ms;
+        bool clear_fence = false;
+        
+        // we will add on to the last fence if the time stamp is the same
+        // provided we got the new obstacle in less than PROXIMITY_3D_MSG_TIMEOUT_MS  
+        if ((previous_msg_timestamp != _last_3d_msg_update_ms) || (time_diff > PROXIMITY_3D_MSG_TIMEOUT_MS)) {
+            clear_fence = true;
+        }
+
+        _distance_min = packet.min_distance;
+        _distance_max = packet.max_distance;
+        
+        Vector3f current_pos;
+        Matrix3f body_to_ned;
+        const bool database_ready = database_prepare_for_push(current_pos, body_to_ned);
+        const float MAX_DISTANCE = 9999.0f;
+
+        if (clear_fence) {
+            // cleared fence back to defaults since we have a new timestamp
+            for (uint8_t i=0; i< PROXIMITY_NUM_STACK; i++) {
+                for (uint8_t j = 0; j < PROXIMITY_NUM_SECTORS; j++) {
+                    set_angle(_sector_middle_deg[j], j, i);
+                    set_pitch(_pitch_middle_deg[i], j, i);
+                    set_distance(MAX_DISTANCE, j, i);
+                    mark_distance_valid(false, j, i);
+                }
+            } 
+        }
+        
+        float x = packet.x;
+        float y = packet.y;
+        float z = packet.z;
+        Vector3f obstacle(x,y,z);
+
+        if (obstacle.length() < _distance_min || obstacle.length() > _distance_max || obstacle.is_zero()) {
+            // message isn't healthy
+            return;
+        }
+        // extract yaw and pitch from Obstacle Vector
+        const float yaw = wrap_360(degrees(atan2f(obstacle.y, obstacle.x)));
+        const float pitch = wrap_180(degrees(M_PI_2 - atan2f(norm(obstacle.x, obstacle.y), obstacle.z))); 
+
+        // allot them correct stack and sector based on calculated pitch and yaw
+        const uint8_t msg_sector = convert_angle_to_sector(yaw);
+        const uint8_t msg_stack = convert_pitch_to_stack(pitch);
+
+        if (get_distance(msg_sector, msg_stack) < obstacle.length()) {
+            // we already have a shorter distance in this stack and sector
+            return;
+        }
+
+        set_angle(yaw, msg_sector, msg_stack);
+        set_pitch(pitch, msg_sector, msg_stack);
+        set_distance(obstacle.length(), msg_sector, msg_stack);
+        mark_distance_valid(true, msg_sector, msg_stack);
+        update_boundary_for_sector_and_stack(msg_sector, msg_stack , false);
+
+        if (database_ready) {
+            database_push_3D_obstacle( obstacle,_last_update_ms, current_pos, body_to_ned);
+        }
+    }
 }
+
