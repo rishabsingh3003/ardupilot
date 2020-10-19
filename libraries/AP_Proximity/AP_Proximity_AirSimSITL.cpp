@@ -34,7 +34,9 @@ void AP_Proximity_AirSimSITL::update(void)
 
     set_status(AP_Proximity::Status::Good);
 
-    memset(_distance_valid, 0, sizeof(_distance_valid));
+    for(uint8_t i=0; i < PROXIMITY_NUM_SECTORS; i++) {
+        mark_distance_valid(false, i);
+    }
 
     for (uint16_t i=0; i<points.length; i++) {
         Vector3f &point = points.data[i];
@@ -55,10 +57,9 @@ void AP_Proximity_AirSimSITL::update(void)
                 }
             } else {
                 // new sector started, previous one can be updated
-                _distance_valid[_last_sector] = true;
-                _angle[_last_sector] = _angle_deg_last;
-                _distance[_last_sector] = _distance_m_last;
-
+                mark_distance_valid(true, _last_sector);
+                set_angle(_angle_deg_last, _last_sector);
+                set_distance(_distance_m_last, _last_sector);
                 // update boundary
                 update_boundary_for_sector(_last_sector, true);
 
@@ -68,16 +69,9 @@ void AP_Proximity_AirSimSITL::update(void)
                 _angle_deg_last = angle_deg;
             }
         } else {
-            _distance_valid[sector] = false;
+            mark_distance_valid(false, sector);
         }
     }
-
-#if 0
-    printf("npoints=%u\n", points.length);
-    for (uint16_t i=0; i<PROXIMITY_NUM_SECTORS; i++) {
-        printf("sector[%u] ang=%.1f dist=%.1f\n", i, _angle[i], _distance[i]);
-    }
-#endif
 }
 
 // get maximum and minimum distances (in meters) of primary sensor

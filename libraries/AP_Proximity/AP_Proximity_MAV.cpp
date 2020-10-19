@@ -21,7 +21,7 @@
 extern const AP_HAL::HAL& hal;
 
 #define PROXIMITY_MAV_TIMEOUT_MS    500 // distance messages must arrive within this many milliseconds
-
+#define PROXIMITY_3D_MSG_TIMEOUT_MS  50  // mini-fence will be cleared if OBSTACLE_DISTANCE_3D message does not arrive within this many milliseconds
 // update the state of the sensor
 void AP_Proximity_MAV::update(void)
 {
@@ -54,11 +54,11 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         // store distance to appropriate sector based on orientation field
         if (packet.orientation <= MAV_SENSOR_ROTATION_YAW_315) {
             uint8_t sector = packet.orientation;
-            _angle[sector] = sector * 45;
-            _distance[sector] = packet.current_distance * 0.01f;
+            set_angle(sector * 45, sector);
+            set_distance(packet.current_distance * 0.01f, sector);
             _distance_min = packet.min_distance * 0.01f;
             _distance_max = packet.max_distance * 0.01f;
-            _distance_valid[sector] = (_distance[sector] >= _distance_min) && (_distance[sector] <= _distance_max);
+            mark_distance_valid((get_distance(sector) >= _distance_min) && (get_distance(sector) <= _distance_max), sector);
             _last_update_ms = AP_HAL::millis();
             update_boundary_for_sector(sector, true);
         }
@@ -111,8 +111,8 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         bool sector_updated[PROXIMITY_NUM_SECTORS];
         for (uint8_t i = 0; i < PROXIMITY_NUM_SECTORS; i++) {
             sector_updated[i] = false;
-            _angle[i] = _sector_middle_deg[i];
-            _distance[i] = MAX_DISTANCE;
+            set_angle(_sector_middle_deg[i], i);
+            set_distance(MAX_DISTANCE, i);
         }
 
         // iterate over message's sectors
@@ -146,15 +146,15 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
                     // safe.
                     continue;
                 }
-                if (packet_distance_m >= _distance[i]) {
+                if (packet_distance_m >= get_distance(i)) {
                     // this is no closer than a previous distance
-                    // found from the pakcet
+                    // found from the packet
                     continue;
                 }
 
                 // this is the shortest distance we've found in the packet so far
-                _distance[i] = packet_distance_m;
-                _angle[i] = mid_angle;
+                set_distance(packet_distance_m, i);
+                set_angle(mid_angle, i);
                 sector_updated[i] = true;
             }
 
@@ -166,6 +166,7 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
 
         // update proximity sectors validity and boundary point
         for (uint8_t i = 0; i < PROXIMITY_NUM_SECTORS; i++) {
+            mark_distance_valid((get_distance(i) >= _distance_min) && (get_distance(i) <= _distance_max), i);
             _distance_valid[i] = (_distance[i] >= _distance_min) && (_distance[i] <= _distance_max);
             if (sector_updated[i]) {
                 update_boundary_for_sector(i, false);

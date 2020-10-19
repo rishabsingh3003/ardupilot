@@ -53,13 +53,15 @@ void AP_Proximity_SITL::update(void)
     }
     if (AP::fence()->polyfence().inclusion_boundary_available()) {
         // update distance in one sector
-        if (get_distance_to_fence(_sector_middle_deg[last_sector], _distance[last_sector])) {
+        float fence_distance;
+        if (get_distance_to_fence(_sector_middle_deg[last_sector], fence_distance)) {
+            set_distance(fence_distance, last_sector);
             set_status(AP_Proximity::Status::Good);
-            _distance_valid[last_sector] = true;
-            _angle[last_sector] = _sector_middle_deg[last_sector];
-            update_boundary_for_sector(last_sector, true);
+            mark_distance_valid(true, last_sector);
+            set_angle(_sector_middle_deg[last_sector],(last_sector));
+            update_boundary_for_sector_and_stack(last_sector, PROXIMITY_MIDDLE_STACK ,true);
         } else {
-            _distance_valid[last_sector] = false;
+            mark_distance_valid(false, last_sector);
         }
         last_sector++;
         if (last_sector >= PROXIMITY_NUM_SECTORS) {

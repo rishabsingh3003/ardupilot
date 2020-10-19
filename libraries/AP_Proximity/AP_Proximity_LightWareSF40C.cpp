@@ -331,8 +331,8 @@ void AP_Proximity_LightWareSF40C::process_message()
                 }
                 // init for new sector
                 _last_sector = sector;
-                _distance[sector] = INT16_MAX;
-                _distance_valid[sector] = false;
+                set_distance(INT16_MAX, sector);
+                mark_distance_valid(false, sector);
             }
 
             // check reading is not within an ignore zone
@@ -342,10 +342,10 @@ void AP_Proximity_LightWareSF40C::process_message()
                     const float dist_m = dist_cm * 0.01f;
 
                     // update shortest distance for this sector
-                    if (dist_m < _distance[sector]) {
-                        _angle[sector] = angle_deg;
-                        _distance[sector] = dist_m;
-                        _distance_valid[sector] = true;
+                    if (dist_m < get_distance(sector)) {
+                        set_angle(angle_deg, sector);
+                        set_distance(dist_m, sector);
+                        mark_distance_valid(true, sector);
                     }
 
                     // calculate shortest of last few readings
