@@ -305,9 +305,12 @@ void AC_Loiter::calc_desired_velocity(float nav_dt)
 
     // Limit the velocity to prevent fence violations
     // TODO: We need to also limit the _desired_accel
+    // TODO: Need to convert AC_Loiter to 3D
     AC_Avoid *_avoid = AP::ac_avoid();
     if (_avoid != nullptr) {
-        _avoid->adjust_velocity(_pos_control.get_pos_xy_p().kP(), _accel_cmss, desired_vel, nav_dt);
+        Vector3f avoidance_vel_3d(desired_vel.x, desired_vel.y, 0.0f);
+        _avoid->adjust_velocity(_pos_control.get_pos_xy_p().kP(), _accel_cmss, avoidance_vel_3d, _pos_control.get_pos_z_p().kP(), _pos_control.get_max_accel_z(), nav_dt);
+        desired_vel = Vector2f(avoidance_vel_3d.x, avoidance_vel_3d.y);
     }
 
     // send adjusted feed forward acceleration and velocity back to the Position Controller
