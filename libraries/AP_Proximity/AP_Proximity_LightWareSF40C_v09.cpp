@@ -328,9 +328,9 @@ bool AP_Proximity_LightWareSF40C_v09::process_reply()
             float distance_m = strtof(element_buf[1], NULL);
             if (!ignore_reading(angle_deg)) {
                 const uint8_t sector = convert_angle_to_sector(angle_deg);
-                _angle[sector] = angle_deg;
-                _distance[sector] = distance_m;
-                _distance_valid[sector] = is_positive(distance_m);
+                set_angle(angle_deg, sector);
+                set_distance(distance_m, sector);
+                mark_distance_valid(is_positive(distance_m), sector);
                 _last_distance_received_ms = AP_HAL::millis();
                 success = true;
                 // update boundary used for avoidance

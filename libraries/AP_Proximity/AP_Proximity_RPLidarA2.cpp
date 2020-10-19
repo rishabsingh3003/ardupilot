@@ -324,9 +324,9 @@ void AP_Proximity_RPLidarA2::parse_response_data()
                             }
                         } else {
                             // a new sector started, the previous one can be updated now
-                            _angle[_last_sector] = _angle_deg_last;
-                            _distance[_last_sector] = _distance_m_last;
-                            _distance_valid[_last_sector] = true;
+                            set_angle(_angle_deg_last, _last_sector);
+                            set_distance(_distance_m_last, _last_sector);
+                            mark_distance_valid(true, _last_sector);
                             // update boundary used for avoidance
                             update_boundary_for_sector(_last_sector, true);
                             // initialize the new sector
@@ -335,7 +335,7 @@ void AP_Proximity_RPLidarA2::parse_response_data()
                             _angle_deg_last  = angle_deg;
                         }
                     } else {
-                        _distance_valid[sector] = false;
+                        mark_distance_valid(false, sector);
                     }
                 }
             } else {

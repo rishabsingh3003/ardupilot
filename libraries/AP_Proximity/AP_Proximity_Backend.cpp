@@ -42,8 +42,8 @@ bool AP_Proximity_Backend::get_closest_object(float& angle_deg, float &distance)
 
     // check all sectors for shorter distance
     for (uint8_t i=0; i<PROXIMITY_NUM_SECTORS; i++) {
-        if (_distance_valid[i]) {
-            if (!sector_found || (_distance[i] < _distance[sector])) {
+        if (_distance_valid[i][PROXIMITY_MIDDLE_STACK]) {
+            if (!sector_found || (_distance[i][PROXIMITY_MIDDLE_STACK] < _distance[sector][PROXIMITY_MIDDLE_STACK])) {
                 sector = i;
                 sector_found = true;
             }
@@ -51,8 +51,8 @@ bool AP_Proximity_Backend::get_closest_object(float& angle_deg, float &distance)
     }
 
     if (sector_found) {
-        angle_deg = _angle[sector];
-        distance = _distance[sector];
+        angle_deg = _angle[sector][PROXIMITY_MIDDLE_STACK];
+        distance = _distance[sector][PROXIMITY_MIDDLE_STACK];
     }
     return sector_found;
 }
@@ -67,9 +67,9 @@ uint8_t AP_Proximity_Backend::get_object_count() const
 // returns false if no angle or distance could be returned for some reason
 bool AP_Proximity_Backend::get_object_angle_and_distance(uint8_t object_number, float& angle_deg, float &distance) const
 {
-    if (object_number < PROXIMITY_NUM_SECTORS && _distance_valid[object_number]) {
-        angle_deg = _angle[object_number];
-        distance = _distance[object_number];
+    if (object_number < PROXIMITY_NUM_SECTORS && _distance_valid[object_number][PROXIMITY_MIDDLE_STACK]) {
+        angle_deg = _angle[object_number][PROXIMITY_MIDDLE_STACK];
+        distance = _distance[object_number][PROXIMITY_MIDDLE_STACK];
         return true;
     }
     return false;
@@ -83,9 +83,9 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
     bool valid_distances = false;
     for (uint8_t i=0; i<PROXIMITY_MAX_DIRECTION; i++) {
         prx_dist_array.orientation[i] = i;
-        if (_distance_valid[i]) {
+        if (_distance_valid[i][PROXIMITY_MIDDLE_STACK]) {
             valid_distances = true;
-            prx_dist_array.distance[i] = _distance[i];
+            prx_dist_array.distance[i] = _distance[i][PROXIMITY_MIDDLE_STACK];
         } else {
             prx_dist_array.distance[i] = distance_max();
         }
@@ -94,58 +94,58 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
     return valid_distances;
 }
 
-// get boundary points around vehicle for use by avoidance
-//   returns nullptr and sets num_points to zero if no boundary can be returned
-const Vector2f* AP_Proximity_Backend::get_boundary_points(uint16_t& num_points) const
-{
-    // high-level status check
+Vector3f (*AP_Proximity_Backend::get_bnd_points(uint16_t& num_points, uint32_t& stack_bit))[PROXIMITY_NUM_STACK] {
     if (state.status != AP_Proximity::Status::Good) {
         num_points = 0;
+        stack_bit = 0;
         return nullptr;
     }
-
-    // check at least one sector has valid data, if not, exit
-    bool some_valid = false;
-    for (uint8_t i=0; i<PROXIMITY_NUM_SECTORS; i++) {
-        if (_distance_valid[i]) {
-            some_valid = true;
-            break;
+    uint32_t bit_stack=0;
+    // check at least one sector and stack has valid data, if not, exit
+    for (uint8_t i=0; i< PROXIMITY_NUM_STACK; i++) {
+        for (uint8_t j=0; j< PROXIMITY_NUM_SECTORS; j++) {
+            if (_distance_valid[j][i]) {
+                bit_stack |= (1<<i);
+                break;
+            }
         }
     }
-    if (!some_valid) {
+
+    if (bit_stack == 0) {
+        // no valid stack found
         num_points = 0;
+        stack_bit = 0;
         return nullptr;
     }
-
-    // return boundary points
+    
+    stack_bit = bit_stack;
     num_points = PROXIMITY_NUM_SECTORS;
-    return _boundary_point;
+    return _boundary_points;
 }
 
 // initialise the boundary and sector_edge_vector array used for object avoidance
-//   should be called if the sector_middle_deg or _setor_width_deg arrays are changed
+//   should be called if the sector_middle_deg or _sector_width_deg arrays are changed
 void AP_Proximity_Backend::init_boundary()
 {
-    for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
-        float angle_rad = radians((float)_sector_middle_deg[sector]+(PROXIMITY_SECTOR_WIDTH_DEG/2.0f));
-        _sector_edge_vector[sector].x = cosf(angle_rad) * 100.0f;
-        _sector_edge_vector[sector].y = sinf(angle_rad) * 100.0f;
-        _boundary_point[sector] = _sector_edge_vector[sector] * PROXIMITY_BOUNDARY_DIST_DEFAULT;
+    for (uint8_t stack = 0; stack < PROXIMITY_NUM_STACK; stack ++) {
+        for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
+            float angle_rad = ((float)_sector_middle_deg[sector]+(PROXIMITY_SECTOR_WIDTH_DEG/2.0f));
+            float pitch = ((float)_pitch_middle_deg[stack]);
+            _sector_edge_vector[sector][stack].offset_bearing(angle_rad, pitch, 100.0f);
+            _boundary_points[sector][stack] = _sector_edge_vector[sector][stack] * PROXIMITY_BOUNDARY_DIST_DEFAULT;
+        }
     }
 }
 
-// update boundary points used for object avoidance based on a single sector's distance changing
-//   the boundary points lie on the line between sectors meaning two boundary points may be updated based on a single sector's distance changing
-//   the boundary point is set to the shortest distance found in the two adjacent sectors, this is a conservative boundary around the vehicle
-void AP_Proximity_Backend::update_boundary_for_sector(const uint8_t sector, const bool push_to_OA_DB)
-{
+void AP_Proximity_Backend::update_boundary_for_sector_and_stack(const uint8_t sector, const uint8_t stack, const bool push_to_OA_DB) {
+    
     // sanity check
     if (sector >= PROXIMITY_NUM_SECTORS) {
         return;
     }
 
-    if (push_to_OA_DB && _distance_valid[sector]) {
-        database_push(_angle[sector], _distance[sector]);
+    if (push_to_OA_DB && _distance_valid[sector][stack]) {
+        database_push(_angle[sector][stack], _distance[sector][stack]);
     }
 
     // find adjacent sector (clockwise)
@@ -156,39 +156,39 @@ void AP_Proximity_Backend::update_boundary_for_sector(const uint8_t sector, cons
 
     // boundary point lies on the line between the two sectors at the shorter distance found in the two sectors
     float shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT;
-    if (_distance_valid[sector] && _distance_valid[next_sector]) {
-        shortest_distance = MIN(_distance[sector], _distance[next_sector]);
-    } else if (_distance_valid[sector]) {
-        shortest_distance = _distance[sector];
-    } else if (_distance_valid[next_sector]) {
-        shortest_distance = _distance[next_sector];
+    if (_distance_valid[sector][stack] && _distance_valid[next_sector][stack]) {
+        shortest_distance = MIN(_distance[sector][stack], _distance[next_sector][stack]);
+    } else if (_distance_valid[sector][stack]) {
+        shortest_distance = _distance[sector][stack];
+    } else if (_distance_valid[next_sector][stack]) {
+        shortest_distance = _distance[next_sector][stack];
     }
     if (shortest_distance < PROXIMITY_BOUNDARY_DIST_MIN) {
         shortest_distance = PROXIMITY_BOUNDARY_DIST_MIN;
     }
-    _boundary_point[sector] = _sector_edge_vector[sector] * shortest_distance;
+    _boundary_points[sector][stack] = _sector_edge_vector[sector][stack] * shortest_distance;
 
     // if the next sector (clockwise) has an invalid distance, set boundary to create a cup like boundary
-    if (!_distance_valid[next_sector]) {
-        _boundary_point[next_sector] = _sector_edge_vector[next_sector] * shortest_distance;
+    if (!_distance_valid[next_sector][stack]) {
+        _boundary_points[next_sector][stack] = _sector_edge_vector[next_sector][stack] * shortest_distance;
     }
 
     // repeat for edge between sector and previous sector
     uint8_t prev_sector = (sector == 0) ? PROXIMITY_NUM_SECTORS-1 : sector-1;
     shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT;
-    if (_distance_valid[prev_sector] && _distance_valid[sector]) {
-        shortest_distance = MIN(_distance[prev_sector], _distance[sector]);
-    } else if (_distance_valid[prev_sector]) {
-        shortest_distance = _distance[prev_sector];
-    } else if (_distance_valid[sector]) {
-        shortest_distance = _distance[sector];
+    if (_distance_valid[prev_sector][stack] && _distance_valid[sector][stack]) {
+        shortest_distance = MIN(_distance[prev_sector][stack], _distance[sector][stack]);
+    } else if (_distance_valid[prev_sector][stack]) {
+        shortest_distance = _distance[prev_sector][stack];
+    } else if (_distance_valid[sector][stack]) {
+        shortest_distance = _distance[sector][stack];
     }
-    _boundary_point[prev_sector] = _sector_edge_vector[prev_sector] * shortest_distance;
+    _boundary_points[prev_sector][stack] = _sector_edge_vector[prev_sector][stack] * shortest_distance;
 
     // if the sector counter-clockwise from the previous sector has an invalid distance, set boundary to create a cup like boundary
     uint8_t prev_sector_ccw = (prev_sector == 0) ? PROXIMITY_NUM_SECTORS - 1 : prev_sector - 1;
-    if (!_distance_valid[prev_sector_ccw]) {
-        _boundary_point[prev_sector_ccw] = _sector_edge_vector[prev_sector_ccw] * shortest_distance;
+    if (!_distance_valid[prev_sector_ccw][stack]) {
+        _boundary_points[prev_sector_ccw][stack] = _sector_edge_vector[prev_sector_ccw][stack] * shortest_distance;
     }
 }
 
@@ -209,6 +209,32 @@ float AP_Proximity_Backend::correct_angle_for_orientation(float angle_degrees) c
 uint8_t AP_Proximity_Backend::convert_angle_to_sector(float angle_degrees) const
 {
     return wrap_360(angle_degrees + (PROXIMITY_SECTOR_WIDTH_DEG * 0.5f)) / 45.0f;
+}
+
+// find which stack a given pitch falls into
+uint8_t AP_Proximity_Backend::convert_pitch_to_stack(float pitch_degrees) const
+{
+    if (pitch_degrees <= 15.0f && pitch_degrees > -15.0f) {
+        return PROXIMITY_MIDDLE_STACK;
+    }
+
+    if (pitch_degrees > 15.0f && pitch_degrees <= 45.0f) {
+        return PROXIMITY_MIDDLE_STACK + 1;
+    }
+
+    if (pitch_degrees > 45.0f) {
+        return PROXIMITY_MIDDLE_STACK + 2;
+    }
+    if (pitch_degrees <= -15.0f && pitch_degrees > -45.0f) {
+        return PROXIMITY_MIDDLE_STACK - 1;
+    }
+
+    if (pitch_degrees <= -45.0f) {
+        return PROXIMITY_MIDDLE_STACK - 2;
+    }
+
+    // should never reach here
+    return PROXIMITY_MIDDLE_STACK;
 }
 
 // check if a reading should be ignored because it falls into an ignore area
@@ -275,4 +301,19 @@ void AP_Proximity_Backend::database_push(float angle, float distance, uint32_t t
     temp_pos.z = temp_pos.z * -1.0f;
     
     oaDb->queue_push(temp_pos, timestamp_ms, distance);
+}
+
+void AP_Proximity_Backend::database_push_3D_obstacle(const Vector3f &obstacle, uint32_t timestamp_ms, const Vector3f &current_pos, const Matrix3f &body_to_ned) 
+{
+    AP_OADatabase *oaDb = AP::oadatabase();
+    if (oaDb == nullptr || !oaDb->healthy()) {
+        return;
+    }
+
+    const Vector3f rotated_object_3D = body_to_ned * obstacle;
+    //Calculate the position vector from origin
+    Vector3f temp_pos = current_pos + rotated_object_3D;
+    //Convert the vector to a NEU frame from NED
+    temp_pos.z = temp_pos.z * -1.0f;
+    oaDb->queue_push(temp_pos, timestamp_ms, obstacle.length());
 }

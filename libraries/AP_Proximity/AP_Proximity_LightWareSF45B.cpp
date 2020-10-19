@@ -144,9 +144,9 @@ void AP_Proximity_LightWareSF45B::process_message()
         const uint8_t sector = convert_angle_to_sector(angle_deg);
         if (sector != _sector) {
             if (_sector != UINT8_MAX) {
-                _angle[_sector] = _sector_angle;
-                _distance[_sector] = _sector_distance;
-                _distance_valid[_sector] = _sector_distance_valid;
+                set_angle(_sector_angle, _sector);
+                set_distance(_sector_distance, _sector);
+                mark_distance_valid(_sector_distance_valid, _sector);
                 update_boundary_for_sector(_sector, false);
             }
             // init for new sector

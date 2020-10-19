@@ -90,8 +90,8 @@ public:
 
     // get boundary points around vehicle for use by avoidance
     //   returns nullptr and sets num_points to zero if no boundary can be returned
-    const Vector2f* get_boundary_points(uint8_t instance, uint16_t& num_points) const;
-    const Vector2f* get_boundary_points(uint16_t& num_points) const;
+    Vector3f (*get_boundary_points(uint8_t instance, uint16_t& num_points, uint32_t& stack_bit))[5];
+    Vector3f (*get_boundary_points(uint16_t& num_points, uint32_t& stack_bit))[5];
 
     // get distance and angle to closest object (used for pre-arm check)
     //   returns true on success, false if no valid readings

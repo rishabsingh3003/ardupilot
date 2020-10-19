@@ -361,19 +361,19 @@ bool AP_Proximity::get_horizontal_distances(Proximity_Distance_Array &prx_dist_a
 
 // get boundary points around vehicle for use by avoidance
 //   returns nullptr and sets num_points to zero if no boundary can be returned
-const Vector2f* AP_Proximity::get_boundary_points(uint8_t instance, uint16_t& num_points) const
+Vector3f (*AP_Proximity::get_boundary_points(uint8_t instance, uint16_t& num_points, uint32_t& stack_bit))[5] 
 {
     if (!valid_instance(instance)) {
         num_points = 0;
+        stack_bit = 0;
         return nullptr;
     }
-    // get boundary from backend
-    return drivers[instance]->get_boundary_points(num_points);
+    return drivers[instance]-> get_bnd_points(num_points, stack_bit);
 }
 
-const Vector2f* AP_Proximity::get_boundary_points(uint16_t& num_points) const
+Vector3f (*AP_Proximity::get_boundary_points(uint16_t& num_points, uint32_t& stack_bit))[5] 
 {
-    return get_boundary_points(primary_instance, num_points);
+    return get_boundary_points(primary_instance, num_points, stack_bit);
 }
 
 // get distance and angle to closest object (used for pre-arm check)
