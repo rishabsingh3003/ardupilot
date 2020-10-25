@@ -42,13 +42,17 @@ void AP_Proximity_RangeFinder::update(void)
             // check for horizontal range finders
             if (sensor->orientation() <= ROTATION_YAW_315) {
                 uint8_t sector = (uint8_t)sensor->orientation();
-                set_angle(sector*45, sector);
-                set_distance(sensor->distance_cm() * 0.01f, sector);
+                boundary.set_angle(sector*45, sector);
+                boundary.set_distance(sensor->distance_cm() * 0.01f, sector);
                 _distance_min = sensor->min_distance_cm() * 0.01f;
                 _distance_max = sensor->max_distance_cm() * 0.01f;
-                mark_distance_valid((get_distance(sector) >= _distance_min) && (get_distance(sector) <= _distance_max), sector);
+                boundary.mark_distance_valid((boundary.get_distance(sector) >= _distance_min) && (boundary.get_distance(sector) <= _distance_max), sector);
                 _last_update_ms = now;
-                update_boundary_for_sector(sector, true);
+                boundary.update_boundary(sector);
+                // update OA database
+                if (boundary.check_distance_valid(sector)) {
+                    database_push(boundary.get_angle(sector), boundary.get_distance(sector));
+                }
             }
             // check upward facing range finder
             if (sensor->orientation() == ROTATION_PITCH_90) {

@@ -24,6 +24,7 @@
 #define PROXIMITY_MAX_IGNORE                6   // up to six areas can be ignored
 #define PROXIMITY_MAX_DIRECTION 8
 #define PROXIMITY_SENSOR_ID_START 10
+#define PROXIMITY_NUM_LAYERS 5
 
 class AP_Proximity_Backend;
 
@@ -90,8 +91,8 @@ public:
 
     // get boundary points around vehicle for use by avoidance
     //   returns nullptr and sets num_points to zero if no boundary can be returned
-    Vector3f (*get_boundary_points(uint8_t instance, uint16_t& num_points, uint32_t& stack_bit))[5];
-    Vector3f (*get_boundary_points(uint16_t& num_points, uint32_t& stack_bit))[5];
+    Vector3f (*get_boundary_points(uint8_t instance, uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_LAYERS];
+    Vector3f (*get_boundary_points(uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_LAYERS];
 
     // get distance and angle to closest object (used for pre-arm check)
     //   returns true on success, false if no valid readings

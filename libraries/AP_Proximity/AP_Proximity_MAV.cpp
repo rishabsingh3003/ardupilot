@@ -54,13 +54,16 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         // store distance to appropriate sector based on orientation field
         if (packet.orientation <= MAV_SENSOR_ROTATION_YAW_315) {
             uint8_t sector = packet.orientation;
-            set_angle(sector * 45, sector);
-            set_distance(packet.current_distance * 0.01f, sector);
+            boundary.set_angle(sector * 45, sector);
+            boundary.set_distance(packet.current_distance * 0.01f, sector);
             _distance_min = packet.min_distance * 0.01f;
             _distance_max = packet.max_distance * 0.01f;
-            mark_distance_valid((get_distance(sector) >= _distance_min) && (get_distance(sector) <= _distance_max), sector);
+            boundary.mark_distance_valid((boundary.get_distance(sector) >= _distance_min) && (boundary.get_distance(sector) <= _distance_max), sector);
             _last_update_ms = AP_HAL::millis();
-            update_boundary_for_sector(sector, true);
+            boundary.update_boundary(sector);
+            // update OA database
+            database_push(boundary.get_angle(sector), boundary.get_distance(sector));
+
         }
 
         // store upward distance
@@ -111,8 +114,8 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         bool sector_updated[PROXIMITY_NUM_SECTORS];
         for (uint8_t i = 0; i < PROXIMITY_NUM_SECTORS; i++) {
             sector_updated[i] = false;
-            set_angle(_sector_middle_deg[i], i);
-            set_distance(MAX_DISTANCE, i);
+            boundary.set_angle(boundary._sector_middle_deg[i], i);
+            boundary.set_distance(MAX_DISTANCE, i);
         }
 
         // iterate over message's sectors
@@ -133,7 +136,7 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
             // iterate over proximity sectors
             for (uint8_t i = 0; i < PROXIMITY_NUM_SECTORS; i++) {
                 // update distance array sector with shortest distance from message
-                const float angle_diff = wrap_180(_sector_middle_deg[i] - mid_angle);
+                const float angle_diff = wrap_180(boundary._sector_middle_deg[i] - mid_angle);
                 if (fabsf(angle_diff) > PROXIMITY_SECTOR_WIDTH_DEG*0.5f) {
                     // not even in this sector
                     continue;
@@ -146,15 +149,15 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
                     // safe.
                     continue;
                 }
-                if (packet_distance_m >= get_distance(i)) {
+                if (packet_distance_m >= boundary.get_distance(i)) {
                     // this is no closer than a previous distance
                     // found from the packet
                     continue;
                 }
 
                 // this is the shortest distance we've found in the packet so far
-                set_distance(packet_distance_m, i);
-                set_angle(mid_angle, i);
+                boundary.set_distance(packet_distance_m, i);
+                boundary.set_angle(mid_angle, i);
                 sector_updated[i] = true;
             }
 
@@ -166,9 +169,9 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
 
         // update proximity sectors validity and boundary point
         for (uint8_t i = 0; i < PROXIMITY_NUM_SECTORS; i++) {
-            mark_distance_valid((get_distance(i) >= _distance_min) && (get_distance(i) <= _distance_max), i);
+            boundary.mark_distance_valid((boundary.get_distance(i) >= _distance_min) && (boundary.get_distance(i) <= _distance_max), i);
             if (sector_updated[i]) {
-                update_boundary_for_sector(i, false);
+                boundary.update_boundary(i);
             }
         }
     }
@@ -204,10 +207,10 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
             // cleared fence back to defaults since we have a new timestamp
             for (uint8_t i=0; i< PROXIMITY_NUM_STACK; i++) {
                 for (uint8_t j = 0; j < PROXIMITY_NUM_SECTORS; j++) {
-                    set_angle(_sector_middle_deg[j], j, i);
-                    set_pitch(_pitch_middle_deg[i], j, i);
-                    set_distance(MAX_DISTANCE, j, i);
-                    mark_distance_valid(false, j, i);
+                    boundary.set_angle(boundary._sector_middle_deg[j], j, i);
+                    boundary.set_pitch(boundary._pitch_middle_deg[i], j, i);
+                    boundary.set_distance(MAX_DISTANCE, j, i);
+                    boundary.mark_distance_valid(false, j, i);
                 }
             } 
         }
@@ -226,19 +229,19 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         const float pitch = wrap_180(degrees(M_PI_2 - atan2f(norm(obstacle.x, obstacle.y), obstacle.z))); 
 
         // allot them correct stack and sector based on calculated pitch and yaw
-        const uint8_t msg_sector = convert_angle_to_sector(yaw);
-        const uint8_t msg_stack = convert_pitch_to_stack(pitch);
+        const uint8_t msg_sector = boundary.convert_angle_to_sector(yaw);
+        const uint8_t msg_stack = boundary.convert_pitch_to_stack(pitch);
 
-        if (get_distance(msg_sector, msg_stack) < obstacle.length()) {
+        if (boundary.get_distance(msg_sector, msg_stack) < obstacle.length()) {
             // we already have a shorter distance in this stack and sector
             return;
         }
 
-        set_angle(yaw, msg_sector, msg_stack);
-        set_pitch(pitch, msg_sector, msg_stack);
-        set_distance(obstacle.length(), msg_sector, msg_stack);
-        mark_distance_valid(true, msg_sector, msg_stack);
-        update_boundary_for_sector_and_stack(msg_sector, msg_stack , false);
+        boundary.set_angle(yaw, msg_sector, msg_stack);
+        boundary.set_pitch(pitch, msg_sector, msg_stack);
+        boundary.set_distance(obstacle.length(), msg_sector, msg_stack);
+        boundary.mark_distance_valid(true, msg_sector, msg_stack);
+        boundary.update_boundary(msg_sector, msg_stack);
 
         if (database_ready) {
             database_push_3D_obstacle( obstacle,_last_update_ms, current_pos, body_to_ned);

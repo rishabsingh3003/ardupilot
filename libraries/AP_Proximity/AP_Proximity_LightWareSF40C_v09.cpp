@@ -79,9 +79,6 @@ bool AP_Proximity_LightWareSF40C_v09::initialise()
         return false;
     }
 
-    // initialise sectors
-    init_boundary();
-
     return true;
 }
 
@@ -205,7 +202,7 @@ bool AP_Proximity_LightWareSF40C_v09::send_request_for_distance()
     char request_str[16];
     snprintf(request_str, sizeof(request_str), "?TS,%u,%u\r\n",
              (unsigned int)PROXIMITY_SECTOR_WIDTH_DEG,
-             _sector_middle_deg[_last_sector]);
+             boundary._sector_middle_deg[_last_sector]);
     _uart->write(request_str);
 
 
@@ -327,14 +324,18 @@ bool AP_Proximity_LightWareSF40C_v09::process_reply()
             float angle_deg = strtof(element_buf[0], NULL);
             float distance_m = strtof(element_buf[1], NULL);
             if (!ignore_reading(angle_deg)) {
-                const uint8_t sector = convert_angle_to_sector(angle_deg);
-                set_angle(angle_deg, sector);
-                set_distance(distance_m, sector);
-                mark_distance_valid(is_positive(distance_m), sector);
+                const uint8_t sector = boundary.convert_angle_to_sector(angle_deg);
+                boundary.set_angle(angle_deg, sector);
+                boundary.set_distance(distance_m, sector);
+                boundary.mark_distance_valid(is_positive(distance_m), sector);
                 _last_distance_received_ms = AP_HAL::millis();
                 success = true;
                 // update boundary used for avoidance
-                update_boundary_for_sector(sector, true);
+                boundary.update_boundary(sector);
+                // update OA database
+                if (boundary.check_distance_valid(sector)) {
+                    database_push(angle_deg, distance_m);
+                }
             }
             break;
         }

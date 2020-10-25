@@ -92,11 +92,15 @@ bool AP_Proximity_TeraRangerTower::read_sensor_data()
 // process reply
 void AP_Proximity_TeraRangerTower::update_sector_data(int16_t angle_deg, uint16_t distance_cm)
 {
-    const uint8_t sector = convert_angle_to_sector(angle_deg);
-    set_angle(angle_deg, sector);
-    set_distance(((float) distance_cm) / 1000, sector);
-    mark_distance_valid(distance_cm != 0xffff, sector);
+    const uint8_t sector = boundary.convert_angle_to_sector(angle_deg);
+    boundary.set_angle(angle_deg, sector);
+    boundary.set_distance(((float) distance_cm) / 1000, sector);
+    boundary.mark_distance_valid(distance_cm != 0xffff, sector);
     _last_distance_received_ms = AP_HAL::millis();
     // update boundary used for avoidance
-    update_boundary_for_sector(sector, true);
+    boundary.update_boundary(sector);
+    // update OA database
+    if (boundary.check_distance_valid(sector)) {
+        database_push(angle_deg, ((float) distance_cm) / 1000);
+    }   
 }

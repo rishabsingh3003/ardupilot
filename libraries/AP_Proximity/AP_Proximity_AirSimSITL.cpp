@@ -35,7 +35,7 @@ void AP_Proximity_AirSimSITL::update(void)
     set_status(AP_Proximity::Status::Good);
 
     for(uint8_t i=0; i < PROXIMITY_NUM_SECTORS; i++) {
-        mark_distance_valid(false, i);
+        boundary.mark_distance_valid(false, i);
     }
 
     for (uint16_t i=0; i<points.length; i++) {
@@ -44,7 +44,7 @@ void AP_Proximity_AirSimSITL::update(void)
             continue;
         }
         const float angle_deg = wrap_360(degrees(atan2f(point.y, point.x)));
-        const uint8_t sector = convert_angle_to_sector(angle_deg);
+        const uint8_t sector = boundary.convert_angle_to_sector(angle_deg);
 
         const Vector2f v = Vector2f(point.x, point.y);
         const float distance_m = v.length();
@@ -57,11 +57,13 @@ void AP_Proximity_AirSimSITL::update(void)
                 }
             } else {
                 // new sector started, previous one can be updated
-                mark_distance_valid(true, _last_sector);
-                set_angle(_angle_deg_last, _last_sector);
-                set_distance(_distance_m_last, _last_sector);
+                boundary.mark_distance_valid(true, _last_sector);
+                boundary.set_angle(_angle_deg_last, _last_sector);
+                boundary.set_distance(_distance_m_last, _last_sector);
                 // update boundary
-                update_boundary_for_sector(_last_sector, true);
+                boundary.update_boundary(_last_sector);
+                // update OA database
+                database_push(_angle_deg_last, _distance_m_last);
 
                 // initialize new sector
                 _last_sector = sector;
@@ -69,7 +71,7 @@ void AP_Proximity_AirSimSITL::update(void)
                 _angle_deg_last = angle_deg;
             }
         } else {
-            mark_distance_valid(false, sector);
+            boundary.mark_distance_valid(false, sector);
         }
     }
 }

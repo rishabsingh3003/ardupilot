@@ -29,8 +29,6 @@ AP_Proximity_Backend::AP_Proximity_Backend(AP_Proximity &_frontend, AP_Proximity
         frontend(_frontend),
         state(_state)
 {
-    // initialise sector edge vector used for building the boundary fence
-    init_boundary();
 }
 
 // get distance and angle to closest object (used for pre-arm check)
@@ -39,11 +37,10 @@ bool AP_Proximity_Backend::get_closest_object(float& angle_deg, float &distance)
 {
     bool sector_found = false;
     uint8_t sector = 0;
-
     // check all sectors for shorter distance
     for (uint8_t i=0; i<PROXIMITY_NUM_SECTORS; i++) {
-        if (_distance_valid[i][PROXIMITY_MIDDLE_STACK]) {
-            if (!sector_found || (_distance[i][PROXIMITY_MIDDLE_STACK] < _distance[sector][PROXIMITY_MIDDLE_STACK])) {
+        if (boundary.check_distance_valid(i,PROXIMITY_MIDDLE_STACK)) {
+            if (!sector_found || (boundary.get_distance(i, PROXIMITY_MIDDLE_STACK) < boundary.get_distance(sector, PROXIMITY_MIDDLE_STACK))) {
                 sector = i;
                 sector_found = true;
             }
@@ -51,8 +48,8 @@ bool AP_Proximity_Backend::get_closest_object(float& angle_deg, float &distance)
     }
 
     if (sector_found) {
-        angle_deg = _angle[sector][PROXIMITY_MIDDLE_STACK];
-        distance = _distance[sector][PROXIMITY_MIDDLE_STACK];
+        angle_deg = boundary.get_angle(sector, PROXIMITY_MIDDLE_STACK);
+        distance = boundary.get_distance(sector, PROXIMITY_MIDDLE_STACK);
     }
     return sector_found;
 }
@@ -67,9 +64,9 @@ uint8_t AP_Proximity_Backend::get_object_count() const
 // returns false if no angle or distance could be returned for some reason
 bool AP_Proximity_Backend::get_object_angle_and_distance(uint8_t object_number, float& angle_deg, float &distance) const
 {
-    if (object_number < PROXIMITY_NUM_SECTORS && _distance_valid[object_number][PROXIMITY_MIDDLE_STACK]) {
-        angle_deg = _angle[object_number][PROXIMITY_MIDDLE_STACK];
-        distance = _distance[object_number][PROXIMITY_MIDDLE_STACK];
+    if (object_number < PROXIMITY_NUM_SECTORS && boundary.check_distance_valid(object_number, PROXIMITY_MIDDLE_STACK)) {
+        angle_deg = boundary.get_angle(object_number, PROXIMITY_MIDDLE_STACK);
+        distance = boundary.get_distance(object_number, PROXIMITY_MIDDLE_STACK);
         return true;
     }
     return false;
@@ -83,9 +80,9 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
     bool valid_distances = false;
     for (uint8_t i=0; i<PROXIMITY_MAX_DIRECTION; i++) {
         prx_dist_array.orientation[i] = i;
-        if (_distance_valid[i][PROXIMITY_MIDDLE_STACK]) {
+        if (boundary.check_distance_valid(i, PROXIMITY_MIDDLE_STACK)) {
             valid_distances = true;
-            prx_dist_array.distance[i] = _distance[i][PROXIMITY_MIDDLE_STACK];
+            prx_dist_array.distance[i] = boundary.get_distance(i, PROXIMITY_MIDDLE_STACK);
         } else {
             prx_dist_array.distance[i] = distance_max();
         }
@@ -94,102 +91,17 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
     return valid_distances;
 }
 
-Vector3f (*AP_Proximity_Backend::get_bnd_points(uint16_t& num_points, uint32_t& stack_bit))[PROXIMITY_NUM_STACK] {
+Vector3f (*AP_Proximity_Backend::get_boundary_points(uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_STACK] 
+{   
+    // check status before sending the boundary points
     if (state.status != AP_Proximity::Status::Good) {
         num_points = 0;
+        num_layers = 0;
         stack_bit = 0;
         return nullptr;
     }
-    uint32_t bit_stack=0;
-    // check at least one sector and stack has valid data, if not, exit
-    for (uint8_t i=0; i< PROXIMITY_NUM_STACK; i++) {
-        for (uint8_t j=0; j< PROXIMITY_NUM_SECTORS; j++) {
-            if (_distance_valid[j][i]) {
-                bit_stack |= (1<<i);
-                break;
-            }
-        }
-    }
 
-    if (bit_stack == 0) {
-        // no valid stack found
-        num_points = 0;
-        stack_bit = 0;
-        return nullptr;
-    }
-    
-    stack_bit = bit_stack;
-    num_points = PROXIMITY_NUM_SECTORS;
-    return _boundary_points;
-}
-
-// initialise the boundary and sector_edge_vector array used for object avoidance
-//   should be called if the sector_middle_deg or _sector_width_deg arrays are changed
-void AP_Proximity_Backend::init_boundary()
-{
-    for (uint8_t stack = 0; stack < PROXIMITY_NUM_STACK; stack ++) {
-        for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
-            float angle_rad = ((float)_sector_middle_deg[sector]+(PROXIMITY_SECTOR_WIDTH_DEG/2.0f));
-            float pitch = ((float)_pitch_middle_deg[stack]);
-            _sector_edge_vector[sector][stack].offset_bearing(angle_rad, pitch, 100.0f);
-            _boundary_points[sector][stack] = _sector_edge_vector[sector][stack] * PROXIMITY_BOUNDARY_DIST_DEFAULT;
-        }
-    }
-}
-
-void AP_Proximity_Backend::update_boundary_for_sector_and_stack(const uint8_t sector, const uint8_t stack, const bool push_to_OA_DB) {
-    
-    // sanity check
-    if (sector >= PROXIMITY_NUM_SECTORS) {
-        return;
-    }
-
-    if (push_to_OA_DB && _distance_valid[sector][stack]) {
-        database_push(_angle[sector][stack], _distance[sector][stack]);
-    }
-
-    // find adjacent sector (clockwise)
-    uint8_t next_sector = sector + 1;
-    if (next_sector >= PROXIMITY_NUM_SECTORS) {
-        next_sector = 0;
-    }
-
-    // boundary point lies on the line between the two sectors at the shorter distance found in the two sectors
-    float shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT;
-    if (_distance_valid[sector][stack] && _distance_valid[next_sector][stack]) {
-        shortest_distance = MIN(_distance[sector][stack], _distance[next_sector][stack]);
-    } else if (_distance_valid[sector][stack]) {
-        shortest_distance = _distance[sector][stack];
-    } else if (_distance_valid[next_sector][stack]) {
-        shortest_distance = _distance[next_sector][stack];
-    }
-    if (shortest_distance < PROXIMITY_BOUNDARY_DIST_MIN) {
-        shortest_distance = PROXIMITY_BOUNDARY_DIST_MIN;
-    }
-    _boundary_points[sector][stack] = _sector_edge_vector[sector][stack] * shortest_distance;
-
-    // if the next sector (clockwise) has an invalid distance, set boundary to create a cup like boundary
-    if (!_distance_valid[next_sector][stack]) {
-        _boundary_points[next_sector][stack] = _sector_edge_vector[next_sector][stack] * shortest_distance;
-    }
-
-    // repeat for edge between sector and previous sector
-    uint8_t prev_sector = (sector == 0) ? PROXIMITY_NUM_SECTORS-1 : sector-1;
-    shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT;
-    if (_distance_valid[prev_sector][stack] && _distance_valid[sector][stack]) {
-        shortest_distance = MIN(_distance[prev_sector][stack], _distance[sector][stack]);
-    } else if (_distance_valid[prev_sector][stack]) {
-        shortest_distance = _distance[prev_sector][stack];
-    } else if (_distance_valid[sector][stack]) {
-        shortest_distance = _distance[sector][stack];
-    }
-    _boundary_points[prev_sector][stack] = _sector_edge_vector[prev_sector][stack] * shortest_distance;
-
-    // if the sector counter-clockwise from the previous sector has an invalid distance, set boundary to create a cup like boundary
-    uint8_t prev_sector_ccw = (prev_sector == 0) ? PROXIMITY_NUM_SECTORS - 1 : prev_sector - 1;
-    if (!_distance_valid[prev_sector_ccw][stack]) {
-        _boundary_points[prev_sector_ccw][stack] = _sector_edge_vector[prev_sector_ccw][stack] * shortest_distance;
-    }
+    return boundary.get_boundary_points(num_points, num_layers, stack_bit);
 }
 
 // set status and update valid count
@@ -203,38 +115,6 @@ float AP_Proximity_Backend::correct_angle_for_orientation(float angle_degrees) c
 {
     const float angle_sign = (frontend.get_orientation(state.instance) == 1) ? -1.0f : 1.0f;
     return wrap_360(angle_degrees * angle_sign + frontend.get_yaw_correction(state.instance));
-}
-
-// find which sector a given angle falls into
-uint8_t AP_Proximity_Backend::convert_angle_to_sector(float angle_degrees) const
-{
-    return wrap_360(angle_degrees + (PROXIMITY_SECTOR_WIDTH_DEG * 0.5f)) / 45.0f;
-}
-
-// find which stack a given pitch falls into
-uint8_t AP_Proximity_Backend::convert_pitch_to_stack(float pitch_degrees) const
-{
-    if (pitch_degrees <= 15.0f && pitch_degrees > -15.0f) {
-        return PROXIMITY_MIDDLE_STACK;
-    }
-
-    if (pitch_degrees > 15.0f && pitch_degrees <= 45.0f) {
-        return PROXIMITY_MIDDLE_STACK + 1;
-    }
-
-    if (pitch_degrees > 45.0f) {
-        return PROXIMITY_MIDDLE_STACK + 2;
-    }
-    if (pitch_degrees <= -15.0f && pitch_degrees > -45.0f) {
-        return PROXIMITY_MIDDLE_STACK - 1;
-    }
-
-    if (pitch_degrees <= -45.0f) {
-        return PROXIMITY_MIDDLE_STACK - 2;
-    }
-
-    // should never reach here
-    return PROXIMITY_MIDDLE_STACK;
 }
 
 // check if a reading should be ignored because it falls into an ignore area

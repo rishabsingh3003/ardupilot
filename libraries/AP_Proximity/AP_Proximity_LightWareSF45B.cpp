@@ -69,9 +69,6 @@ void AP_Proximity_LightWareSF45B::initialise()
 
     // request stream rate and contents
     request_stream_start();
-
-    // initialise boundary
-    init_boundary();
 }
 
 // request start of streaming of distances
@@ -141,13 +138,13 @@ void AP_Proximity_LightWareSF45B::process_message()
         const float angle_deg = correct_angle_for_orientation((int16_t)UINT16_VALUE(_msg.payload[3], _msg.payload[2]) * 0.01f);
 
         // if distance is from a new sector then update distance, angle and boundary for previous sector
-        const uint8_t sector = convert_angle_to_sector(angle_deg);
+        const uint8_t sector = boundary.convert_angle_to_sector(angle_deg);
         if (sector != _sector) {
             if (_sector != UINT8_MAX) {
-                set_angle(_sector_angle, _sector);
-                set_distance(_sector_distance, _sector);
-                mark_distance_valid(_sector_distance_valid, _sector);
-                update_boundary_for_sector(_sector, false);
+                boundary.set_angle(_sector_angle, _sector);
+                boundary.set_distance(_sector_distance, _sector);
+                boundary.mark_distance_valid(_sector_distance_valid, _sector);
+                boundary.update_boundary(_sector);
             }
             // init for new sector
             _sector = sector;
