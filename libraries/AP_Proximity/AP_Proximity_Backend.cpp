@@ -121,6 +121,78 @@ Vector3f (*AP_Proximity_Backend::get_bnd_points(uint16_t& num_points, uint32_t& 
     stack_bit = bit_stack;
     num_points = PROXIMITY_NUM_SECTORS;
     return _boundary_points;
+void AP_Proximity_Backend::visualize()
+{
+    for (uint8_t stack = 0; stack < PROXIMITY_NUM_STACK; stack ++) {
+        for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
+            boundary.update_boundary(sector, stack, false);
+        }
+    }
+
+    char buf[1000];
+    snprintf(buf, sizeof(buf)-1, "f4#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f",
+    boundary._boundary_points[0][4].x*0.01,boundary._boundary_points[0][4].y*0.01,boundary._boundary_points[0][4].z*0.01,
+    boundary._boundary_points[1][4].x*0.01,boundary._boundary_points[1][4].y*0.01,boundary._boundary_points[1][4].z*0.01,
+    boundary._boundary_points[2][4].x*0.01,boundary._boundary_points[2][4].y*0.01,boundary._boundary_points[2][4].z*0.01,
+    boundary._boundary_points[3][4].x*0.01,boundary._boundary_points[3][4].y*0.01,boundary._boundary_points[3][4].z*0.01,
+    boundary._boundary_points[4][4].x*0.01,boundary._boundary_points[4][4].y*0.01,boundary._boundary_points[4][4].z*0.01,
+    boundary._boundary_points[5][4].x*0.01,boundary._boundary_points[5][4].y*0.01,boundary._boundary_points[5][4].z*0.01,
+    boundary._boundary_points[6][4].x*0.01,boundary._boundary_points[6][4].y*0.01,boundary._boundary_points[6][4].z*0.01,
+    boundary._boundary_points[7][4].x*0.01,boundary._boundary_points[7][4].y*0.01,boundary._boundary_points[7][4].z*0.01);
+    buf[sizeof(buf)-1] = 0;
+    sock.sendto(buf, strlen(buf), "127.0.0.1", 9002);
+
+    char buf1[1000];
+    snprintf(buf1, sizeof(buf1)-1, "f3#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f",
+    boundary._boundary_points[0][3].x*0.01,boundary._boundary_points[0][3].y*0.01,boundary._boundary_points[0][3].z*0.01,
+    boundary._boundary_points[1][3].x*0.01,boundary._boundary_points[1][3].y*0.01,boundary._boundary_points[1][3].z*0.01,
+    boundary._boundary_points[2][3].x*0.01,boundary._boundary_points[2][3].y*0.01,boundary._boundary_points[2][3].z*0.01,
+    boundary._boundary_points[3][3].x*0.01,boundary._boundary_points[3][3].y*0.01,boundary._boundary_points[3][3].z*0.01,
+    boundary._boundary_points[4][3].x*0.01,boundary._boundary_points[4][3].y*0.01,boundary._boundary_points[4][3].z*0.01,
+    boundary._boundary_points[5][3].x*0.01,boundary._boundary_points[5][3].y*0.01,boundary._boundary_points[5][3].z*0.01,
+    boundary._boundary_points[6][3].x*0.01,boundary._boundary_points[6][3].y*0.01,boundary._boundary_points[6][3].z*0.01,
+    boundary._boundary_points[7][3].x*0.01,boundary._boundary_points[7][3].y*0.01,boundary._boundary_points[7][3].z*0.01);
+    buf1[sizeof(buf1)-1] = 0;
+    sock.sendto(buf1, strlen(buf1), "127.0.0.1", 9002);
+
+    char buf2[1000];
+    snprintf(buf2, sizeof(buf2)-1, "f2#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f",
+    boundary._boundary_points[0][2].x*0.01,boundary._boundary_points[0][2].y*0.01,boundary._boundary_points[0][2].z*0.01,
+    boundary._boundary_points[1][2].x*0.01,boundary._boundary_points[1][2].y*0.01,boundary._boundary_points[1][2].z*0.01,
+    boundary._boundary_points[2][2].x*0.01,boundary._boundary_points[2][2].y*0.01,boundary._boundary_points[2][2].z*0.01,
+    boundary._boundary_points[3][2].x*0.01,boundary._boundary_points[3][2].y*0.01,boundary._boundary_points[3][2].z*0.01,
+    boundary._boundary_points[4][2].x*0.01,boundary._boundary_points[4][2].y*0.01,boundary._boundary_points[4][2].z*0.01,
+    boundary._boundary_points[5][2].x*0.01,boundary._boundary_points[5][2].y*0.01,boundary._boundary_points[5][2].z*0.01,
+    boundary._boundary_points[6][2].x*0.01,boundary._boundary_points[6][2].y*0.01,boundary._boundary_points[6][2].z*0.01,
+    boundary._boundary_points[7][2].x*0.01,boundary._boundary_points[7][2].y*0.01,boundary._boundary_points[7][2].z*0.01);
+    buf2[sizeof(buf2)-1] = 0;
+    sock.sendto(buf2, strlen(buf2), "127.0.0.1", 9002);
+
+    char buf3[1000];
+    snprintf(buf3, sizeof(buf3)-1, "f1#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f",
+    boundary._boundary_points[0][1].x*0.01,boundary._boundary_points[0][1].y*0.01,boundary._boundary_points[0][1].z*0.01,
+    boundary._boundary_points[1][1].x*0.01,boundary._boundary_points[1][1].y*0.01,boundary._boundary_points[1][1].z*0.01,
+    boundary._boundary_points[2][1].x*0.01,boundary._boundary_points[2][1].y*0.01,boundary._boundary_points[2][1].z*0.01,
+    boundary._boundary_points[3][1].x*0.01,boundary._boundary_points[3][1].y*0.01,boundary._boundary_points[3][1].z*0.01,
+    boundary._boundary_points[4][1].x*0.01,boundary._boundary_points[4][1].y*0.01,boundary._boundary_points[4][1].z*0.01,
+    boundary._boundary_points[5][1].x*0.01,boundary._boundary_points[5][1].y*0.01,boundary._boundary_points[5][1].z*0.01,
+    boundary._boundary_points[6][1].x*0.01,boundary._boundary_points[6][1].y*0.01,boundary._boundary_points[6][1].z*0.01,
+    boundary._boundary_points[7][1].x*0.01,boundary._boundary_points[7][1].y*0.01,boundary._boundary_points[7][1].z*0.01);
+    buf3[sizeof(buf3)-1] = 0;
+    sock.sendto(buf3, strlen(buf3), "127.0.0.1", 9002);
+
+    char buf4[1000];
+    snprintf(buf4, sizeof(buf4)-1, "f0#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f#%3.1f",
+    boundary._boundary_points[0][0].x*0.01,boundary._boundary_points[0][0].y*0.01,boundary._boundary_points[0][0].z*0.01,
+    boundary._boundary_points[1][0].x*0.01,boundary._boundary_points[1][0].y*0.01,boundary._boundary_points[1][0].z*0.01,
+    boundary._boundary_points[2][0].x*0.01,boundary._boundary_points[2][0].y*0.01,boundary._boundary_points[2][0].z*0.01,
+    boundary._boundary_points[3][0].x*0.01,boundary._boundary_points[3][0].y*0.01,boundary._boundary_points[3][0].z*0.01,
+    boundary._boundary_points[4][0].x*0.01,boundary._boundary_points[4][0].y*0.01,boundary._boundary_points[4][0].z*0.01,
+    boundary._boundary_points[5][0].x*0.01,boundary._boundary_points[5][0].y*0.01,boundary._boundary_points[5][0].z*0.01,
+    boundary._boundary_points[6][0].x*0.01,boundary._boundary_points[6][0].y*0.01,boundary._boundary_points[6][0].z*0.01,
+    boundary._boundary_points[7][0].x*0.01,boundary._boundary_points[7][0].y*0.01,boundary._boundary_points[7][0].z*0.01);
+    buf4[sizeof(buf4)-1] = 0;
+    sock.sendto(buf4, strlen(buf4), "127.0.0.1", 9002);
 }
 
 // initialise the boundary and sector_edge_vector array used for object avoidance

@@ -25,6 +25,7 @@
 #define PROXIMITY_BOUNDARY_DIST_DEFAULT 100 // if we have no data for a sector, boundary is placed 100m out
 #define PROXIMITY_NUM_STACK           5
 #define PROXIMITY_MIDDLE_STACK        2
+#include <AP_HAL/utility/Socket.h>
 class AP_Proximity_Backend
 {
 public:
@@ -63,6 +64,7 @@ public:
     // get distances in 8 directions. used for sending distances to ground station
     bool get_horizontal_distances(AP_Proximity::Proximity_Distance_Array &prx_dist_array) const;
 
+        void visualize();
 protected:
 
     // set status and update valid_count
@@ -124,4 +126,5 @@ private:
     float _pitch[PROXIMITY_NUM_SECTORS][PROXIMITY_NUM_STACK];
     float _distance[PROXIMITY_NUM_SECTORS][PROXIMITY_NUM_STACK];         // distance to closest object within each sector
     bool _distance_valid[PROXIMITY_NUM_SECTORS][PROXIMITY_NUM_STACK];    // true if a valid distance received for each sector
+    SocketAPM sock{true};
 };

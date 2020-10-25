@@ -228,6 +228,15 @@ void AP_Proximity::update(void)
     }
 }
 
+void AP_Proximity::visual(void) 
+{
+ for (uint8_t i=0; i<num_instances; i++) {
+        if (!valid_instance(i)) {
+            continue;
+        }
+        drivers[i]->visualize();
+    }   
+}
 // return sensor orientation
 uint8_t AP_Proximity::get_orientation(uint8_t instance) const
 {
