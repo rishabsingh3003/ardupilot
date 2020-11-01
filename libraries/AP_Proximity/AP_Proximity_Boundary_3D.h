@@ -57,8 +57,15 @@ public:
     float get_distance(uint8_t sector, uint8_t stack = PROXIMITY_MIDDLE_STACK) const { return _distance[sector][stack]; }
     bool check_distance_valid(uint8_t sector, uint8_t stack = PROXIMITY_MIDDLE_STACK) const { return _distance_valid[sector][stack]; }
 
-    // return boundary points to be used by Simple Avoidance
-    Vector3f (*get_boundary_points(uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_STACK];
+    void get_num_layers_sectors(uint8_t& num_layers, uint8_t& num_sectors) const { num_layers = PROXIMITY_NUM_LAYERS; num_sectors = PROXIMITY_NUM_SECTORS; }
+    
+    // This method draws a line between this sector, and sector + 1, given a stack. Then returns the closest point on this line from vehicle, in body-frame. 
+    // Also checks for a valid distance in the stack layer, returns False if not found 
+    bool find_closest_point_to_boundary(const uint8_t sector, const uint8_t stack, Vector3f& vec_to_boundary) const;
+   
+    // This method draws a line between this sector, and sector + 1, given a stack. 
+    // Then returns the closest point on this line from the segment that was passed, in body-frame.
+    float find_closest_point_to_boundary_from_segment(const uint8_t sector, const uint8_t stack, const Vector3f& seg_start, const Vector3f& seg_end, Vector3f& closest_point) const;
 
 private:
     // initialise the boundary and sector_edge_vector array used for object avoidance

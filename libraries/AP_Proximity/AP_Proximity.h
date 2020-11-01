@@ -89,10 +89,9 @@ public:
     // get distances in PROXIMITY_MAX_DIRECTION directions. used for sending distances to ground station
     bool get_horizontal_distances(Proximity_Distance_Array &prx_dist_array) const;
 
-    // get boundary points around vehicle for use by avoidance
-    //   returns nullptr and sets num_points to zero if no boundary can be returned
-    Vector3f (*get_boundary_points(uint8_t instance, uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_LAYERS];
-    Vector3f (*get_boundary_points(uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_LAYERS];
+    void get_num_layers_sectors(uint8_t& num_layers, uint8_t& num_sectors) const;
+    bool find_closest_point_to_boundary(const uint8_t sector, const uint8_t stack, Vector3f& vec_to_boundary) const;
+    float find_closest_point_to_boundary_from_segment(const uint8_t sector, const uint8_t stack, const Vector3f& seg_start, const Vector3f& seg_end, Vector3f& closest_point) const;
 
     // get distance and angle to closest object (used for pre-arm check)
     //   returns true on success, false if no valid readings

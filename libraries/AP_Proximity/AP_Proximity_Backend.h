@@ -43,10 +43,13 @@ public:
     // handle mavlink DISTANCE_SENSOR messages
     virtual void handle_msg(const mavlink_message_t &msg) {}
 
-    // get boundary points around vehicle for use by avoidance
-    //   returns nullptr and sets num_points to zero if no boundary can be returned
-    Vector3f (*get_boundary_points(uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_STACK];
+    // return number of layers and sectors
+    void get_num_layers_sectors(uint8_t& num_layers, uint8_t& num_sectors) const { boundary.get_num_layers_sectors(num_layers, num_sectors); }
     
+    // helper functions to access 3D boundary inner methods
+    bool find_closest_point_to_boundary(const uint8_t sector, const uint8_t stack, Vector3f& vec_to_boundary) const { return boundary.find_closest_point_to_boundary(sector, stack, vec_to_boundary); }
+    float find_closest_point_to_boundary_from_segment(const uint8_t sector, const uint8_t stack, const Vector3f& seg_start, const Vector3f& seg_end, Vector3f& closest_point) const { return boundary.find_closest_point_to_boundary_from_segment(sector, stack, seg_start, seg_end, closest_point); } 
+
     // get distance and angle to closest object (used for pre-arm check)
     //   returns true on success, false if no valid readings
     bool get_closest_object(float& angle_deg, float &distance) const;

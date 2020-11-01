@@ -91,19 +91,6 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
     return valid_distances;
 }
 
-Vector3f (*AP_Proximity_Backend::get_boundary_points(uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_STACK] 
-{   
-    // check status before sending the boundary points
-    if (state.status != AP_Proximity::Status::Good) {
-        num_points = 0;
-        num_layers = 0;
-        stack_bit = 0;
-        return nullptr;
-    }
-
-    return boundary.get_boundary_points(num_points, num_layers, stack_bit);
-}
-
 // set status and update valid count
 void AP_Proximity_Backend::set_status(AP_Proximity::Status status)
 {

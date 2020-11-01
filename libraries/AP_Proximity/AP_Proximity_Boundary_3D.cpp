@@ -79,32 +79,46 @@ void AP_Proximity_Boundary_3D::update_boundary(const uint8_t sector, const uint8
     }
 }
 
-// return boundary points to be used by Simple Avoidance
-Vector3f (*AP_Proximity_Boundary_3D::get_boundary_points(uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_STACK] 
-{
-    uint32_t bit_stack=0;
-    // check at least one sector and stack has valid data, if not, exit
-    for (uint8_t i=0; i< PROXIMITY_NUM_STACK; i++) {
-        for (uint8_t j=0; j< PROXIMITY_NUM_SECTORS; j++) {
-            if (check_distance_valid(j,i)) {
-                bit_stack |= (1U<<i);
-                break;
-            }
+// This method draws a line between this sector, and sector + 1, given a stack. Then returns the closest point on this line from vehicle, in body-frame. 
+// Also checks for a valid distance in the stack layer, returns False if not found 
+bool AP_Proximity_Boundary_3D::find_closest_point_to_boundary(const uint8_t sector, const uint8_t stack, Vector3f& vec_to_boundary) const
+{   
+    bool valid_layer = false;
+    // check if this layer has atleast one valid sector
+    for (uint8_t i=0; i<PROXIMITY_NUM_SECTORS; i++ ) {
+        if (_distance_valid[i][stack]) {
+            valid_layer = true;
+            break;
         }
     }
-
-    if (bit_stack == 0) {
-        // no valid stack found
-        num_points = 0;
-        num_layers = 0;
-        stack_bit = 0;
-        return nullptr;
+    if(!valid_layer) {
+        // no valid sector found, return
+        return false;
     }
-    
-    stack_bit = bit_stack;
-    num_points = PROXIMITY_NUM_SECTORS;
-    num_layers = PROXIMITY_NUM_STACK;
-    return _boundary_points;
+
+    const uint8_t sector_end = sector;
+    uint8_t sector_start = sector + 1;
+    if (sector_start >= PROXIMITY_NUM_SECTORS) {
+        sector_start = 0;
+    }
+    const Vector3f start = _boundary_points[sector_start][stack];
+    const Vector3f end = _boundary_points[sector_end][stack];
+    vec_to_boundary = Vector3f::closest_point_between_line_and_point(start, end, Vector3f{0.0f, 0.0f, 0.0f});
+    return true;
+}
+
+// This method draws a line between this sector, and sector + 1, given a stack. 
+// Then returns the closest point on this line from the segment that was passed, in body-frame. 
+float AP_Proximity_Boundary_3D::find_closest_point_to_boundary_from_segment(const uint8_t sector, const uint8_t stack, const Vector3f& seg_start, const Vector3f& seg_end, Vector3f& closest_point) const
+{
+    const uint8_t sector_end = sector;
+    uint8_t sector_start = sector + 1;
+    if (sector_start >= PROXIMITY_NUM_SECTORS) {
+        sector_start = 0;
+    }
+    const Vector3f start = _boundary_points[sector_start][stack];
+    const Vector3f end = _boundary_points[sector_end][stack];
+    return Vector3f::segment_to_segment_dist(seg_start, seg_end, start, end, closest_point);
 }
 
 // find which sector a given angle falls into
@@ -117,6 +131,6 @@ uint8_t AP_Proximity_Boundary_3D::convert_angle_to_sector(float angle_degrees) c
 uint8_t AP_Proximity_Boundary_3D::convert_pitch_to_stack(float pitch_degrees) const
 {   
     // TODO: handle pitch less than -75 or greater than 75 properly 
-    constrain_float(pitch_degrees, -75.0f, 74.9f);
+    pitch_degrees = constrain_float(pitch_degrees, -75.0f, 74.9f);
     return (pitch_degrees + 75.0f)/PROXIMITY_PITCH_WIDTH_DEG;
 }

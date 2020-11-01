@@ -359,23 +359,30 @@ bool AP_Proximity::get_horizontal_distances(Proximity_Distance_Array &prx_dist_a
     return drivers[primary_instance]->get_horizontal_distances(prx_dist_array);
 }
 
-// get boundary points around vehicle for use by avoidance
-//   returns nullptr and sets num_points to zero if no boundary can be returned
-Vector3f (*AP_Proximity::get_boundary_points(uint8_t instance, uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_LAYERS] 
-{
-    if (!valid_instance(instance)) {
-        num_points = 0;
-        stack_bit = 0;
-        return nullptr;
+void AP_Proximity::get_num_layers_sectors(uint8_t& num_layers, uint8_t& num_sectors) const
+{   
+    if (!valid_instance(primary_instance)) {
+        num_layers = 0;
+        num_sectors = 0;
     }
-    return drivers[instance]->get_boundary_points(num_points, num_layers, stack_bit);
+    drivers[primary_instance]->get_num_layers_sectors(num_layers, num_sectors);
 }
 
-Vector3f (*AP_Proximity::get_boundary_points(uint16_t& num_points, uint8_t& num_layers, uint32_t& stack_bit))[PROXIMITY_NUM_LAYERS] 
+bool AP_Proximity::find_closest_point_to_boundary(const uint8_t sector, const uint8_t stack, Vector3f& vec_to_boundary) const
 {
-    return get_boundary_points(primary_instance, num_points, num_layers, stack_bit);
+    if (!valid_instance(primary_instance)) {
+        return false;
+    }
+    return drivers[primary_instance]->find_closest_point_to_boundary(sector, stack, vec_to_boundary);
 }
 
+float AP_Proximity::find_closest_point_to_boundary_from_segment(const uint8_t sector, const uint8_t stack, const Vector3f& seg_start, const Vector3f& seg_end, Vector3f& closest_point) const
+{
+    if (!valid_instance(primary_instance)) {
+        return false;
+    }
+    return drivers[primary_instance]->find_closest_point_to_boundary_from_segment(sector, stack, seg_start, seg_end, closest_point);
+}
 // get distance and angle to closest object (used for pre-arm check)
 //   returns true on success, false if no valid readings
 bool AP_Proximity::get_closest_object(float& angle_deg, float &distance) const
