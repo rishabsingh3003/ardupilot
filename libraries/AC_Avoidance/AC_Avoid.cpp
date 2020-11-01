@@ -1056,34 +1056,21 @@ void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector3f &d
         const float speed = safe_vel.length();
         stopping_point_plus_margin = safe_vel*((2.0f + margin_cm + get_stopping_distance(kP, accel_cmss, speed))/speed);
     }
-    
-    uint16_t num_points = 0;
-    uint32_t stack_bit = 0;
+        
+    uint8_t num_sector = 0;
     uint8_t num_layers = 0;
-
-    // get boundary from proximity sensor
-    Vector3f (*boundary)[5] = _proximity.get_boundary_points(num_points, num_layers, stack_bit);
-    // exit if there are no points
-    if (boundary == nullptr || num_points == 0 || num_layers == 0) {
+    _proximity.get_num_layers_sectors(num_layers, num_sector);
+    if (num_layers == 0 || num_sector ==  0) {
         return;
     }
-
-    for (uint8_t layer = 0; layer < num_layers; layer++) {
-        const uint32_t bit = 1U<<layer;
-        if (!(bit & stack_bit)) {
-            // no valid points in this layer
-            continue;
-        }          
-        
-        for (uint16_t i=0; i<num_points; i++) {
-            uint16_t j = i+1;
-            if (j >= num_points) {
-                j = 0;
+ 
+    for (uint8_t sector = 0; sector<num_sector; sector++) {
+        for (uint8_t layer = 0; layer<num_layers; layer++) {
+            Vector3f vector_to_boundary;
+            if (!_proximity.find_closest_point_to_boundary(sector, layer, vector_to_boundary)) {
+               // nothing on this layer
+               continue;
             }
-            // end points of current edge
-            const Vector3f start = boundary[j][layer];
-            const Vector3f end = boundary[i][layer];
-            const Vector3f vector_to_boundary = Vector3f::closest_point_between_line_and_point(start, end, Vector3f{0.0f, 0.0f, 0.0f});
             const float dist_to_boundary = vector_to_boundary.length();
             if (is_zero(dist_to_boundary)) {
                 continue;
@@ -1121,7 +1108,7 @@ void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector3f &d
                 // vector from current position to point on current edge
                 Vector3f limit_direction;
                 // find intersection with line segment
-                const float limit_distance_cm = Vector3f::segment_to_segment_dist(Vector3f(0.0f, 0.0f, 0.0f), stopping_point_plus_margin, start, end, limit_direction);
+                const float limit_distance_cm = _proximity.find_closest_point_to_boundary_from_segment(sector, layer, Vector3f{0.0f, 0.0f, 0.0f}, stopping_point_plus_margin, limit_direction);
                 if (!is_zero(limit_distance_cm)) {
                     if (limit_distance_cm <= margin_cm) {
                         // we are within the margin so stop vehicle
