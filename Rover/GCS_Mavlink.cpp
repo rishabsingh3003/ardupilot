@@ -512,6 +512,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_RPM,
     MSG_WHEEL_DISTANCE,
     MSG_ESC_TELEMETRY,
+    MSG_OBSTACLE_3D,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
