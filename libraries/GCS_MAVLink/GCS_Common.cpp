@@ -811,6 +811,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
         { MAVLINK_MSG_ID_EFI_STATUS,            MSG_EFI_STATUS},
         { MAVLINK_MSG_ID_GENERATOR_STATUS,      MSG_GENERATOR_STATUS},
         { MAVLINK_MSG_ID_WINCH_STATUS,          MSG_WINCH_STATUS},
+        { MAVLINK_MSG_ID_OBSTACLE_DISTANCE_3D,  MSG_OBSTACLE_3D},
             };
 
     for (uint8_t i=0; i<ARRAY_SIZE(map); i++) {
@@ -4569,6 +4570,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
 
     case MSG_DISTANCE_SENSOR:
         send_distance_sensor();
+        break;
+    
+    case MSG_OBSTACLE_3D:
+        // piggy back on this for now
+        send_proximity();
         break;
 
     case MSG_CAMERA_FEEDBACK:
