@@ -180,12 +180,12 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         mavlink_obstacle_distance_3d_t packet;
         mavlink_msg_obstacle_distance_3d_decode(&msg, &packet);
 
-        uint32_t previous_sys_time = _last_update_ms;
+        const uint32_t previous_sys_time = _last_update_ms;
         _last_update_ms = AP_HAL::millis();
         // time_diff will check if the new message arrived significantly later than the last message
-        uint32_t time_diff = _last_update_ms - previous_sys_time;
+        const uint32_t time_diff = _last_update_ms - previous_sys_time;
 
-        uint32_t previous_msg_timestamp = _last_3d_msg_update_ms;
+        const uint32_t previous_msg_timestamp = _last_3d_msg_update_ms;
         _last_3d_msg_update_ms = packet.time_boot_ms;
         bool clear_fence = false;
         
@@ -205,8 +205,8 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
 
         if (clear_fence) {
             // cleared fence back to defaults since we have a new timestamp
-            for (uint8_t i=0; i< PROXIMITY_NUM_STACK; i++) {
-                for (uint8_t j = 0; j < PROXIMITY_NUM_SECTORS; j++) {
+            for (uint8_t i=0; i < PROXIMITY_NUM_STACK; i++) {
+                for (uint8_t j=0; j < PROXIMITY_NUM_SECTORS; j++) {
                     boundary.set_angle(boundary._sector_middle_deg[j], j, i);
                     boundary.set_pitch(boundary._pitch_middle_deg[i], j, i);
                     boundary.set_distance(MAX_DISTANCE, j, i);
@@ -215,10 +215,10 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
             } 
         }
         
-        float x = packet.x;
-        float y = packet.y;
-        float z = packet.z;
-        Vector3f obstacle(x,y,z);
+        const float x = packet.x;
+        const float y = packet.y;
+        const float z = packet.z;
+        const Vector3f obstacle(x,y,z);
 
         if (obstacle.length() < _distance_min || obstacle.length() > _distance_max || obstacle.is_zero()) {
             // message isn't healthy
@@ -244,7 +244,7 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         boundary.update_boundary(msg_sector, msg_stack);
 
         if (database_ready) {
-            database_push_3D_obstacle( obstacle,_last_update_ms, current_pos, body_to_ned);
+            database_push(yaw, obstacle.length(),_last_update_ms, current_pos, body_to_ned, pitch);
         }
     }
 }
