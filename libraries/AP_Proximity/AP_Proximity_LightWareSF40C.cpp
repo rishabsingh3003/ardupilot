@@ -318,18 +318,20 @@ void AP_Proximity_LightWareSF40C::process_message()
             const uint16_t idx = 14 + (i * 2);
             const int16_t dist_cm = (int16_t)buff_to_uint16(_msg.payload[idx], _msg.payload[idx+1]);
             const float angle_deg = wrap_360((point_start_index + i) * angle_inc_deg * angle_sign + angle_correction);
-            const uint8_t sector = boundary.convert_angle_to_sector(angle_deg);
-
+            // Get location on 3-D boundary based on angle to the object
+            boundary_location bnd_loc = boundary.get_sector(angle_deg);
+            uint8_t sector = bnd_loc.sector;
             // if we've entered a new sector then finish off previous sector
             if (sector != _last_sector) {
                 // update boundary used for avoidance
                 if (_last_sector != UINT8_MAX) {
-                    boundary.update_boundary(_last_sector);
+                    // create a location package
+                    boundary_location last_loc{_last_sector};
+                    boundary.update_boundary(last_loc);
                 }
                 // init for new sector
                 _last_sector = sector;
-                boundary.set_distance(INT16_MAX, sector);
-                boundary.mark_distance_valid(false, sector);
+                boundary.reset_sector(bnd_loc);
             }
 
             // check reading is not within an ignore zone
@@ -339,10 +341,8 @@ void AP_Proximity_LightWareSF40C::process_message()
                     const float dist_m = dist_cm * 0.01f;
 
                     // update shortest distance for this sector
-                    if (dist_m < boundary.get_distance(sector)) {
-                        boundary.set_angle(angle_deg, sector);
-                        boundary.set_distance(dist_m, sector);
-                        boundary.mark_distance_valid(true, sector);
+                    if (dist_m < boundary.get_distance(bnd_loc)) {
+                        boundary.set_attributes(bnd_loc, angle_deg, dist_m);
                     }
 
                     // calculate shortest of last few readings

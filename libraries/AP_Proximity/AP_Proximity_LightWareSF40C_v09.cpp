@@ -324,18 +324,19 @@ bool AP_Proximity_LightWareSF40C_v09::process_reply()
             float angle_deg = strtof(element_buf[0], NULL);
             float distance_m = strtof(element_buf[1], NULL);
             if (!ignore_reading(angle_deg)) {
-                const uint8_t sector = boundary.convert_angle_to_sector(angle_deg);
-                boundary.set_angle(angle_deg, sector);
-                boundary.set_distance(distance_m, sector);
-                boundary.mark_distance_valid(is_positive(distance_m), sector);
                 _last_distance_received_ms = AP_HAL::millis();
                 success = true;
-                // update boundary used for avoidance
-                boundary.update_boundary(sector);
-                // update OA database
-                if (boundary.check_distance_valid(sector)) {
+                // Get location on 3-D boundary based on angle to the object
+                const boundary_location bnd_loc = boundary.get_sector(angle_deg);
+                // reset this sector back to default, so that it can be filled with the fresh sensor data
+                boundary.reset_sector(bnd_loc);
+                if(is_positive(distance_m)) {
+                    boundary.set_attributes(bnd_loc, angle_deg, distance_m);
+                    // update OA database
                     database_push(angle_deg, distance_m);
                 }
+                // update boundary used for avoidance
+                boundary.update_boundary(bnd_loc);
             }
             break;
         }

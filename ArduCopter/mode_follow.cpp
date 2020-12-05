@@ -102,7 +102,7 @@ void ModeFollow::run()
         const float des_vel_z_max = copter.avoid.get_max_speed(pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z() * 0.5f, fabsf(dist_vec_offs_neu.z), copter.G_Dt);
         desired_velocity_neu_cms.z = constrain_float(desired_velocity_neu_cms.z, -des_vel_z_max, des_vel_z_max);
 
-        // limit the horizontal velocity to prevent fence violations
+        // limit the velocity for obstacle/fence avoidance
         copter.avoid.adjust_velocity(pos_control->get_pos_xy_p().kP().get(), pos_control->get_max_accel_xy(), desired_velocity_neu_cms, pos_control->get_pos_z_p().kP().get(), pos_control->get_max_accel_z() , G_Dt);
 
         // calculate vehicle heading

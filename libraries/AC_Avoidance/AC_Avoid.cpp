@@ -150,6 +150,7 @@ void AC_Avoid::adjust_velocity_fence(float kP, float accel_cmss, Vector3f &desir
 /*
 * Adjusts the desired velocity so that the vehicle can stop
 * before the fence/object.
+* kP, accel_cmss are for the horizontal axis
 */
 void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, float kP_z, float accel_cmss_z, bool &backing_up, float dt)
 {
@@ -203,7 +204,7 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel
             desired_vel_cms -= Vector3f{projected_vel.x, projected_vel.y, 0.0f};
             desired_vel_cms += Vector3f{desired_backup_vel.x, desired_backup_vel.y, 0.0f};
             // let user take control vertically if they are backing away at a greater speed than what we have calculated based on limits
-            if (is_positive(desired_backup_vel.z)) {
+            if (!is_negative(desired_backup_vel.z)) {
                 desired_vel_cms.z = MAX(desired_vel_cms.z, desired_backup_vel.z);
             } else {
                 desired_vel_cms.z = MIN(desired_vel_cms.z, desired_backup_vel.z);
@@ -477,8 +478,11 @@ void AC_Avoid::calc_backup_velocity_2D(float kP, float accel_cmss, Vector2f &qua
 }
 
 /*
- * Compute the back away velocity required to avoid breaching margin, including vertical component
- */
+* Compute the back away velocity required to avoid breaching margin, including vertical component
+* min_z_vel is <= 0, and stores the greatest velocity in the donwards direction
+* max_z_vel is >= 0, and stores the greatest velocity in the upwards direction
+* eventually max_z_vel + min_z_vel will give the final desired Z backaway velocity
+*/
 void AC_Avoid::calc_backup_velocity_3D(float kP, float accel_cmss, Vector2f &quad1_back_vel_cms, Vector2f &quad2_back_vel_cms, Vector2f &quad3_back_vel_cms, Vector2f &quad4_back_vel_cms, float back_distance_cm, Vector3f limit_direction, float kp_z, float accel_cmss_z, float back_distance_z, float& min_z_vel, float& max_z_vel, float dt)
 {   
     // backup horizontally 
@@ -504,6 +508,7 @@ void AC_Avoid::calc_backup_velocity_3D(float kP, float accel_cmss, Vector2f &qua
         }
     }
 }
+
 /*
  * Calculate maximum velocity vector that can be formed in each quadrant 
  * This method takes the desired backup velocity, and four other velocities corresponding to each quadrant
@@ -536,18 +541,18 @@ void AC_Avoid::find_max_quadrant_velocity(Vector2f &desired_vel, Vector2f &quad1
 /*
 Calculate maximum velocity vector that can be formed in each quadrant and separately store max & min of vertical components
 */
-void AC_Avoid::find_max_quadrant_velocity_3D(Vector3f &desired_vel, Vector2f &quad1_vel, Vector2f &quad2_vel, Vector2f &quad3_vel, Vector2f &quad4_vel, float &z_up, float &z_down)
+void AC_Avoid::find_max_quadrant_velocity_3D(Vector3f &desired_vel, Vector2f &quad1_vel, Vector2f &quad2_vel, Vector2f &quad3_vel, Vector2f &quad4_vel, float &max_z_vel, float &min_z_vel)
 {   
     // split into horizontal and vertical components 
     Vector2f velocity_xy{desired_vel.x, desired_vel.y};
     find_max_quadrant_velocity(velocity_xy, quad1_vel, quad2_vel, quad3_vel, quad4_vel);
     
     // store maximum and minimum of z 
-    if (is_positive(desired_vel.z) && desired_vel.z > z_up) {
-        z_up = desired_vel.z;
+    if (is_positive(desired_vel.z) && desired_vel.z > max_z_vel) {
+        max_z_vel = desired_vel.z;
     }
-    if (is_negative(desired_vel.z) && desired_vel.z < z_down) {
-        z_down = desired_vel.z;
+    if (is_negative(desired_vel.z) && desired_vel.z < min_z_vel) {
+        min_z_vel = desired_vel.z;
     }
 }
 

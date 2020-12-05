@@ -53,17 +53,25 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
 
         // store distance to appropriate sector based on orientation field
         if (packet.orientation <= MAV_SENSOR_ROTATION_YAW_315) {
-            uint8_t sector = packet.orientation;
-            boundary.set_angle(sector * 45, sector);
-            boundary.set_distance(packet.current_distance * 0.01f, sector);
+            const uint8_t sector = packet.orientation;
+            // create a boundary location object based on this sector
+            const boundary_location bnd_loc{sector};
+            // store in meters
+            const uint16_t distance = packet.current_distance * 0.01f;
             _distance_min = packet.min_distance * 0.01f;
             _distance_max = packet.max_distance * 0.01f;
-            boundary.mark_distance_valid((boundary.get_distance(sector) >= _distance_min) && (boundary.get_distance(sector) <= _distance_max), sector);
+            
+            // reset data on this sector, to be filled with new data
+            boundary.reset_sector(bnd_loc);
+            if (distance <= _distance_max && distance >= _distance_max) {
+                boundary.set_attributes(bnd_loc, sector * 45, distance);
+                // update OA database
+                database_push(boundary.get_angle(bnd_loc), distance);
+            }
+            
             _last_update_ms = AP_HAL::millis();
-            boundary.update_boundary(sector);
-            // update OA database
-            database_push(boundary.get_angle(sector), boundary.get_distance(sector));
-
+            // update boundary used for Obstacle Avoidance
+            boundary.update_boundary(bnd_loc);
         }
 
         // store upward distance
@@ -91,7 +99,6 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
             return;
         }
 
-        const float MAX_DISTANCE = 9999.0f;
         const uint8_t total_distances = MIN(((360.0f / fabsf(increment)) + 0.5f), MAVLINK_MSG_OBSTACLE_DISTANCE_FIELD_DISTANCES_LEN); // usually 72
 
         // set distance min and max
@@ -112,11 +119,8 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
 
         // initialise updated array and proximity sector angles (to closest object) and distances
         bool sector_updated[PROXIMITY_NUM_SECTORS];
-        for (uint8_t i = 0; i < PROXIMITY_NUM_SECTORS; i++) {
-            sector_updated[i] = false;
-            boundary.set_angle(boundary._sector_middle_deg[i], i);
-            boundary.set_distance(MAX_DISTANCE, i);
-        }
+        memset(sector_updated, 0, sizeof(sector_updated));
+        boundary.reset_all_horizontal_sectors();
 
         // iterate over message's sectors
         for (uint8_t j = 0; j < total_distances; j++) {
@@ -156,8 +160,9 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
                 }
 
                 // this is the shortest distance we've found in the packet so far
-                boundary.set_distance(packet_distance_m, i);
-                boundary.set_angle(mid_angle, i);
+                // create a location packet
+                const boundary_location bnd_loc{i};
+                boundary.set_attributes(bnd_loc, mid_angle, packet_distance_m);
                 sector_updated[i] = true;
             }
 
@@ -169,9 +174,9 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
 
         // update proximity sectors validity and boundary point
         for (uint8_t i = 0; i < PROXIMITY_NUM_SECTORS; i++) {
-            boundary.mark_distance_valid((boundary.get_distance(i) >= _distance_min) && (boundary.get_distance(i) <= _distance_max), i);
             if (sector_updated[i]) {
-                boundary.update_boundary(i);
+                const boundary_location bnd_loc{i};
+                boundary.update_boundary(bnd_loc);
             }
         }
     }
@@ -201,25 +206,13 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         Vector3f current_pos;
         Matrix3f body_to_ned;
         const bool database_ready = database_prepare_for_push(current_pos, body_to_ned);
-        const float MAX_DISTANCE = 9999.0f;
 
         if (clear_fence) {
             // cleared fence back to defaults since we have a new timestamp
-            for (uint8_t i=0; i < PROXIMITY_NUM_STACK; i++) {
-                for (uint8_t j=0; j < PROXIMITY_NUM_SECTORS; j++) {
-                    boundary.set_angle(boundary._sector_middle_deg[j], j, i);
-                    boundary.set_pitch(boundary._pitch_middle_deg[i], j, i);
-                    boundary.set_distance(MAX_DISTANCE, j, i);
-                    boundary.mark_distance_valid(false, j, i);
-                }
-            } 
+            boundary.reset_all_sectors_and_stacks(); 
         }
-        
-        const float x = packet.x;
-        const float y = packet.y;
-        const float z = packet.z;
-        const Vector3f obstacle(x,y,z);
 
+        const Vector3f obstacle(packet.x, packet.y, packet.z);
         if (obstacle.length() < _distance_min || obstacle.length() > _distance_max || obstacle.is_zero()) {
             // message isn't healthy
             return;
@@ -229,19 +222,15 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         const float pitch = wrap_180(degrees(M_PI_2 - atan2f(norm(obstacle.x, obstacle.y), obstacle.z))); 
 
         // allot them correct stack and sector based on calculated pitch and yaw
-        const uint8_t msg_sector = boundary.convert_angle_to_sector(yaw);
-        const uint8_t msg_stack = boundary.convert_pitch_to_stack(pitch);
+        const boundary_location bnd_loc = boundary.get_sector(yaw, pitch);
 
-        if (boundary.get_distance(msg_sector, msg_stack) < obstacle.length()) {
+        if (boundary.get_distance(bnd_loc) < obstacle.length()) {
             // we already have a shorter distance in this stack and sector
             return;
         }
 
-        boundary.set_angle(yaw, msg_sector, msg_stack);
-        boundary.set_pitch(pitch, msg_sector, msg_stack);
-        boundary.set_distance(obstacle.length(), msg_sector, msg_stack);
-        boundary.mark_distance_valid(true, msg_sector, msg_stack);
-        boundary.update_boundary(msg_sector, msg_stack);
+        boundary.set_attributes(bnd_loc, yaw, pitch, obstacle.length());
+        boundary.update_boundary(bnd_loc);
 
         if (database_ready) {
             database_push(yaw, obstacle.length(),_last_update_ms, current_pos, body_to_ned, pitch);

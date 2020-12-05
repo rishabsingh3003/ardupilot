@@ -31,47 +31,6 @@ AP_Proximity_Backend::AP_Proximity_Backend(AP_Proximity &_frontend, AP_Proximity
 {
 }
 
-// get distance and angle to closest object (used for pre-arm check)
-//   returns true on success, false if no valid readings
-bool AP_Proximity_Backend::get_closest_object(float& angle_deg, float &distance) const
-{
-    bool sector_found = false;
-    uint8_t sector = 0;
-    // check all sectors for shorter distance
-    for (uint8_t i=0; i<PROXIMITY_NUM_SECTORS; i++) {
-        if (boundary.check_distance_valid(i,PROXIMITY_MIDDLE_STACK)) {
-            if (!sector_found || (boundary.get_distance(i, PROXIMITY_MIDDLE_STACK) < boundary.get_distance(sector, PROXIMITY_MIDDLE_STACK))) {
-                sector = i;
-                sector_found = true;
-            }
-        }
-    }
-
-    if (sector_found) {
-        angle_deg = boundary.get_angle(sector, PROXIMITY_MIDDLE_STACK);
-        distance = boundary.get_distance(sector, PROXIMITY_MIDDLE_STACK);
-    }
-    return sector_found;
-}
-
-// get number of objects, used for non-GPS avoidance
-uint8_t AP_Proximity_Backend::get_object_count() const
-{
-    return PROXIMITY_NUM_SECTORS;
-}
-
-// get an object's angle and distance, used for non-GPS avoidance
-// returns false if no angle or distance could be returned for some reason
-bool AP_Proximity_Backend::get_object_angle_and_distance(uint8_t object_number, float& angle_deg, float &distance) const
-{
-    if (object_number < PROXIMITY_NUM_SECTORS && boundary.check_distance_valid(object_number, PROXIMITY_MIDDLE_STACK)) {
-        angle_deg = boundary.get_angle(object_number, PROXIMITY_MIDDLE_STACK);
-        distance = boundary.get_distance(object_number, PROXIMITY_MIDDLE_STACK);
-        return true;
-    }
-    return false;
-}
-
 // get distances in PROXIMITY_MAX_DIRECTION directions. used for sending distances to ground station
 bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Distance_Array &prx_dist_array) const
 {
@@ -80,9 +39,10 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
     bool valid_distances = false;
     for (uint8_t i=0; i<PROXIMITY_MAX_DIRECTION; i++) {
         prx_dist_array.orientation[i] = i;
-        if (boundary.check_distance_valid(i, PROXIMITY_MIDDLE_STACK)) {
+        const boundary_location bnd_loc{i};
+        if (boundary.check_distance_valid(bnd_loc)) {
             valid_distances = true;
-            prx_dist_array.distance[i] = boundary.get_distance(i, PROXIMITY_MIDDLE_STACK);
+            prx_dist_array.distance[i] = boundary.get_distance(bnd_loc);
         } else {
             prx_dist_array.distance[i] = distance_max();
         }

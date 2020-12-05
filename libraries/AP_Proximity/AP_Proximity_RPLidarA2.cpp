@@ -312,7 +312,8 @@ void AP_Proximity_RPLidarA2::parse_response_data()
 #endif
                 _last_distance_received_ms = AP_HAL::millis();
                 if (!ignore_reading(angle_deg)) {
-                    const uint8_t sector = boundary.convert_angle_to_sector(angle_deg);
+                    const boundary_location bnd_loc = boundary.get_sector(angle_deg);
+                    const uint8_t sector = bnd_loc.sector;
                     if (distance_m > distance_min()) {
                         if (_last_sector == sector) {
                             if (_distance_m_last > distance_m) {
@@ -321,11 +322,11 @@ void AP_Proximity_RPLidarA2::parse_response_data()
                             }
                         } else {
                             // a new sector started, the previous one can be updated now
-                            boundary.set_angle(_angle_deg_last, _last_sector);
-                            boundary.set_distance(_distance_m_last, _last_sector);
-                            boundary.mark_distance_valid(true, _last_sector);
+                            // create a location packet
+                            const boundary_location loc{_last_sector};
+                            boundary.set_attributes(loc, _angle_deg_last, _distance_m_last);
                             // update boundary used for avoidance
-                            boundary.update_boundary(_last_sector);
+                            boundary.update_boundary(loc);
                             // update OA database
                             database_push(_angle_deg_last, _distance_m_last);
 
@@ -335,7 +336,7 @@ void AP_Proximity_RPLidarA2::parse_response_data()
                             _angle_deg_last  = angle_deg;
                         }
                     } else {
-                        boundary.mark_distance_valid(false, sector);
+                        boundary.reset_sector(bnd_loc);
                     }
                 }
             } else {

@@ -246,6 +246,7 @@ public:
 
     // extrapolate position given bearing and pitch (in degrees) and distance
     void offset_bearing(float bearing, float pitch, float distance);
+    
     // given a position p1 and a velocity v1 produce a vector
     // perpendicular to v1 maximising distance from p1.  If p1 is the
     // zero vector the return from the function will always be the

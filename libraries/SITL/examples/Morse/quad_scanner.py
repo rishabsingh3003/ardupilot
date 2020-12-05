@@ -53,7 +53,7 @@ scan = Hokuyo()
 scan.translate(x=0.0, z=1)
 vehicle.append(scan)
 scan.properties(Visible_arc = True)
-scan.properties(laser_range = 5.0)
+scan.properties(laser_range = 15.0)
 scan.properties(resolution = 5.0)
 scan.properties(scan_window = 360.0)
 scan.create_laser_arc()
@@ -79,7 +79,7 @@ engines.add_stream('socket')
 
 # Environment. Run in fast mode which gives wire-frame view, but lowers
 # CPU load a lot
-env = Environment('land-1/trees', fastmode=False)
+env = Environment('../morse_env/environments/indoors-1/wall_T.blend', fastmode=False)
 
 env.set_camera_location([10.0, -10.0, 10.0])
 env.set_camera_rotation([1.0470, 0, 0.7854])

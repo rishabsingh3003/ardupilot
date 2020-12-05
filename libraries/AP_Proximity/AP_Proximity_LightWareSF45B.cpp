@@ -138,16 +138,21 @@ void AP_Proximity_LightWareSF45B::process_message()
         const float angle_deg = correct_angle_for_orientation((int16_t)UINT16_VALUE(_msg.payload[3], _msg.payload[2]) * 0.01f);
 
         // if distance is from a new sector then update distance, angle and boundary for previous sector
-        const uint8_t sector = boundary.convert_angle_to_sector(angle_deg);
-        if (sector != _sector) {
+        // Get location on 3-D boundary based on angle to the object
+        const boundary_location bnd_loc = boundary.get_sector(angle_deg);
+        if (bnd_loc.sector != _sector) {
             if (_sector != UINT8_MAX) {
-                boundary.set_angle(_sector_angle, _sector);
-                boundary.set_distance(_sector_distance, _sector);
-                boundary.mark_distance_valid(_sector_distance_valid, _sector);
-                boundary.update_boundary(_sector);
+                // create a location packet
+                const boundary_location loc{_sector};
+                boundary.reset_sector(loc);
+                if (_sector_distance_valid) {
+                    boundary.set_attributes(loc, _sector_angle, _sector_distance);
+                } 
+                // update boundary used for Obstacle Avoidance
+                boundary.update_boundary(loc);
             }
             // init for new sector
-            _sector = sector;
+            _sector = bnd_loc.sector;
             _sector_angle = 0;
             _sector_distance = INT16_MAX;
             _sector_distance_valid = false;

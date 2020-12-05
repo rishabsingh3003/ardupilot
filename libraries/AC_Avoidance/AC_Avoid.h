@@ -43,6 +43,7 @@ public:
 
     // Adjusts the desired velocity so that the vehicle can stop
     // before the fence/object.
+    // kP, accel_cmss are for the horizontal axis
     void adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, float kP_z, float accel_cmss_z, bool &backing_up, float dt);
     void adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel_cms, float kP_z, float accel_cmss_z, float dt) {
         bool backing_up = false;
@@ -141,7 +142,7 @@ private:
 
     /*
      * Adjusts the desired velocity given an array of boundary points
-     *   earth_frame should be true if boundary is in earth-frame, false for body-frame
+     * The boundary is expected to be always in Earth Frame
      *   margin is the distance (in meters) that the vehicle should stop short of the polygon
      *   stay_inside should be true for fences, false for exclusion polygons
      */
@@ -161,6 +162,9 @@ private:
     void calc_backup_velocity_2D(float kP, float accel_cmss, Vector2f &quad1_back_vel_cms, Vector2f &qua2_back_vel_cms, Vector2f &quad3_back_vel_cms, Vector2f &quad4_back_vel_cms, float back_distance_cm, Vector2f limit_direction, float dt);
     /*
     * Compute the back away velocity required to avoid breaching margin, including vertical component
+    * min_z_vel is <= 0, and stores the greatest velocity in the donwards direction
+    * max_z_vel is >= 0, and stores the greatest velocity in the upwards direction
+    * eventually max_z_vel + min_z_vel will give the final desired Z backaway velocity
     */
     void calc_backup_velocity_3D(float kP, float accel_cmss, Vector2f &quad1_back_vel_cms, Vector2f &quad2_back_vel_cms, Vector2f &quad3_back_vel_cms, Vector2f &quad4_back_vel_cms, float back_distance_cm, Vector3f limit_direction, float kp_z, float accel_cmss_z, float back_distance_z, float& min_z_vel, float& max_z_vel, float dt);
    /*
@@ -174,7 +178,7 @@ private:
     /*
     Calculate maximum velocity vector that can be formed in each quadrant and separately store max & min of vertical components
     */
-    void find_max_quadrant_velocity_3D(Vector3f &desired_vel, Vector2f &quad1_vel, Vector2f &quad2_vel, Vector2f &quad3_vel, Vector2f &quad4_vel, float &z_up, float &z_down);
+    void find_max_quadrant_velocity_3D(Vector3f &desired_vel, Vector2f &quad1_vel, Vector2f &quad2_vel, Vector2f &quad3_vel, Vector2f &quad4_vel, float &max_z_vel, float &min_z_vel);
 
     /*
      * methods for avoidance in non-GPS flight modes
