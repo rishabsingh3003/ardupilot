@@ -22,6 +22,7 @@ extern const AP_HAL::HAL& hal;
 
 #define PROXIMITY_MAV_TIMEOUT_MS    500 // distance messages must arrive within this many milliseconds
 #define PROXIMITY_3D_MSG_TIMEOUT_MS  50  // boundary will be reset if OBSTACLE_DISTANCE_3D message does not arrive within this many milliseconds
+
 // update the state of the sensor
 void AP_Proximity_MAV::update(void)
 {
@@ -169,6 +170,7 @@ void AP_Proximity_MAV::handle_msg(const mavlink_message_t &msg)
         } else {
             boundary.reset_face(face);
         }
+        return;
     }
 
     if (msg.msgid == MAVLINK_MSG_ID_OBSTACLE_DISTANCE_3D) {

@@ -194,25 +194,48 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel
             desired_backup_vel = desired_backup_vel.normalized() * max_back_spd_cms;
         }
         
-        if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) {
-            // project desired velocity towards backup velocity horizontally 
-            const Vector2f backup_vel_xy{desired_backup_vel.x, desired_backup_vel.y};
-            Vector2f projected_vel; 
-            if (!backup_vel_xy.is_zero()) {
-               projected_vel = Vector2f{desired_vel_cms.x, desired_vel_cms.y}.projected(Vector2f{desired_backup_vel.x, desired_backup_vel.y});
+        // if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) {
+        //     // project desired velocity towards backup velocity horizontally 
+        //     const Vector2f backup_vel_xy{desired_backup_vel.x, desired_backup_vel.y};
+        //     Vector2f projected_vel; 
+        //     if (!backup_vel_xy.is_zero()) {
+        //        projected_vel = Vector2f{desired_vel_cms.x, desired_vel_cms.y}.projected(Vector2f{desired_backup_vel.x, desired_backup_vel.y});
+        //     }
+        //     // subtract this projection since we are already going in that direction
+        //     desired_vel_cms -= Vector3f{projected_vel.x, projected_vel.y, 0.0f};
+        //     desired_vel_cms += Vector3f{desired_backup_vel.x, desired_backup_vel.y, 0.0f};
+        //     if (!is_negative(desired_backup_vel.z)) {
+        //         desired_vel_cms.z = MAX(desired_vel_cms.z, desired_backup_vel.z);
+        //     } else {
+        //         desired_vel_cms.z = MIN(desired_vel_cms.z, desired_backup_vel.z);
+        //     }
+        // } else {
+        //     // back away to stopping position
+        //     desired_vel_cms = desired_backup_vel;
+        // }
+
+        // let user take control if they are backing away at a greater speed than what we have calculated
+        // this has to be done for x,y,z seperately. For eg, user is doing fine in "x" direction but might need backing up in "y".
+        if (!is_zero(desired_backup_vel.x)) {
+            if (is_positive(desired_backup_vel.x)) {
+                desired_vel_cms.x = MAX(desired_vel_cms.x, desired_backup_vel.x);
+            } else {
+                desired_vel_cms.x = MIN(desired_vel_cms.x, desired_backup_vel.x);
             }
-            // subtract this projection since we are already going in that direction
-            desired_vel_cms -= Vector3f{projected_vel.x, projected_vel.y, 0.0f};
-            desired_vel_cms += Vector3f{desired_backup_vel.x, desired_backup_vel.y, 0.0f};
-            // let user take control vertically if they are backing away at a greater speed than what we have calculated based on limits
-            if (!is_negative(desired_backup_vel.z)) {
+        }
+        if (!is_zero(desired_backup_vel.y)) {
+            if (is_positive(desired_backup_vel.y)) {
+                desired_vel_cms.y = MAX(desired_vel_cms.y, desired_backup_vel.y);
+            } else {
+                desired_vel_cms.y = MIN(desired_vel_cms.y, desired_backup_vel.y);
+            }
+        }
+        if (!is_zero(desired_backup_vel.z)) {
+            if (is_positive(desired_backup_vel.z)) {
                 desired_vel_cms.z = MAX(desired_vel_cms.z, desired_backup_vel.z);
             } else {
                 desired_vel_cms.z = MIN(desired_vel_cms.z, desired_backup_vel.z);
             }
-        } else {
-            // back away to stopping position
-            desired_vel_cms = desired_backup_vel;
         }
     }
 }
@@ -1049,7 +1072,7 @@ void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector3f &d
     // rotate velocity vector from earth frame to body-frame since obstacles are in body-frame
     Vector2f safe_vel_2d = _ahrs.earth_to_body2D(Vector2f{desired_vel_cms.x, desired_vel_cms.y});
     safe_vel = Vector3f{safe_vel_2d.x, safe_vel_2d.y, desired_vel_cms.z};
-        
+
     // calc margin in cm
     const float margin_cm = MAX(_margin * 100.0f, 0.0f);
     Vector3f stopping_point_plus_margin; 
@@ -1058,18 +1081,21 @@ void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector3f &d
         const float speed = safe_vel.length();
         stopping_point_plus_margin = safe_vel*((2.0f + margin_cm + get_stopping_distance(kP, accel_cmss, speed))/speed);
     }
-    
+
     // get total number of obstacles
     const uint8_t obstacle_num = _proximity.get_obstacle_count();
     if (obstacle_num == 0) {
         // no obstacles
         return;
     }
- 
+
     for (uint8_t i = 0; i<obstacle_num; i++) {
         // get obstacle from proximity library
         Vector3f vector_to_obstacle;
-        _proximity.get_obstacle(i, vector_to_obstacle);
+        if (!_proximity.get_obstacle(i, vector_to_obstacle)) {
+            // this one is not valid
+            continue;
+        }
         const float dist_to_boundary = vector_to_obstacle.length();
         if (is_zero(dist_to_boundary)) {
             continue;
@@ -1078,13 +1104,17 @@ void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector3f &d
         // back away if vehicle has breached margin
         if (is_negative(dist_to_boundary - margin_cm)) {
             const float breach_dist = margin_cm - dist_to_boundary;
-            // this vector will help us divide how much we have to back away horizontally and vertically
-            const Vector3f margin_vector = vector_to_obstacle.normalized() * breach_dist;
-            const float xy_back_dist = norm(margin_vector.x, margin_vector.y);
-            const float z_back_dist = margin_vector.z;
-            calc_backup_velocity_3D(kP, accel_cmss, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel, xy_back_dist, vector_to_obstacle, kP_z, accel_cmss_z, z_back_dist, min_back_vel_z, max_back_vel_z, dt);
+            // add a deadzone so that the vehicle doesn't backup and go forward again and again
+            // the deadzone is hardcoded to be 10cm
+            if (breach_dist > AC_AVOID_MIN_BACKUP_BREACH_DIST) {
+                // this vector will help us divide how much we have to back away horizontally and vertically
+                const Vector3f margin_vector = vector_to_obstacle.normalized() * breach_dist;
+                const float xy_back_dist = norm(margin_vector.x, margin_vector.y);
+                const float z_back_dist = margin_vector.z;
+                calc_backup_velocity_3D(kP, accel_cmss, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel, xy_back_dist, vector_to_obstacle, kP_z, accel_cmss_z, z_back_dist, min_back_vel_z, max_back_vel_z, dt);
+            }        
         }
-        
+
         if (desired_vel_cms.is_zero()) {
             // cannot limit velocity if there is nothing to limit
             // backing up (if needed) has already been done
