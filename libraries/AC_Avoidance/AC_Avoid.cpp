@@ -82,6 +82,22 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("BACKUP_SPD", 6, AC_Avoid, _backup_speed_max, 0.5f),
 
+    // @Param: ALT_MIN
+    // @DisplayName: Avoidance minimum altitude
+    // @Description: Minimum altitude (in meters) above which avoidance will start working. This requires a valid downward facing rangefinder reading to work. Set zero to disable
+    // @Units: m
+    // @Range: 0 6
+    // @User: Standard
+    AP_GROUPINFO("ALT_MIN", 7, AC_Avoid, _min_alt, 0.1f),
+
+    // @Param: ACCEL_MAX
+    // @DisplayName: Avoidance maximum acceleration
+    // @Description: Minimum altitude (in meters) above which avoidance will start working. This requires a valid downward facing rangefinder reading to work. Set zero to disable
+    // @Units: m/s/s
+    // @Range: 0 9
+    // @User: Standard
+    AP_GROUPINFO("ACCEL_MAX", 8, AC_Avoid, _accel_max, 4.0f),
+
     AP_GROUPEND
 };
 
@@ -159,7 +175,7 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel
     if (_enabled == AC_AVOID_DISABLED) {
         return;
     }
-
+    Vector3f desired_vel_copy = desired_vel_cms;
     // limit acceleration
     const float accel_cmss_limited = MIN(accel_cmss, AC_AVOID_ACCEL_CMSS_MAX);
 
@@ -169,7 +185,7 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel
     float back_vel_down = 0.0f;
     
     // Avoidance in response to proximity sensor
-    if ((_enabled & AC_AVOID_USE_PROXIMITY_SENSOR) > 0 && _proximity_enabled) {
+    if ((_enabled & AC_AVOID_USE_PROXIMITY_SENSOR) > 0 && _proximity_enabled && _alt_proximity_enabled) {
         // Store velocity needed to back away from physical obstacles
         Vector3f backup_vel_proximity;
         adjust_velocity_proximity(kP, accel_cmss_limited, desired_vel_cms, backup_vel_proximity, kP_z,accel_cmss_z, dt);
@@ -218,6 +234,58 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector3f &desired_vel
             }
         }
     }
+    limit_accel(desired_vel_copy, desired_vel_cms, dt);
+    
+}
+
+void AC_Avoid::limit_accel(Vector3f &original_vel, Vector3f &modified_vel, float dt)
+{   
+    if (is_zero(dt)) {
+        return;
+    }
+    
+    if (original_vel == modified_vel) {
+         char buf[1000];
+        snprintf(buf, sizeof(buf)-1, "%3.1f#%3.1f#%3.1f#%3.1f",float(original_vel.x*0.01f), modified_vel.x*0.01f, 0.0f, 0.0f);
+        buf[sizeof(buf)-1] = 0;
+        sock.sendto(buf, strlen(buf), "127.0.0.1", 9002);
+        return;
+    }
+    float max_accel = _accel_max * 100.0f;
+    const Vector3f accel = (modified_vel - original_vel)/dt;
+    float temp_accel = accel.x;
+
+    if (!is_zero(_accel_max)) {
+        if (fabsf(accel.x) > max_accel && !is_zero(accel.x)) {
+            float sign = 1.0f;
+            if (is_negative(accel.x)) {
+                sign = -1.0f;
+            }
+            modified_vel.x = (max_accel*dt * sign) + original_vel.x;
+            temp_accel = sign * max_accel;
+        }
+        if (fabsf(accel.y) > max_accel && !is_zero(accel.y)) {
+            float sign = 1.0f;
+            if (is_negative(accel.y)) {
+                sign = -1.0f;
+            }
+            modified_vel.y = (max_accel*dt * sign) + original_vel.y;
+        }
+        if (fabsf(accel.z) > max_accel && !is_zero(accel.z)) {
+            float sign = 1.0f;
+            if (is_negative(accel.z)) {
+                sign = -1.0f;
+            }
+            modified_vel.z = (max_accel*dt * sign) + original_vel.z;
+        }
+    }
+
+    char buf[1000];
+    snprintf(buf, sizeof(buf)-1, "%3.1f#%3.1f#%3.1f#%3.1f",float(original_vel.x*0.01f), modified_vel.x*0.01f, accel.x*0.01f, temp_accel * 0.01f);
+    buf[sizeof(buf)-1] = 0;
+    sock.sendto(buf, strlen(buf), "127.0.0.1", 9002);
+    return;
+
 }
 
 // This method is used in most Rover modes and not in Copter
