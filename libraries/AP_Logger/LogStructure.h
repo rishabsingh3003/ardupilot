@@ -825,6 +825,7 @@ struct PACKED log_Beacon {
 struct PACKED log_Proximity {
     LOG_PACKET_HEADER;
     uint64_t time_us;
+    uint8_t instance;
     uint8_t health;
     float dist0;
     float dist45;
@@ -837,6 +838,19 @@ struct PACKED log_Proximity {
     float distup;
     float closest_angle;
     float closest_dist;
+};
+struct PACKED log_Proximity_raw {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t instance;
+    float raw_dist0;
+    float raw_dist45;
+    float raw_dist90;
+    float raw_dist135;
+    float raw_dist180;
+    float raw_dist225;
+    float raw_dist270;
+    float raw_dist315;
 };
 
 struct PACKED log_Performance {
@@ -1765,7 +1779,9 @@ struct PACKED log_PSC {
     { LOG_BEACON_MSG, sizeof(log_Beacon), \
       "BCN", "QBBfffffff",  "TimeUS,Health,Cnt,D0,D1,D2,D3,PosX,PosY,PosZ", "s--mmmmmmm", "F--0000000" }, \
     { LOG_PROXIMITY_MSG, sizeof(log_Proximity), \
-      "PRX", "QBfffffffffff", "TimeUS,Health,D0,D45,D90,D135,D180,D225,D270,D315,DUp,CAn,CDis", "s-mmmmmmmmmhm", "F-00000000000" }, \
+      "PRX", "QBBfffffffffff", "TimeUS,Ins,He,D0,D45,D90,D135,D180,D225,D270,D315,DUp,CAn,CDis", "s#-mmmmmmmmmhm", "F--00000000000" }, \
+    { LOG_RAW_PROXIMITY_MSG, sizeof(log_Proximity_raw), \
+      "PRXR", "QBffffffff", "TimeUS,Ins,D0,D45,D90,D135,D180,D225,D270,D315", "s#mmmmmmmm", "F-00000000" }, \
     { LOG_PERFORMANCE_MSG, sizeof(log_Performance),                     \
       "PM",  "QHHIIHHIIIIII", "TimeUS,NLon,NLoop,MaxT,Mem,Load,ErrL,IntE,ErrC,SPIC,I2CC,I2CI,Ex", "s---b%------s", "F---0A------F" }, \
     { LOG_SRTL_MSG, sizeof(log_SRTL), \
@@ -1976,6 +1992,7 @@ enum LogMessages : uint8_t {
     LOG_SIMPLE_AVOID_MSG,
     LOG_WINCH_MSG,
     LOG_PSC_MSG,
+    LOG_RAW_PROXIMITY_MSG,
 
     _LOG_LAST_MSG_
 };
