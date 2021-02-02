@@ -1,6 +1,7 @@
 #include "AP_Proximity_Backend.h"
 #include "AP_Proximity_Boundary_3D.h"
 
+#include <stdio.h>
 /*
   Constructor. 
   This incorporates initialisation as well.
@@ -21,6 +22,8 @@ void AP_Proximity_Boundary_3D::init()
             const float angle_rad = ((float)_sector_middle_deg[sector]+(PROXIMITY_SECTOR_WIDTH_DEG/2.0f));
             _sector_edge_vector[layer][sector].offset_bearing(angle_rad, pitch, 100.0f);
             _boundary_points[layer][sector] = _sector_edge_vector[layer][sector] * PROXIMITY_BOUNDARY_DIST_DEFAULT;
+            _filtered_distance[layer][sector].set_cutoff_frequency(0.25f);
+            // _filtered_distance_mode[layer][sector].apply(100.0f);
         }
     }
 }
@@ -36,6 +39,18 @@ AP_Proximity_Boundary_3D::Face AP_Proximity_Boundary_3D::get_face(float pitch, f
     return Face(layer, sector);
 }
 
+AP_Proximity_Boundary_3D::Face AP_Proximity_Boundary_3D::get_face(const Vector3f &coordinates)  
+{
+    // extract yaw and pitch from Coordinate Vector
+    const float yaw = wrap_360(degrees(atan2f(coordinates.y, coordinates.x)));
+    float pitch = 0.0f;
+    if (!is_zero(coordinates.z)) {
+        pitch = wrap_180(degrees(M_PI_2 - atan2f(norm(coordinates.x, coordinates.y), coordinates.z))); 
+    }
+    // allot to correct layer and sector based on calculated pitch and yaw
+    return get_face(pitch, yaw);
+
+}
 // Set the actual body-frame angle(yaw), pitch, and distance of the detected object.
 // This method will also mark the sector and layer to be "valid", so this distance can be used for Obstacle Avoidance
 void AP_Proximity_Boundary_3D::set_face_attributes(const Face &face, float angle, float pitch, float distance)
@@ -49,6 +64,21 @@ void AP_Proximity_Boundary_3D::set_face_attributes(const Face &face, float angle
     _distance[face.layer][face.sector] = distance;
     _distance_valid[face.layer][face.sector] = true;
 
+    const uint32_t update_time = AP_HAL::millis();
+    const uint32_t dt = update_time - _last_update_ms[face.layer][face.sector];
+    _filtered_distance[face.layer][face.sector].apply(distance, dt* 0.001f);
+    
+    _last_update_ms[face.layer][face.sector] = update_time;
+
+    if (face == Face{2,0}){
+    float filtered_dist = _filtered_distance[face.layer][face.sector].get();
+    _filtered_distance_mode.apply(distance);
+    float filtered_dist_mode = _filtered_distance_mode.get();
+    char buf[1000];
+    snprintf(buf, sizeof(buf)-1, "%3.1f#%3.1f#%3.1f",float(distance), filtered_dist, filtered_dist_mode);
+    buf[sizeof(buf)-1] = 0;
+    sock.sendto(buf, strlen(buf), "127.0.0.1", 9002);
+    }
     // update boundary used for simple avoidance
     update_boundary(face);
 }
@@ -83,11 +113,11 @@ void AP_Proximity_Boundary_3D::update_boundary(const Face &face)
     // boundary point lies on the line between the two sectors at the shorter distance found in the two sectors
     float shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT;
     if (_distance_valid[layer][sector] && _distance_valid[layer][next_sector]) {
-        shortest_distance = MIN(_distance[layer][sector], _distance[layer][next_sector]);
+        shortest_distance = MIN(_filtered_distance[layer][sector].get(), _filtered_distance[layer][next_sector].get());
     } else if (_distance_valid[layer][sector]) {
-        shortest_distance = _distance[layer][sector];
+        shortest_distance = _filtered_distance[layer][sector].get();
     } else if (_distance_valid[layer][next_sector]) {
-        shortest_distance = _distance[layer][next_sector];
+        shortest_distance = _filtered_distance[layer][next_sector].get();
     }
     if (shortest_distance < PROXIMITY_BOUNDARY_DIST_MIN) {
         shortest_distance = PROXIMITY_BOUNDARY_DIST_MIN;
@@ -103,11 +133,11 @@ void AP_Proximity_Boundary_3D::update_boundary(const Face &face)
     const uint8_t prev_sector = get_prev_sector(sector);
     shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT;
     if (_distance_valid[layer][prev_sector] && _distance_valid[layer][sector]) {
-        shortest_distance = MIN(_distance[layer][prev_sector], _distance[layer][sector]);
+        shortest_distance = MIN(_filtered_distance[layer][prev_sector].get(), _filtered_distance[layer][sector].get());
     } else if (_distance_valid[layer][prev_sector]) {
-        shortest_distance = _distance[layer][prev_sector];
+        shortest_distance = _filtered_distance[layer][prev_sector].get();
     } else if (_distance_valid[layer][sector]) {
-        shortest_distance = _distance[layer][sector];
+        shortest_distance = _filtered_distance[layer][sector].get();
     }
     _boundary_points[layer][prev_sector] = _sector_edge_vector[layer][prev_sector] * shortest_distance;
 
@@ -158,6 +188,20 @@ bool AP_Proximity_Boundary_3D::get_distance(const Face &face, float &distance) c
 
     if (_distance_valid[face.layer][face.sector]) {
         distance = _distance[face.layer][face.sector];
+        return true;
+    }
+
+    return false;
+}
+
+bool AP_Proximity_Boundary_3D::get_filtered_distance(const Face &face, float &distance) const
+{
+    if (!face.valid()) {
+        return false;
+    }
+
+    if (_distance_valid[face.layer][face.sector]) {
+        distance = _filtered_distance[face.layer][face.sector].get();
         return true;
     }
 
@@ -284,4 +328,26 @@ bool AP_Proximity_Boundary_3D::get_horizontal_object_angle_and_distance(uint8_t 
         return true;
     }
     return false;
+}
+
+bool AP_Proximity_Boundary_3D::get_layer_distances(uint8_t layer_number, float dist_max, AP_Proximity::Proximity_Distance_Array &prx_dist_array, AP_Proximity::Proximity_Distance_Array &prx_filt_dist_array) const
+{
+    // cycle through all sectors filling in distances and orientations
+    // see MAV_SENSOR_ORIENTATION for orientations (0 = forward, 1 = 45 degree clockwise from north, etc)
+    bool valid_distances = false;
+    for (uint8_t i=0; i<PROXIMITY_MAX_DIRECTION; i++) {
+        prx_dist_array.orientation[i] = i;
+        const AP_Proximity_Boundary_3D::Face face(layer_number, i);
+        if (!face.valid()) {
+            return false;
+        }
+        if (get_distance(face, prx_dist_array.distance[i]) && get_filtered_distance(face, prx_filt_dist_array.distance[i])) {
+            valid_distances = true;
+        } else {
+            prx_dist_array.distance[i] = dist_max;
+            prx_filt_dist_array.distance[i] = dist_max;
+        }
+    }
+
+    return valid_distances;
 }

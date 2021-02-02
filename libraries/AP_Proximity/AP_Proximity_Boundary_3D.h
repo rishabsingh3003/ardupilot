@@ -14,7 +14,10 @@
  */
 
 #pragma once
-#include <AP_InternalError/AP_InternalError.h>
+#include <Filter/LowPassFilter.h>
+#include <Filter/Filter.h>
+#include <AP_HAL/AP_HAL.h>
+#include <AP_HAL/utility/Socket.h>
 
 #define PROXIMITY_NUM_SECTORS         8       // number of sectors
 #define PROXIMITY_NUM_LAYERS          5       // num of layers in a sector
@@ -57,6 +60,10 @@ public:
     Face get_face(float pitch, float yaw) const;
     Face get_face(float yaw) const { return get_face(0, yaw); }
 
+    // returns face corresponding to the provided body-frame x,y,z (packed into Vector3f) as 
+    Face get_face(const Vector3f &coordinates);
+    Face get_face(const Vector2f &coordinates){ return get_face(Vector3f{coordinates.x, coordinates.y, 0.0f}); }    
+    
     // Set the actual body-frame angle(yaw), pitch, and distance of the detected object.
     // This method will also mark the sector and layer to be "valid",
     // This distance can then be used for Obstacle Avoidance
@@ -87,6 +94,8 @@ public:
     // get distance for a face.  returns true on success and fills in distance argument with distance in meters
     bool get_distance(const Face &face, float &distance) const;
 
+    bool get_filtered_distance(const Face &face, float &distance) const;
+
     // Get the total number of obstacles 
     uint8_t get_obstacle_count() const;
 
@@ -110,7 +119,8 @@ public:
     // get number of objects, angle and distance - used for non-GPS avoidance
     uint8_t get_horizontal_object_count() const;
     bool get_horizontal_object_angle_and_distance(uint8_t object_number, float& angle_deg, float &distance) const;
-
+    
+    bool get_layer_distances(uint8_t layer_number, float dist_max, AP_Proximity::Proximity_Distance_Array &prx_dist_array, AP_Proximity::Proximity_Distance_Array &prx_filt_dist_array) const;
     // sectors
     static_assert(PROXIMITY_NUM_SECTORS == 8, "PROXIMITY_NUM_SECTOR must be 8");
     const uint16_t _sector_middle_deg[PROXIMITY_NUM_SECTORS] {0, 45, 90, 135, 180, 225, 270, 315};    // middle angle of each sector
@@ -139,9 +149,14 @@ private:
     Vector3f _sector_edge_vector[PROXIMITY_NUM_LAYERS][PROXIMITY_NUM_SECTORS];
     Vector3f _boundary_points[PROXIMITY_NUM_LAYERS][PROXIMITY_NUM_SECTORS];
 
+    uint32_t _last_update_ms[PROXIMITY_NUM_LAYERS][PROXIMITY_NUM_SECTORS];
     float _angle[PROXIMITY_NUM_LAYERS][PROXIMITY_NUM_SECTORS];          // yaw angle in degrees to closest object within each sector and layer
     float _pitch[PROXIMITY_NUM_LAYERS][PROXIMITY_NUM_SECTORS];          // pitch angle in degrees to the closest object within each sector and layer
     float _distance[PROXIMITY_NUM_LAYERS][PROXIMITY_NUM_SECTORS];       // distance to closest object within each sector and layer
+    LowPassFilter<float> _filtered_distance[PROXIMITY_NUM_LAYERS][PROXIMITY_NUM_SECTORS];
     bool _distance_valid[PROXIMITY_NUM_LAYERS][PROXIMITY_NUM_SECTORS];  // true if a valid distance received for each sector and layer
+    ModeFilterFloat_Size5 _filtered_distance_mode {2};
+    SocketAPM sock{true};
+    
 };
 

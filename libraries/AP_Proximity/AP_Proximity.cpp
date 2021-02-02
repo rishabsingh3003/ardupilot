@@ -359,6 +359,16 @@ bool AP_Proximity::get_horizontal_distances(Proximity_Distance_Array &prx_dist_a
     return drivers[primary_instance]->get_horizontal_distances(prx_dist_array);
 }
 
+bool AP_Proximity::get_active_layer_distances(uint8_t layer, AP_Proximity::Proximity_Distance_Array &prx_dist_array, AP_Proximity::Proximity_Distance_Array &prx_filt_dist_array) const
+{
+    if (!valid_instance(primary_instance)) {
+        return false;
+    }
+    // get distances from backend
+    return drivers[primary_instance]->get_active_layer_distances(layer, prx_dist_array, prx_filt_dist_array);
+}
+
+
 // get total number of obstacles, used in GPS based Simple Avoidance
 uint8_t AP_Proximity::get_obstacle_count() const
 {   

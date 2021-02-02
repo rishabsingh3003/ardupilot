@@ -76,10 +76,11 @@ void AP_Proximity_MAV::handle_distance_sensor_msg(const mavlink_message_t &msg)
         const float yaw_angle_deg = sector * 45;
         const AP_Proximity_Boundary_3D::Face face = boundary.get_face(yaw_angle_deg);
         // store in meters
-        const uint16_t distance = packet.current_distance * 0.01f;
+        const float distance = packet.current_distance * 0.01f;
         _distance_min = packet.min_distance * 0.01f;
         _distance_max = packet.max_distance * 0.01f;
-        if (distance <= _distance_max && distance >= _distance_max) {
+        if (distance <= _distance_max && distance >= _distance_min) {
+            // dist_filt.apply(distance);
             boundary.set_face_attributes(face, yaw_angle_deg, distance);
             // update OA database
             database_push(yaw_angle_deg, distance);

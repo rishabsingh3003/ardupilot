@@ -20,6 +20,7 @@
 #include <AP_HAL/AP_HAL.h>
 #include "AP_Proximity.h"
 #include "AP_Proximity_Backend.h"
+#include <AP_Logger/AP_Logger.h>
 
 /*
   base class constructor. 
@@ -48,6 +49,13 @@ bool AP_Proximity_Backend::get_horizontal_distances(AP_Proximity::Proximity_Dist
     }
 
     return valid_distances;
+}
+
+bool AP_Proximity_Backend::get_active_layer_distances(uint8_t layer, AP_Proximity::Proximity_Distance_Array &prx_dist_array, AP_Proximity::Proximity_Distance_Array &prx_filt_dist_array) const
+{   
+    
+    return boundary.get_layer_distances(layer, distance_max(), prx_dist_array, prx_filt_dist_array);
+
 }
 
 // set status and update valid count
