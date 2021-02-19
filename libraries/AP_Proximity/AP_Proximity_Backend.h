@@ -20,6 +20,9 @@
 #include <AP_Common/Location.h>
 #include "AP_Proximity_Boundary_3D.h"
 
+#define PROXIMITY_LAND_DETECT_THRESHOLD 1.0f
+#define PROXIMITY_ALT_DETECT_TIMEOUT_MS 500
+
 class AP_Proximity_Backend
 {
 public:
@@ -64,6 +67,14 @@ public:
     // get distances in 8 directions. used for sending distances to ground station
     bool get_horizontal_distances(AP_Proximity::Proximity_Distance_Array &prx_dist_array) const;
 
+    // store rangefinder values
+    void set_rangefinder_alt(bool use, bool healthy, float alt_cm);
+    // get raw and filtered distances in 8 directions per layer. used for logging
+    bool get_active_layer_distances(uint8_t layer, AP_Proximity::Proximity_Distance_Array &prx_dist_array, AP_Proximity::Proximity_Distance_Array &prx_filt_dist_array) const;
+
+    // get number of layers
+    uint8_t get_layers() const { return boundary.get_layers(); }
+    mutable bool     _land_detected; // for logging
 protected:
 
     // set status and update valid_count
@@ -74,7 +85,16 @@ protected:
     
     // check if a reading should be ignored because it falls into an ignore area
     // angles should be in degrees and in the range of 0 to 360
-    bool ignore_reading(uint16_t angle_deg) const;
+    bool ignore_reading(uint16_t angle_deg, float distance_m) const;
+
+    // get alt from rangefinder in meters. This reading is corrected for vehicle tilt
+    bool get_rangefinder_alt(float &alt_m) const;
+
+    // Check if Obstacle defined by body-frame yaw and pitch is near land
+    bool check_obstacle_near_land(float yaw, float pitch, float distance) const;
+    bool check_obstacle_near_land(float yaw, float distance) const { return check_obstacle_near_land(yaw, 0.0f, distance); };
+    // Check if Obstacle defined by Vector3f is near land. The vector is assumed to be body frame FRD
+    bool check_obstacle_near_land(const Vector3f &obstacle) const;
 
     // database helpers. All angles are in degrees
     static bool database_prepare_for_push(Vector3f &current_pos, Matrix3f &body_to_ned);
@@ -84,6 +104,12 @@ protected:
         database_push(angle, 0.0f, distance, timestamp_ms, current_pos, body_to_ned);
     };
     static void database_push(float angle, float pitch, float distance, uint32_t timestamp_ms, const Vector3f &current_pos, const Matrix3f &body_to_ned);
+
+    // used for land detection
+    uint32_t _last_downward_update_ms;
+    bool     _rangefinder_use;
+    bool     _rangefinder_healthy;
+    float    _rangefinder_alt;
 
     AP_Proximity &frontend;
     AP_Proximity::Proximity_State &state;   // reference to this instances state
