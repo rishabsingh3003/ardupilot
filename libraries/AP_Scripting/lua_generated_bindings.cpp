@@ -1,6 +1,8 @@
 // auto generated bindings, don't manually edit
 #include "lua_generated_bindings.h"
 #include "lua_boxed_numerics.h"
+#include <RC_Channel/RC_Channel.h>
+#include <AP_Proximity/AP_Proximity.h>
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_SerialLED/AP_SerialLED.h>
 #include <AP_Vehicle/AP_Vehicle.h>
@@ -487,6 +489,116 @@ const luaL_Reg Location_meta[] = {
     {NULL, NULL}
 };
 
+static int RC_Channels_get_pwm(lua_State *L) {
+    RC_Channels * ud = RC_Channels::get_singleton();
+    if (ud == nullptr) {
+        return luaL_argerror(L, 1, "rc not supported on this firmware");
+    }
+
+    binding_argcheck(L, 2);
+    const lua_Integer raw_data_2 = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, ((raw_data_2 >= MAX(1, 0)) && (raw_data_2 <= MIN(NUM_RC_CHANNELS, UINT8_MAX))), 2, "argument out of range");
+    const uint8_t data_2 = static_cast<uint8_t>(raw_data_2);
+    uint16_t data_5003 = {};
+    const bool data = ud->get_pwm(
+            data_2,
+            data_5003);
+
+    if (data) {
+        lua_pushinteger(L, data_5003);
+    } else {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
+static int AP_Proximity_get_status(lua_State *L) {
+    AP_Proximity * ud = AP_Proximity::get_singleton();
+    if (ud == nullptr) {
+        return luaL_argerror(L, 1, "proximity not supported on this firmware");
+    }
+
+    binding_argcheck(L, 1);
+    const uint8_t data = ud->get_status();
+
+    lua_pushinteger(L, data);
+    return 1;
+}
+
+static int AP_Proximity_get_object_angle_and_distance(lua_State *L) {
+    AP_Proximity * ud = AP_Proximity::get_singleton();
+    if (ud == nullptr) {
+        return luaL_argerror(L, 1, "proximity not supported on this firmware");
+    }
+
+    binding_argcheck(L, 2);
+    const lua_Integer raw_data_2 = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, ((raw_data_2 >= MAX(0, 0)) && (raw_data_2 <= MIN(UINT8_MAX, UINT8_MAX))), 2, "argument out of range");
+    const uint8_t data_2 = static_cast<uint8_t>(raw_data_2);
+    float data_5003 = {};
+    float data_5004 = {};
+    const bool data = ud->get_object_angle_and_distance(
+            data_2,
+            data_5003,
+            data_5004);
+
+    if (data) {
+        lua_pushnumber(L, data_5003);
+        lua_pushnumber(L, data_5004);
+    } else {
+        lua_pushnil(L);
+    }
+    return 2;
+}
+
+static int AP_Proximity_get_closest_object(lua_State *L) {
+    AP_Proximity * ud = AP_Proximity::get_singleton();
+    if (ud == nullptr) {
+        return luaL_argerror(L, 1, "proximity not supported on this firmware");
+    }
+
+    binding_argcheck(L, 1);
+    float data_5002 = {};
+    float data_5003 = {};
+    const bool data = ud->get_closest_object(
+            data_5002,
+            data_5003);
+
+    if (data) {
+        lua_pushnumber(L, data_5002);
+        lua_pushnumber(L, data_5003);
+    } else {
+        lua_pushnil(L);
+    }
+    return 2;
+}
+
+static int AP_Proximity_get_object_count(lua_State *L) {
+    AP_Proximity * ud = AP_Proximity::get_singleton();
+    if (ud == nullptr) {
+        return luaL_argerror(L, 1, "proximity not supported on this firmware");
+    }
+
+    binding_argcheck(L, 1);
+    const uint8_t data = ud->get_object_count();
+
+    lua_pushinteger(L, data);
+    return 1;
+}
+
+static int AP_Proximity_num_sensors(lua_State *L) {
+    AP_Proximity * ud = AP_Proximity::get_singleton();
+    if (ud == nullptr) {
+        return luaL_argerror(L, 1, "proximity not supported on this firmware");
+    }
+
+    binding_argcheck(L, 1);
+    const uint8_t data = ud->num_sensors();
+
+    lua_pushinteger(L, data);
+    return 1;
+}
+
 static int SRV_Channels_find_channel(lua_State *L) {
     SRV_Channels * ud = SRV_Channels::get_singleton();
     if (ud == nullptr) {
@@ -597,6 +709,19 @@ static int AP_SerialLED_set_num_neopixel(lua_State *L) {
             data_3);
 
     lua_pushboolean(L, data);
+    return 1;
+}
+
+static int AP_Vehicle_get_mode(lua_State *L) {
+    AP_Vehicle * ud = AP_Vehicle::get_singleton();
+    if (ud == nullptr) {
+        return luaL_argerror(L, 1, "vehicle not supported on this firmware");
+    }
+
+    binding_argcheck(L, 1);
+    const uint8_t data = ud->get_mode();
+
+    lua_pushinteger(L, data);
     return 1;
 }
 
@@ -1711,6 +1836,20 @@ static int AP_AHRS_get_roll(lua_State *L) {
     return 1;
 }
 
+const luaL_Reg RC_Channels_meta[] = {
+    {"get_pwm", RC_Channels_get_pwm},
+    {NULL, NULL}
+};
+
+const luaL_Reg AP_Proximity_meta[] = {
+    {"get_status", AP_Proximity_get_status},
+    {"get_object_angle_and_distance", AP_Proximity_get_object_angle_and_distance},
+    {"get_closest_object", AP_Proximity_get_closest_object},
+    {"get_object_count", AP_Proximity_get_object_count},
+    {"num_sensors", AP_Proximity_num_sensors},
+    {NULL, NULL}
+};
+
 const luaL_Reg SRV_Channels_meta[] = {
     {"find_channel", SRV_Channels_find_channel},
     {NULL, NULL}
@@ -1725,6 +1864,7 @@ const luaL_Reg AP_SerialLED_meta[] = {
 };
 
 const luaL_Reg AP_Vehicle_meta[] = {
+    {"get_mode", AP_Vehicle_get_mode},
     {"set_mode", AP_Vehicle_set_mode},
     {NULL, NULL}
 };
@@ -1832,6 +1972,12 @@ struct userdata_enum {
     int value;
 };
 
+struct userdata_enum AP_Proximity_enums[] = {
+    {"Good", AP_Proximity::Good},
+    {"NoData", AP_Proximity::NoData},
+    {"NotConnected", AP_Proximity::NotConnected},
+    {NULL, 0}};
+
 struct userdata_enum AP_Terrain_enums[] = {
     {"TerrainStatusOK", AP_Terrain::TerrainStatusOK},
     {"TerrainStatusUnhealthy", AP_Terrain::TerrainStatusUnhealthy},
@@ -1861,6 +2007,8 @@ const struct userdata_meta userdata_fun[] = {
 };
 
 const struct userdata_meta singleton_fun[] = {
+    {"rc", RC_Channels_meta, NULL},
+    {"proximity", AP_Proximity_meta, AP_Proximity_enums},
     {"SRV_Channels", SRV_Channels_meta, NULL},
     {"serialLED", AP_SerialLED_meta, NULL},
     {"vehicle", AP_Vehicle_meta, NULL},
@@ -1914,6 +2062,8 @@ void load_generated_bindings(lua_State *L) {
 }
 
 const char *singletons[] = {
+    "rc",
+    "proximity",
     "SRV_Channels",
     "serialLED",
     "vehicle",
