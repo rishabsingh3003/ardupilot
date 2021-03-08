@@ -57,24 +57,6 @@ void AP_Proximity_Boundary_3D::set_face_attributes(const Face &face, float pitch
     update_boundary(face);
 }
 
-// add a distance to the boundary if it is shorter than any other provided distance since the last time the boundary was reset
-// pitch and yaw are in degrees, distance is in meters
-void AP_Proximity_Boundary_3D::add_distance(float pitch, float yaw, float distance)
-{
-    Face face = get_face(pitch, yaw);
-    if (!face.valid()) {
-        return;
-    }
-    
-    if (!_distance_valid[face.layer][face.sector] || (distance < _distance[face.layer][face.sector])) {
-        _distance[face.layer][face.sector] = distance;
-        _distance_valid[face.layer][face.sector] = true;
-        _angle[face.layer][face.sector] = yaw;
-        _pitch[face.layer][face.sector] = pitch;
-        set_filtered_distance(face, distance);
-    }
-}
-
 // Apply low pass filter on the raw distance
 void AP_Proximity_Boundary_3D::set_filtered_distance(const Face &face, float distance)
 {
@@ -356,4 +338,38 @@ bool AP_Proximity_Boundary_3D::get_layer_distances(uint8_t layer_number, float d
     }
 
     return valid_distances;
+}
+
+// reset the temporary boundary. This fills in distances with FLT_MAX
+void AP_Proximity_Temp_Boundary::reset()
+{
+    for (uint8_t layer=0; layer < PROXIMITY_NUM_LAYERS; layer++) {
+        for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
+            _distances[layer][sector] = FLT_MAX;
+        }
+    }
+}
+
+// add a distance to the temp boundary if it is shorter than any other provided distance since the last time the boundary was reset
+// pitch and yaw are in degrees, distance is in meters
+void AP_Proximity_Temp_Boundary::add_distance(const AP_Proximity_Boundary_3D::Face &face, float pitch, float yaw, float distance)
+{
+    if (face.valid() && distance < _distances[face.layer][face.sector]) {
+        _distances[face.layer][face.sector] = distance;
+        _angle[face.layer][face.sector] = yaw;
+        _pitch[face.layer][face.sector] = pitch;
+    }
+}
+
+// fill the original 3D boundary with the contents of this temporary boundary
+void AP_Proximity_Temp_Boundary::update_3D_boundary(AP_Proximity_Boundary_3D &boundary)
+{
+    for (uint8_t layer=0; layer < PROXIMITY_NUM_LAYERS; layer++) {
+        for (uint8_t sector=0; sector < PROXIMITY_NUM_SECTORS; sector++) {
+            if(_distances[layer][sector] < FLT_MAX) {
+                AP_Proximity_Boundary_3D::Face face{layer, sector};
+                boundary.set_face_attributes(face, _pitch[layer][sector], _angle[layer][sector], _distances[layer][sector]);
+            }
+        }
+    }
 }

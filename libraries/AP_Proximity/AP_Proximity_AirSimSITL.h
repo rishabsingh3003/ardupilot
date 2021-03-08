@@ -40,6 +40,7 @@ public:
 
 private:
     SITL::SITL *sitl = AP::sitl();
+    AP_Proximity_Temp_Boundary temp_boundary;
 
 };
 #endif // CONFIG_HAL_BOARD
