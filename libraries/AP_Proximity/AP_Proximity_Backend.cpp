@@ -55,6 +55,21 @@ void AP_Proximity_Backend::set_status(AP_Proximity::Status status)
     state.status = status;
 }
 
+// This method helps frontend access 3D boundary methods
+void AP_Proximity_Backend::boundary_3D_checks()
+{
+    // set the cutoff freq for low pass filter
+    boundary.set_filter_cutoff_freq(frontend.get_filter_cutoff_freq());
+
+    // check if any face has valid distance when it should not
+    const uint32_t dt = AP_HAL::millis() - _last_boundary_check_ms;
+    // run this check every PROXIMITY_BOUNDARY_3D_UPDATE_MS
+    if (dt > PROXIMITY_BOUNDARY_3D_UPDATE_MS) {
+        boundary.check_face_timeout();
+        _last_boundary_check_ms = AP_HAL::millis();
+    }
+}
+
 // correct an angle (in degrees) based on the orientation and yaw correction parameters
 float AP_Proximity_Backend::correct_angle_for_orientation(float angle_degrees) const
 {
