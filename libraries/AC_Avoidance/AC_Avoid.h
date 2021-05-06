@@ -111,6 +111,8 @@ public:
     // return true if limiting is active
     bool limits_active() const {return (AP_HAL::millis() - _last_limit_time) < AC_AVOID_ACTIVE_LIMIT_TIMEOUT_MS;};
 
+    float last_avoidance_speed() const {return _last_avoidance_speed; }
+
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
@@ -222,6 +224,7 @@ private:
     uint32_t _last_limit_time;      // the last time a limit was active
     uint32_t _last_log_ms;          // the last time simple avoidance was logged
     Vector3f _prev_avoid_vel;       // copy of avoidance adjusted velocity
+    float _last_avoidance_speed;    // last output speed of rover
 
     static AC_Avoid *_singleton;
 };

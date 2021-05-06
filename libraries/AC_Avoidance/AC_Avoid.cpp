@@ -302,6 +302,7 @@ void AC_Avoid::adjust_speed(float kP, float accel, float heading, float &speed, 
         } else {
             speed = vel_xy.length() * 0.01f;
         }
+        _last_avoidance_speed = speed;
         return;
     }
 
@@ -311,6 +312,7 @@ void AC_Avoid::adjust_speed(float kP, float accel, float heading, float &speed, 
     } else {
         speed = vel_xy.length() * 0.01f;
     }
+    _last_avoidance_speed = speed;
 }
 
 // adjust vertical climb rate so vehicle does not break the vertical fence
