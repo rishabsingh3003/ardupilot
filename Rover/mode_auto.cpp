@@ -102,6 +102,13 @@ void ModeAuto::update()
             stop_vehicle();
             break;
     }
+
+    if (g2.avoid.limits_active()) {
+        float avoidance_speed = g2.avoid.last_avoidance_speed();
+        if (fabs(avoidance_speed) < 0.1f) {
+            stop_vehicle();
+        }
+    }
 }
 
 void ModeAuto::calc_throttle(float target_speed, bool avoidance_enabled)
