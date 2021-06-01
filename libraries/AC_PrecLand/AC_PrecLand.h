@@ -147,4 +147,12 @@ private:
     // write out PREC message to log:
     void Write_Precland();
     uint32_t last_log_ms;  // last time we logged
+    uint32_t last_time;
+    AP_Float _test_0;
+    AP_Float _test_1;
+    AP_Float _test_2;
+    AP_Float _test_3;
+    AP_Float _test_4;
+    Vector3f integrated_vel;
+    Vector2f last_pos;
 };

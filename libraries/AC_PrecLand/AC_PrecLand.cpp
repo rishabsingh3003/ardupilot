@@ -110,6 +110,12 @@ const AP_Param::GroupInfo AC_PrecLand::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("LAG", 9, AC_PrecLand, _lag, 0.02f), // 20ms is the old default buffer size (8 frames @ 400hz/2.5ms)
 
+    AP_GROUPINFO("TEST_0", 10, AC_PrecLand, _test_0, 1.0f),
+    AP_GROUPINFO("TEST_1", 11, AC_PrecLand, _test_1, 1.0f),
+    AP_GROUPINFO("TEST_2", 12, AC_PrecLand, _test_2, 1.0f),
+    AP_GROUPINFO("TEST_3", 13, AC_PrecLand, _test_3, 1.0f),
+    AP_GROUPINFO("TEST_4", 14, AC_PrecLand, _test_4, 1.0f),
+
     AP_GROUPEND
 };
 
@@ -220,7 +226,7 @@ void AC_PrecLand::update(float rangefinder_alt_cm, bool rangefinder_alt_valid)
 
 bool AC_PrecLand::target_acquired()
 {
-    _target_acquired = _target_acquired && (AP_HAL::millis()-_last_update_ms) < 2000;
+    _target_acquired = _target_acquired && (AP_HAL::millis()-_last_update_ms) < 5000;
     return _target_acquired;
 }
 
@@ -323,11 +329,20 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
 
                 _ekf_x.predict(dt, -vehicleDelVel.x, _accel_noise*dt);
                 _ekf_y.predict(dt, -vehicleDelVel.y, _accel_noise*dt);
+                // _ekf_x.predict(dt, -vehicleDelVel.x, _accel_noise*dt, _test_0, _test_1, _test_2, _test_3);
+                // _ekf_y.predict(dt, -vehicleDelVel.y, _accel_noise*dt, _test_0, _test_1, _test_2, _test_3);
             }
+            
+            // integrated_vel += (-inertial_data_delayed->correctedVehicleDeltaVelocityNED);
+            // const uint32_t now = AP_HAL::millis();
+            // if ((now - last_time > 20000)) {
+            //     integrated_vel = -inertial_data_delayed->inertialNavVelocity;
+            //     last_time = now;
+            // }
 
             // Update if a new Line-Of-Sight measurement is available
             if (construct_pos_meas_using_rangefinder(rangefinder_alt_m, rangefinder_alt_valid)) {
-                float xy_pos_var = sq(_target_pos_rel_meas_NED.z*(0.01f + 0.01f*AP::ahrs().get_gyro().length()) + 0.02f);
+                float xy_pos_var = sq(_target_pos_rel_meas_NED.z*(0.01f + 0.01f*AP::ahrs().get_gyro().length()) + 0.15f);
                 if (!target_acquired()) {
                     // reset filter state
                     if (inertial_data_delayed->inertialNavVelocityValid) {
@@ -354,12 +369,21 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                 }
             }
 
+
             // Output prediction
             if (target_acquired()) {
                 _target_pos_rel_est_NE.x = _ekf_x.getPos();
                 _target_pos_rel_est_NE.y = _ekf_y.getPos();
                 _target_vel_rel_est_NE.x = _ekf_x.getVel();
                 _target_vel_rel_est_NE.y = _ekf_y.getVel();
+                // float speed = (_target_pos_rel_est_NE - last_pos).length()/(inertial_data_delayed->dt);
+                // last_pos = _target_pos_rel_est_NE;
+                
+                gcs().send_named_float("ekf_vel", _target_vel_rel_est_NE.x);
+                gcs().send_named_float("raw_vel",-inertial_data_delayed->inertialNavVelocity.x);
+                
+                gcs().send_named_float("ekf_pos", _target_pos_rel_est_NE.x);
+                gcs().send_named_float("raw_pos", _target_pos_rel_meas_NED.x);
 
                 run_output_prediction();
             }
