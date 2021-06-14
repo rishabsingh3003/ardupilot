@@ -18,6 +18,7 @@
 #include "AP_Math/AP_Math.h"
 #include "AP_Common/Location.h"
 #include <stdio.h>
+#include <AP_AHRS/AP_AHRS.h>
 
 using namespace SITL;
 
@@ -119,10 +120,7 @@ void SIM_Precland::update(const Location &loc, const Vector3f &position)
         return;
     }
 
-    const Location origin_center(static_cast<int32_t>(_origin_lat * 1.0e7f),
-            static_cast<int32_t>(_origin_lon * 1.0e7f),
-            static_cast<int32_t>(_origin_height),
-            Location::AltFrame::ABOVE_HOME);
+    const Location origin_center(AP::ahrs().get_home());
     Vector2f center;
     if (!origin_center.get_vector_xy_from_origin_NE(center)) {
         _healthy = false;
@@ -163,6 +161,7 @@ void SIM_Precland::update(const Location &loc, const Vector3f &position)
         }
     }
     _target_pos = position - Vector3f(center.x, center.y, origin_height_m);
+    // _target_pos += rand_vec3f() * 0.5;
     _healthy = true;
 }
 
