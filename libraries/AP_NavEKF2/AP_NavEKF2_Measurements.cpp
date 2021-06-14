@@ -1037,7 +1037,7 @@ void NavEKF2_core::writeDefaultAirSpeed(float airspeed)
     defaultAirSpeed = airspeed;
 }
 
-void NavEKF2_core::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms)
+void NavEKF2_core::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms, bool pos_corrected)
 {
     // protect against NaN
     if (vel.is_nan() || isnan(err)) {

@@ -6,6 +6,8 @@
 #include "PosVelEKF.h"
 #include <AP_HAL/utility/RingBuffer.h>
 
+#include <AP_VisualOdom/AP_VisualOdom.h>
+
 // declare backend classes
 class AC_PrecLand_Backend;
 class AC_PrecLand_Companion;

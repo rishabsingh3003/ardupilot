@@ -360,7 +360,10 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                 _target_pos_rel_est_NE.y = _ekf_y.getPos();
                 _target_vel_rel_est_NE.x = _ekf_x.getVel();
                 _target_vel_rel_est_NE.y = _ekf_y.getVel();
-
+                
+                gcs().send_named_float("ekf_vel", _target_vel_rel_est_NE.x);
+                gcs().send_named_float("raw_vel",-inertial_data_delayed->inertialNavVelocity.x);
+                
                 run_output_prediction();
             }
             break;
@@ -415,6 +418,10 @@ bool AC_PrecLand::construct_pos_meas_using_rangefinder(float rangefinder_alt_m, 
 
             // Compute target position relative to IMU
             _target_pos_rel_meas_NED = Vector3f(target_vec_unit_ned.x*dist, target_vec_unit_ned.y*dist, alt) + cam_pos_ned;
+            // Quaternion quat;
+            // if (AP::ahrs().get_quaternion(quat)) {
+            //     AP::visualodom()->handle_vision_position_estimate(AP_HAL::millis(), AP_HAL::millis(), _target_pos_rel_meas_NED.x, _target_pos_rel_meas_NED.y, _target_pos_rel_meas_NED.z, quat, 0);
+            // }
             return true;
         }
     }
@@ -459,6 +466,11 @@ void AC_PrecLand::run_output_prediction()
     Vector3f land_ofs_ned_m = _ahrs.get_rotation_body_to_ned() * Vector3f(_land_ofs_cm_x,_land_ofs_cm_y,0) * 0.01f;
     _target_pos_rel_out_NE.x += land_ofs_ned_m.x;
     _target_pos_rel_out_NE.y += land_ofs_ned_m.y;
+    const struct inertial_data_frame_s *inertial_data_delayed = (*_inertial_history)[0];
+
+    Vector3f vel = Vector3f{_target_vel_rel_out_NE.x, _target_vel_rel_out_NE.y, inertial_data_delayed->inertialNavVelocity.z};
+    // AP::visualodom()->handle_vision_speed_estimate(AP_HAL::millis(), AP_HAL::millis(),-vel, 0 );
+    AP::ahrs().writeExtNavVelData(-vel, 0.1 ,AP_HAL::millis(), 0, true);
 }
 
 // Write a precision landing entry

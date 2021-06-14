@@ -277,7 +277,7 @@ public:
      * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
      * delay_ms   : average delay of external nav system measurements relative to inertial measurements
      */
-    void writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms);
+    void writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms, bool pos_corrected = false);
 
     /*
       check if switching lanes will reduce the normalised

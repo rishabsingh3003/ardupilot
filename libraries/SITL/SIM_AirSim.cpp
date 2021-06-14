@@ -409,6 +409,8 @@ void AirSim::update(const sitl_input& input)
     update_mag_field_bf();
 
     report_FPS();
+    
+    
 }
 
 /*

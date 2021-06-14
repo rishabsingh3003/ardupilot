@@ -1588,13 +1588,13 @@ void NavEKF2::writeDefaultAirSpeed(float airspeed)
  * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
  * delay_ms   : average delay of external nav system measurements relative to inertial measurements
  */
-void NavEKF2::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms)
+void NavEKF2::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms, bool pos_corrected)
 {
     AP::dal().writeExtNavVelData(vel, err, timeStamp_ms, delay_ms);
 
     if (core) {
         for (uint8_t i=0; i<num_cores; i++) {
-            core[i].writeExtNavVelData(vel, err, timeStamp_ms, delay_ms);
+            core[i].writeExtNavVelData(vel, err, timeStamp_ms, delay_ms, pos_corrected);
         }
     }
 }

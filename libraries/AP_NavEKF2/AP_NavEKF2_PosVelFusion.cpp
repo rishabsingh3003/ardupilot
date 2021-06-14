@@ -462,7 +462,7 @@ void NavEKF2_core::SelectVelPosFusion()
         fuseVelData = true;
         velPosObs[0] = extNavVelDelayed.vel.x;
         velPosObs[1] = extNavVelDelayed.vel.y;
-        velPosObs[2] = extNavVelDelayed.vel.z;
+        // velPosObs[2] = extNavVelDelayed.vel.z;
     }
 
     // we have GPS data to fuse and a request to align the yaw using the GPS course
@@ -782,7 +782,7 @@ void NavEKF2_core::FuseVelPosNED()
         if (fuseVelData && velHealth) {
             fuseData[0] = true;
             fuseData[1] = true;
-            if (useGpsVertVel || useExtNavVel) {
+            if (useGpsVertVel) {
                 fuseData[2] = true;
             }
             tiltErrVec.zero();

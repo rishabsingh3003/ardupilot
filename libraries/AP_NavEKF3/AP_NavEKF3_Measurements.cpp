@@ -1049,7 +1049,7 @@ void NavEKF3_core::writeExtNavData(const Vector3f &pos, const Quaternion &quat, 
 #endif // EK3_FEATURE_EXTERNAL_NAV
 }
 
-void NavEKF3_core::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms)
+void NavEKF3_core::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms, bool pos_corrected)
 {
 #if EK3_FEATURE_EXTERNAL_NAV
     // sanity check for NaNs
@@ -1074,7 +1074,7 @@ void NavEKF3_core::writeExtNavVelData(const Vector3f &vel, float err, uint32_t t
     extNavVelNew.time_ms = timeStamp_ms;
     extNavVelNew.vel = vel;
     extNavVelNew.err = err;
-    extNavVelNew.corrected = false;
+    extNavVelNew.corrected = pos_corrected;
 
     storedExtNavVel.push(extNavVelNew);
 #endif // EK3_FEATURE_EXTERNAL_NAV

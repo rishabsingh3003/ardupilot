@@ -468,8 +468,8 @@ bool AP_NavEKF_Source::pre_arm_check(bool requires_position, char *failure_msg, 
         visualodom_available = vo && vo->enabled();
 #endif
         if (!visualodom_available) {
-            hal.util->snprintf(failure_msg, failure_msg_len, ekf_requires_msg, "VisualOdom");
-            return false;
+            // hal.util->snprintf(failure_msg, failure_msg_len, ekf_requires_msg, "VisualOdom");
+            return true;
         }
     }
 

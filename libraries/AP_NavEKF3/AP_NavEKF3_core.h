@@ -289,7 +289,8 @@ public:
      * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
      * delay_ms : average delay of external nav system measurements relative to inertial measurements
     */
-    void writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms);
+    void writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms, bool pos_corrected = false);
+
 
     // Set to true if the terrain underneath is stable enough to be used as a height reference
     // in combination with a range finder. Set to false if the terrain underneath the vehicle
@@ -1318,6 +1319,8 @@ private:
     uint32_t last_extnav_yaw_fusion_ms; // system time that external nav yaw was last fused
 #endif // EK3_FEATURE_EXTERNAL_NAV
     bool useExtNavVel;                  // true if external nav velocity should be used
+
+    EKF_obs_buffer_t<ext_nav_vel_elements> storedPrecLandVel;
 
     // flags indicating severe numerical errors in innovation variance calculation for different fusion operations
     struct {
