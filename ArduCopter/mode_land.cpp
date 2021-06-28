@@ -38,7 +38,7 @@ bool ModeLand::init(bool ignore_checks)
     // disable the fence on landing
     copter.fence.auto_disable_fence_for_landing();
 #endif
-
+    copter.g2.prec_land_retry.init();
     return true;
 }
 
@@ -77,8 +77,14 @@ void ModeLand::gps_run()
             land_pause = false;
         }
 
-        land_run_horizontal_control();
-        land_run_vertical_control(land_pause);
+        Vector3f retry_location;
+        if (copter.g2.prec_land_retry.update(retry_location)) {
+            land_run_horizontal_control(Vector2f{retry_location.x, retry_location.y} * 100.0f, true);
+            land_run_vertical_control(-retry_location.z * 100.0f, true, land_pause);
+        } else {
+            land_run_horizontal_control();
+            land_run_vertical_control(land_pause);
+        }
     }
 }
 

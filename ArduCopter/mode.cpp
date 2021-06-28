@@ -494,7 +494,7 @@ int32_t Mode::get_alt_above_ground_cm(void)
     return copter.current_loc.alt;
 }
 
-void Mode::land_run_vertical_control(bool pause_descent)
+void Mode::land_run_vertical_control(float override_position, bool override, bool pause_descent)
 {
     float cmb_rate = 0;
     bool ignore_descent_limit = false;
@@ -536,11 +536,16 @@ void Mode::land_run_vertical_control(bool pause_descent)
     }
 
     // update altitude target and call position controller
-    pos_control->set_pos_target_z_from_climb_rate_cm(cmb_rate, ignore_descent_limit);
+    if (!override) {
+        pos_control->set_pos_target_z_from_climb_rate_cm(cmb_rate, ignore_descent_limit);
+    } else {
+        float vel = 0.0f;
+        pos_control->input_pos_vel_accel_z(override_position, vel, 0.0f );
+    }
     pos_control->update_z_controller();
 }
 
-void Mode::land_run_horizontal_control()
+void Mode::land_run_horizontal_control(const Vector2f &override_position, bool override)
 {
     float target_roll = 0.0f;
     float target_pitch = 0.0f;
@@ -585,7 +590,11 @@ void Mode::land_run_horizontal_control()
     }
 
 #if PRECISION_LANDING == ENABLED
-    bool doing_precision_landing = !copter.ap.land_repo_active && copter.precland.target_acquired();
+    if (!copter.ap.land_repo_active && override) {
+        pos_control->set_pos_target_xy_cm(override_position.x, override_position.y);
+    }
+
+    bool doing_precision_landing = !copter.ap.land_repo_active && copter.precland.target_acquired() && !override;
     // run precision landing
     if (doing_precision_landing) {
         Vector2f target_pos, target_vel_rel;

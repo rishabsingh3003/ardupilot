@@ -10,6 +10,7 @@
 #if MODE_FOLLOW_ENABLED == ENABLED
  # include <AP_Follow/AP_Follow.h>
 #endif
+#include "precision_landing.h"
 
 // Global parameter class.
 //
@@ -603,7 +604,9 @@ public:
     // object avoidance path planning
     AP_OAPathPlanner oa;
 #endif
-
+    
+    AC_PrecLand_State_Machine_Copter prec_land_retry;
+    
 #if MODE_SYSTEMID_ENABLED == ENABLED
     // we need a pointer to the mode for the G2 table
     void *mode_systemid_ptr;

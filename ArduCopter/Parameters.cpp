@@ -1070,6 +1070,8 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_GROUPINFO("RNGFND_FILT", 45, ParametersG2, rangefinder_filt, RANGEFINDER_FILT_DEFAULT),
 #endif
 
+    AP_SUBGROUPINFO(prec_land_retry, "PL_RETRY_", 46, ParametersG2, AC_PrecLand_State_Machine),
+
     AP_GROUPEND
 };
 
@@ -1112,6 +1114,7 @@ ParametersG2::ParametersG2(void)
 #if MODE_ZIGZAG_ENABLED == ENABLED
     ,mode_zigzag_ptr(&copter.mode_zigzag)
 #endif
+    ,prec_land_retry(copter.precland)
 {
     AP_Param::setup_object_defaults(this, var_info);
 }

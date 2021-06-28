@@ -111,8 +111,11 @@ protected:
 
     // functions to control landing
     // in modes that support landing
-    void land_run_horizontal_control();
-    void land_run_vertical_control(bool pause_descent = false);
+    void land_run_horizontal_control(const Vector2f &override_position, bool override);
+    void land_run_horizontal_control() { land_run_horizontal_control(Vector2f{}, false); }
+
+    void land_run_vertical_control(float override_position, bool override, bool pause_descent = false);
+    void land_run_vertical_control(bool pause_descent = false) { land_run_vertical_control(0.0f, false, pause_descent); }
 
     // return expected input throttle setting to hover:
     virtual float throttle_hover() const;

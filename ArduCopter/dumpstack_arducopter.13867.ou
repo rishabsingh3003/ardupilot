@@ -1,0 +1,215 @@
+[New LWP 13868]
+[New LWP 13929]
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007f50a39f3492 in __GI___waitpid (pid=14213, stat_loc=stat_loc@entry=0x7ffc0fc65398, options=options@entry=0) at ../sysdeps/unix/sysv/linux/waitpid.c:30
+30	../sysdeps/unix/sysv/linux/waitpid.c: No such file or directory.
+#0  0x00007f50a39f3492 in __GI___waitpid (pid=14213, stat_loc=stat_loc@entry=0x7ffc0fc65398, options=options@entry=0) at ../sysdeps/unix/sysv/linux/waitpid.c:30
+        resultvar = 18446744073709551104
+        sc_cancel_oldtype = 0
+        sc_ret = <optimized out>
+#1  0x00007f50a395e177 in do_system (line=<optimized out>) at ../sysdeps/posix/system.c:149
+        __result = <optimized out>
+        _buffer = {__routine = 0x7f50a395e470 <cancel_handler>, __arg = 0x7ffc0fc6539c, __canceltype = 0, __prev = 0x0}
+        _avail = 1
+        status = 0
+        save = <optimized out>
+        pid = 14213
+        sa = {__sigaction_handler = {sa_handler = 0x1, sa_sigaction = 0x1}, sa_mask = {__val = {65536, 0 <repeats 15 times>}}, sa_flags = 0, sa_restorer = 0x7fa000007fa00000}
+        omask = {__val = {128, 140720573146128, 9196350441231745024, 2022713627170197248, 140720573146144, 94060197965968, 94060217522480, 140720573146736, 0, 0, 140720573143824, 139984318709572, 206158430232, 140720573142304, 140720573142112, 2022713627170197248}}
+        __cnt = <optimized out>
+        __set = <optimized out>
+#2  0x0000558c186d9165 in AP_HAL::dump_stack_trace () at ../../libraries/AP_HAL_SITL/system.cpp:100
+        dumpstack = 0x558c1881dac7 "../Tools/scripts/dumpstack.sh"
+        statbuf = {st_dev = 2053, st_ino = 12976214, st_nlink = 1, st_mode = 33277, st_uid = 1000, st_gid = 1000, __pad0 = 0, st_rdev = 0, st_size = 265, st_blksize = 4096, st_blocks = 8, st_atim = {tv_sec = 1622397247, tv_nsec = 34032427}, st_mtim = {tv_sec = 1621939154, tv_nsec = 61319587}, st_ctim = {tv_sec = 1621939154, tv_nsec = 61319587}, __glibc_reserved = {0, 0, 0}}
+        paths = {0x558c1881da8d "Tools/scripts/dumpstack.sh", 0x558c1881daa8 "APM/Tools/scripts/dumpstack.sh", 0x558c1881dac7 "../Tools/scripts/dumpstack.sh"}
+        cmd = "sh ../Tools/scripts/dumpstack.sh 13867 >dumpstack_arducopter.13867.ou 2>&1\000\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177"
+        progname = "/home/rishabh/ardupilot/build/sitl/bin\000arducopter\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177"
+        p = 0x7ffc0fc656b6 ""
+        n = 49
+        output_filepath = "dumpstack_arducopter.13867.ou"
+        fd = 2141192192
+        buf = "\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177"...
+#3  0x0000558c186d9dde in _sig_fpe (signum=8) at ../../libraries/AP_HAL_SITL/SITL_cmdline.cpp:55
+No locals.
+#4  <signal handler called>
+No locals.
+#5  0x0000558c186fbcec in SITL::SIM_Precland::update (this=0x558c18aff090 <copter+18480>, loc=..., position=...) at ../../libraries/SITL/SIM_Precland.cpp:132
+        distance_z = 30.3860912
+        origin_height_m = 0
+        origin_center = {relative_alt = 0 '\000', loiter_ccw = 0 '\000', terrain_alt = 0 '\000', origin_alt = 0 '\000', loiter_xtrack = 0 '\000', alt = 58380, lat = -353632621, lng = 1491652374, static _terrain = 0x558c18b00f58 <copter+26360>, static LOCATION_SCALING_FACTOR = 0.0111318845, static LOCATION_SCALING_FACTOR_INV = 89.8320465}
+        center = {x = 0, y = 0}
+        now = 181623
+#6  0x0000558c186e51d2 in SITL::Aircraft::update_external_payload (this=0x558c19da5890, input=...) at ../../libraries/SITL/SIM_Aircraft.cpp:884
+No locals.
+#7  0x0000558c186f7be9 in SITL::MultiCopter::update (this=0x558c19da5890, input=...) at ../../libraries/SITL/SIM_Multicopter.cpp:71
+        rot_accel = {x = 0.382128507, y = 0.381555408, z = 0.379045784}
+#8  0x0000558c186e3253 in SITL::Aircraft::update_model (this=0x558c19da5890, input=...) at ../../libraries/SITL/SIM_Aircraft.cpp:516
+No locals.
+#9  0x0000558c186d0cce in HALSITL::SITL_State::_fdm_input_local (this=0x558c18b0d480 <sitlState>) at ../../libraries/AP_HAL_SITL/SITL_State.cpp:617
+        input = {servos = {1591, 1592, 1591, 1590, 0 <repeats 12 times>}, wind = {speed = 0, direction = 179.999817, turbulence = 0, dir_z = 0}}
+#10 0x0000558c186ce8bf in HALSITL::SITL_State::_fdm_input_step (this=0x558c18b0d480 <sitlState>) at ../../libraries/AP_HAL_SITL/SITL_State.cpp:153
+        last_pwm_input = 181620
+#11 0x0000558c186ceca1 in HALSITL::SITL_State::wait_clock (this=0x558c18b0d480 <sitlState>, wait_time_usec=181623989) at ../../libraries/AP_HAL_SITL/SITL_State.cpp:208
+No locals.
+#12 0x0000558c186d26e6 in HALSITL::Scheduler::delay_microseconds (this=0x558c18b11be0 <sitlScheduler>, usec=1) at ../../libraries/AP_HAL_SITL/Scheduler.cpp:94
+        dtime = 0
+        start = 181623988
+#13 0x0000558c185c5b4c in AP_Scheduler::loop (this=0x558c18afab28 <copter+712>) at ../../libraries/AP_Scheduler/AP_Scheduler.cpp:345
+        sample_time_us = 181623988
+        loop_us = 2500
+        now = 181623988
+        time_available = 2500
+        loop_tick_us = 0
+#14 0x0000558c185caeb6 in AP_Vehicle::loop (this=0x558c18afa860 <copter>) at ../../libraries/AP_Vehicle/AP_Vehicle.cpp:183
+No locals.
+#15 0x0000558c186cbf56 in HAL_SITL::run (this=0x558c18b127a0 <AP_HAL::get_HAL()::hal>, argc=9, argv=0x7ffc0fc66678, callbacks=0x558c18afa860 <copter>) at ../../libraries/AP_HAL_SITL/HAL_SITL_Class.cpp:251
+        now = 181622
+        __PRETTY_FUNCTION__ = "virtual void HAL_SITL::run(int, char* const*, AP_HAL::HAL::Callbacks*) const"
+        new_argv_offset = 9 '\t'
+        using_watchdog = false
+        last_watchdog_save = 2265
+        fill_count = 64 '@'
+#16 0x0000558c184e9330 in main (argc=9, argv=0x7ffc0fc66678) at ../../ArduCopter/Copter.cpp:678
+No locals.
+
+Thread 3 (Thread 0x7f50a310d700 (LWP 13929)):
+#0  0x00007f50a39f37a0 in __GI___nanosleep (requested_time=requested_time@entry=0x7f50a310ca60, remaining=remaining@entry=0x0) at ../sysdeps/unix/sysv/linux/nanosleep.c:28
+        resultvar = 18446744073709551100
+        sc_cancel_oldtype = 0
+        sc_ret = <optimized out>
+#1  0x00007f50a3a26657 in usleep (useconds=<optimized out>) at ../sysdeps/posix/usleep.c:32
+        ts = {tv_sec = 0, tv_nsec = 1000000}
+#2  0x0000558c186cecad in HALSITL::SITL_State::wait_clock (this=0x558c18b0d480 <sitlState>, wait_time_usec=181624988) at ../../libraries/AP_HAL_SITL/SITL_State.cpp:210
+No locals.
+#3  0x0000558c186d26e6 in HALSITL::Scheduler::delay_microseconds (this=0x558c18b11be0 <sitlScheduler>, usec=1000) at ../../libraries/AP_HAL_SITL/Scheduler.cpp:94
+        dtime = 0
+        start = 181623988
+#4  0x0000558c186d2728 in HALSITL::Scheduler::delay (this=0x558c18b11be0 <sitlScheduler>, ms=2) at ../../libraries/AP_HAL_SITL/Scheduler.cpp:103
+        start = 181622
+        now = 181623
+#5  0x0000558c187badd2 in GCS_MAVLINK::ftp_worker (this=0x558c19da6d00) at ../../libraries/GCS_MAVLink/GCS_FTP.cpp:185
+        skip_push_reply = false
+        now = 2318
+        request = {offset = 0, chan = MAVLINK_COMM_0, seq_number = 4, opcode = GCS_MAVLINK::FTP_OP::TerminateSession, req_opcode = GCS_MAVLINK::FTP_OP::None, burst_complete = false, size = 0 '\000', session = 1 '\001', sysid = 255 '\377', compid = 230 '\346', data = '\000' <repeats 238 times>}
+        reply = {offset = 0, chan = MAVLINK_COMM_0, seq_number = 5, opcode = -128, req_opcode = GCS_MAVLINK::FTP_OP::TerminateSession, burst_complete = false, size = 0 '\000', session = 1 '\001', sysid = 255 '\377', compid = 230 '\346', data = '\000' <repeats 238 times>}
+#6  0x0000558c187bc160 in Functor<void>::method_wrapper<GCS_MAVLINK, &GCS_MAVLINK::ftp_worker> (obj=0x558c19da6d00) at ../../libraries/AP_HAL/utility/functor.h:88
+        t = 0x558c19da6d00
+#7  0x0000558c18583896 in Functor<void>::operator() (this=0x558c19dad5e0) at ../../libraries/AP_HAL/utility/functor.h:54
+No locals.
+#8  0x0000558c186d2c74 in HALSITL::Scheduler::thread_create_trampoline (ctx=0x558c19db7d00) at ../../libraries/AP_HAL_SITL/Scheduler.cpp:275
+        a = 0x558c19db7d00
+        _getsem17 = {_mtx = @0x0}
+#9  0x00007f50a3d076db in start_thread (arg=0x7f50a310d700) at pthread_create.c:463
+        pd = 0x7f50a310d700
+        now = <optimized out>
+        unwind_buf = {cancel_jmp_buf = {{jmp_buf = {139984309901056, 4934486897644519789, 139984309899200, 0, 94060217597184, 94060217597200, -4982221909888614035, -4982223564746800787}, mask_was_saved = 0}}, priv = {pad = {0x0, 0x0, 0x0, 0x0}, data = {prev = 0x0, cleanup = 0x0, canceltype = 0}}}
+        not_first_call = <optimized out>
+#10 0x00007f50a3a3071f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+No locals.
+
+Thread 2 (Thread 0x7f50a390e700 (LWP 13868)):
+#0  0x00007f50a39f37a0 in __GI___nanosleep (requested_time=requested_time@entry=0x7f50a390dd90, remaining=remaining@entry=0x0) at ../sysdeps/unix/sysv/linux/nanosleep.c:28
+        resultvar = 18446744073709551100
+        sc_cancel_oldtype = 0
+        sc_ret = <optimized out>
+#1  0x00007f50a3a26657 in usleep (useconds=<optimized out>) at ../sysdeps/posix/usleep.c:32
+        ts = {tv_sec = 0, tv_nsec = 1000000}
+#2  0x0000558c186cecad in HALSITL::SITL_State::wait_clock (this=0x558c18b0d480 <sitlState>, wait_time_usec=181624988) at ../../libraries/AP_HAL_SITL/SITL_State.cpp:210
+No locals.
+#3  0x0000558c186d26e6 in HALSITL::Scheduler::delay_microseconds (this=0x558c18b11be0 <sitlScheduler>, usec=1000) at ../../libraries/AP_HAL_SITL/Scheduler.cpp:94
+        dtime = 0
+        start = 181623988
+#4  0x0000558c185d2422 in AP_Logger::io_thread (this=0x558c18afe6e8 <copter+16008>) at ../../libraries/AP_Logger/AP_Logger.cpp:1299
+        now = 181623988
+        delay = 1000
+        last_run_us = 181623988
+#5  0x0000558c185d2896 in Functor<void>::method_wrapper<AP_Logger, &AP_Logger::io_thread> (obj=0x558c18afe6e8 <copter+16008>) at ../../libraries/AP_HAL/utility/functor.h:88
+        t = 0x558c18afe6e8 <copter+16008>
+#6  0x0000558c18583896 in Functor<void>::operator() (this=0x558c19dacab0) at ../../libraries/AP_HAL/utility/functor.h:54
+No locals.
+#7  0x0000558c186d2c74 in HALSITL::Scheduler::thread_create_trampoline (ctx=0x558c19dad820) at ../../libraries/AP_HAL_SITL/Scheduler.cpp:275
+        a = 0x558c19dad820
+        _getsem17 = {_mtx = @0x0}
+#8  0x00007f50a3d076db in start_thread (arg=0x7f50a390e700) at pthread_create.c:463
+        pd = 0x7f50a390e700
+        now = <optimized out>
+        unwind_buf = {cancel_jmp_buf = {{jmp_buf = {139984318293760, 4934486897644519789, 139984318291904, 0, 94060217554976, 94060217554992, -4982223009937112723, -4982223564746800787}, mask_was_saved = 0}}, priv = {pad = {0x0, 0x0, 0x0, 0x0}, data = {prev = 0x0, cleanup = 0x0, canceltype = 0}}}
+        not_first_call = <optimized out>
+#9  0x00007f50a3a3071f in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+No locals.
+
+Thread 1 (Thread 0x7f50a4a3a740 (LWP 13867)):
+#0  0x00007f50a39f3492 in __GI___waitpid (pid=14213, stat_loc=stat_loc@entry=0x7ffc0fc65398, options=options@entry=0) at ../sysdeps/unix/sysv/linux/waitpid.c:30
+        resultvar = 18446744073709551104
+        sc_cancel_oldtype = 0
+        sc_ret = <optimized out>
+#1  0x00007f50a395e177 in do_system (line=<optimized out>) at ../sysdeps/posix/system.c:149
+        __result = <optimized out>
+        _buffer = {__routine = 0x7f50a395e470 <cancel_handler>, __arg = 0x7ffc0fc6539c, __canceltype = 0, __prev = 0x0}
+        _avail = 1
+        status = 0
+        save = <optimized out>
+        pid = 14213
+        sa = {__sigaction_handler = {sa_handler = 0x1, sa_sigaction = 0x1}, sa_mask = {__val = {65536, 0 <repeats 15 times>}}, sa_flags = 0, sa_restorer = 0x7fa000007fa00000}
+        omask = {__val = {128, 140720573146128, 9196350441231745024, 2022713627170197248, 140720573146144, 94060197965968, 94060217522480, 140720573146736, 0, 0, 140720573143824, 139984318709572, 206158430232, 140720573142304, 140720573142112, 2022713627170197248}}
+        __cnt = <optimized out>
+        __set = <optimized out>
+#2  0x0000558c186d9165 in AP_HAL::dump_stack_trace () at ../../libraries/AP_HAL_SITL/system.cpp:100
+        dumpstack = 0x558c1881dac7 "../Tools/scripts/dumpstack.sh"
+        statbuf = {st_dev = 2053, st_ino = 12976214, st_nlink = 1, st_mode = 33277, st_uid = 1000, st_gid = 1000, __pad0 = 0, st_rdev = 0, st_size = 265, st_blksize = 4096, st_blocks = 8, st_atim = {tv_sec = 1622397247, tv_nsec = 34032427}, st_mtim = {tv_sec = 1621939154, tv_nsec = 61319587}, st_ctim = {tv_sec = 1621939154, tv_nsec = 61319587}, __glibc_reserved = {0, 0, 0}}
+        paths = {0x558c1881da8d "Tools/scripts/dumpstack.sh", 0x558c1881daa8 "APM/Tools/scripts/dumpstack.sh", 0x558c1881dac7 "../Tools/scripts/dumpstack.sh"}
+        cmd = "sh ../Tools/scripts/dumpstack.sh 13867 >dumpstack_arducopter.13867.ou 2>&1\000\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177"
+        progname = "/home/rishabh/ardupilot/build/sitl/bin\000arducopter\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177"
+        p = 0x7ffc0fc656b6 ""
+        n = 49
+        output_filepath = "dumpstack_arducopter.13867.ou"
+        fd = 2141192192
+        buf = "\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177\000\000\240\177"...
+#3  0x0000558c186d9dde in _sig_fpe (signum=8) at ../../libraries/AP_HAL_SITL/SITL_cmdline.cpp:55
+No locals.
+#4  <signal handler called>
+No locals.
+#5  0x0000558c186fbcec in SITL::SIM_Precland::update (this=0x558c18aff090 <copter+18480>, loc=..., position=...) at ../../libraries/SITL/SIM_Precland.cpp:132
+        distance_z = 30.3860912
+        origin_height_m = 0
+        origin_center = {relative_alt = 0 '\000', loiter_ccw = 0 '\000', terrain_alt = 0 '\000', origin_alt = 0 '\000', loiter_xtrack = 0 '\000', alt = 58380, lat = -353632621, lng = 1491652374, static _terrain = 0x558c18b00f58 <copter+26360>, static LOCATION_SCALING_FACTOR = 0.0111318845, static LOCATION_SCALING_FACTOR_INV = 89.8320465}
+        center = {x = 0, y = 0}
+        now = 181623
+#6  0x0000558c186e51d2 in SITL::Aircraft::update_external_payload (this=0x558c19da5890, input=...) at ../../libraries/SITL/SIM_Aircraft.cpp:884
+No locals.
+#7  0x0000558c186f7be9 in SITL::MultiCopter::update (this=0x558c19da5890, input=...) at ../../libraries/SITL/SIM_Multicopter.cpp:71
+        rot_accel = {x = 0.382128507, y = 0.381555408, z = 0.379045784}
+#8  0x0000558c186e3253 in SITL::Aircraft::update_model (this=0x558c19da5890, input=...) at ../../libraries/SITL/SIM_Aircraft.cpp:516
+No locals.
+#9  0x0000558c186d0cce in HALSITL::SITL_State::_fdm_input_local (this=0x558c18b0d480 <sitlState>) at ../../libraries/AP_HAL_SITL/SITL_State.cpp:617
+        input = {servos = {1591, 1592, 1591, 1590, 0 <repeats 12 times>}, wind = {speed = 0, direction = 179.999817, turbulence = 0, dir_z = 0}}
+#10 0x0000558c186ce8bf in HALSITL::SITL_State::_fdm_input_step (this=0x558c18b0d480 <sitlState>) at ../../libraries/AP_HAL_SITL/SITL_State.cpp:153
+        last_pwm_input = 181620
+#11 0x0000558c186ceca1 in HALSITL::SITL_State::wait_clock (this=0x558c18b0d480 <sitlState>, wait_time_usec=181623989) at ../../libraries/AP_HAL_SITL/SITL_State.cpp:208
+No locals.
+#12 0x0000558c186d26e6 in HALSITL::Scheduler::delay_microseconds (this=0x558c18b11be0 <sitlScheduler>, usec=1) at ../../libraries/AP_HAL_SITL/Scheduler.cpp:94
+        dtime = 0
+        start = 181623988
+#13 0x0000558c185c5b4c in AP_Scheduler::loop (this=0x558c18afab28 <copter+712>) at ../../libraries/AP_Scheduler/AP_Scheduler.cpp:345
+        sample_time_us = 181623988
+        loop_us = 2500
+        now = 181623988
+        time_available = 2500
+        loop_tick_us = 0
+#14 0x0000558c185caeb6 in AP_Vehicle::loop (this=0x558c18afa860 <copter>) at ../../libraries/AP_Vehicle/AP_Vehicle.cpp:183
+No locals.
+#15 0x0000558c186cbf56 in HAL_SITL::run (this=0x558c18b127a0 <AP_HAL::get_HAL()::hal>, argc=9, argv=0x7ffc0fc66678, callbacks=0x558c18afa860 <copter>) at ../../libraries/AP_HAL_SITL/HAL_SITL_Class.cpp:251
+        now = 181622
+        __PRETTY_FUNCTION__ = "virtual void HAL_SITL::run(int, char* const*, AP_HAL::HAL::Callbacks*) const"
+        new_argv_offset = 9 '\t'
+        using_watchdog = false
+        last_watchdog_save = 2265
+        fill_count = 64 '@'
+#16 0x0000558c184e9330 in main (argc=9, argv=0x7ffc0fc66678) at ../../ArduCopter/Copter.cpp:678
+No locals.
+A debugging session is active.
+
+	Inferior 1 [process 13867] will be detached.
+
+Quit anyway? (y or n) [answered Y; input not from terminal]
