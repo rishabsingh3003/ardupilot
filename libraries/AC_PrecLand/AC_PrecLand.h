@@ -124,6 +124,9 @@ private:
     uint32_t                    _last_backend_los_meas_ms;  // system time target was last seen
 
     PosVelEKF                   _ekf_x, _ekf_y;     // Kalman Filter for x and y axis
+    PosVelEKF_refactor          _ekf_x_refactor, _ekf_y_refactor;
+    PosVelEKF_AB                _ekf_x_AB, _ekf_y_AB;
+
     uint32_t                    _outlier_reject_count;  // mini-EKF's outlier counter (3 consecutive outliers lead to EKF accepting updates)
     
     Vector3f                    _target_pos_rel_meas_NED; // target's relative position as 3D vector
@@ -153,5 +156,6 @@ private:
 
     // write out PREC message to log:
     void Write_Precland();
+    void temp_logger();
     uint32_t last_log_ms;  // last time we logged
 };

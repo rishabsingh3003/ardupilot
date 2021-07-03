@@ -219,6 +219,7 @@ void AC_PrecLand::update(float rangefinder_alt_cm, bool rangefinder_alt_valid)
     if (now - last_log_ms > 40) {  // 25Hz
         last_log_ms = now;
         Write_Precland();
+        temp_logger();
     }
 }
 
@@ -332,6 +333,10 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
 
                 _ekf_x.predict(dt, -vehicleDelVel.x, _accel_noise*dt);
                 _ekf_y.predict(dt, -vehicleDelVel.y, _accel_noise*dt);
+                _ekf_x_AB.predict(dt, -vehicleDelVel.x, _accel_noise*dt);
+                _ekf_y_AB.predict(dt, -vehicleDelVel.y, _accel_noise*dt);
+                _ekf_x_refactor.predict(dt, -vehicleDelVel.x, _accel_noise*dt);
+                _ekf_y_refactor.predict(dt, -vehicleDelVel.y, _accel_noise*dt);
             }
 
             // Update if a new Line-Of-Sight measurement is available
@@ -343,27 +348,58 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                     if (inertial_data_delayed->inertialNavVelocityValid) {
                         _ekf_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, -inertial_data_delayed->inertialNavVelocity.x, sq(2.0f));
                         _ekf_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, -inertial_data_delayed->inertialNavVelocity.y, sq(2.0f));
+                        _ekf_x_AB.init(_target_pos_rel_meas_NED.x, xy_pos_var, -inertial_data_delayed->inertialNavVelocity.x, sq(2.0f));
+                        _ekf_y_AB.init(_target_pos_rel_meas_NED.y, xy_pos_var, -inertial_data_delayed->inertialNavVelocity.y, sq(2.0f));
+                        _ekf_x_refactor.init(_target_pos_rel_meas_NED.x, xy_pos_var, -inertial_data_delayed->inertialNavVelocity.x, sq(2.0f));
+                        _ekf_y_refactor.init(_target_pos_rel_meas_NED.y, xy_pos_var, -inertial_data_delayed->inertialNavVelocity.y, sq(2.0f));
                     } else {
                         _ekf_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, 0.0f, sq(10.0f));
                         _ekf_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, 0.0f, sq(10.0f));
+                        _ekf_x_AB.init(_target_pos_rel_meas_NED.x, xy_pos_var, 0.0f, sq(10.0f));
+                        _ekf_y_AB.init(_target_pos_rel_meas_NED.y, xy_pos_var, 0.0f, sq(10.0f));
+                        _ekf_x_refactor.init(_target_pos_rel_meas_NED.x, xy_pos_var, 0.0f, sq(10.0f));
+                        _ekf_y_refactor.init(_target_pos_rel_meas_NED.y, xy_pos_var, 0.0f, sq(10.0f));
                     }
                     _last_update_ms = AP_HAL::millis();
                     _estimator_init_ms = AP_HAL::millis();
                     // we have initialized the estimator but will not use the values for sometime so that EKF settles down
                     _estimator_initialized = true;
                 } else {
-                    float NIS_x = _ekf_x.getPosNIS(_target_pos_rel_meas_NED.x, xy_pos_var);
+                    {float NIS_x = _ekf_x.getPosNIS(_target_pos_rel_meas_NED.x, xy_pos_var);
                     float NIS_y = _ekf_y.getPosNIS(_target_pos_rel_meas_NED.y, xy_pos_var);
-                    if (MAX(NIS_x, NIS_y) < 3.0f || _outlier_reject_count >= 3) {
+                    if (true || MAX(NIS_x, NIS_y) < 3.0f || _outlier_reject_count >= 3) {
                         _outlier_reject_count = 0;
                         _ekf_x.fusePos(_target_pos_rel_meas_NED.x, xy_pos_var);
                         _ekf_y.fusePos(_target_pos_rel_meas_NED.y, xy_pos_var);
                         _last_update_ms = AP_HAL::millis();
                     } else {
                         _outlier_reject_count++;
+                    }}
+                    {
+                    float NIS_x = _ekf_x_AB.getPosNIS(_target_pos_rel_meas_NED.x, xy_pos_var);
+                    float NIS_y = _ekf_y_AB.getPosNIS(_target_pos_rel_meas_NED.y, xy_pos_var);
+                    if (true || MAX(NIS_x, NIS_y) < 3.0f || _outlier_reject_count >= 3) {
+                        _outlier_reject_count = 0;
+                        _ekf_x_AB.fusePos(_target_pos_rel_meas_NED.x, xy_pos_var);
+                        _ekf_y_AB.fusePos(_target_pos_rel_meas_NED.y, xy_pos_var);
+                        _last_update_ms = AP_HAL::millis();
+                    } else {
+                        _outlier_reject_count++;
                     }
-                }
-            }
+                    }
+                    {
+                    float NIS_x = _ekf_x_refactor.getPosNIS(_target_pos_rel_meas_NED.x, xy_pos_var);
+                    float NIS_y = _ekf_y_refactor.getPosNIS(_target_pos_rel_meas_NED.y, xy_pos_var);
+                    if (true || MAX(NIS_x, NIS_y) < 3.0f || _outlier_reject_count >= 3) {
+                        _outlier_reject_count = 0;
+                        _ekf_x_refactor.fusePos(_target_pos_rel_meas_NED.x, xy_pos_var);
+                        _ekf_y_refactor.fusePos(_target_pos_rel_meas_NED.y, xy_pos_var);
+                        _last_update_ms = AP_HAL::millis();
+                    } else {
+                        _outlier_reject_count++;
+                    }
+                }}
+            } 
 
             // check EKF was properly initialized when the sensor detected a landing target
             check_ekf_init_timeout();
@@ -528,5 +564,33 @@ void AC_PrecLand::Write_Precland()
         estimator       : (uint8_t)_estimator_type
     };
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
+}
+
+void AC_PrecLand::temp_logger()
+{
+    if (!target_acquired()) {
+        return;
+    }
+    const uint64_t time = AP_HAL::micros64();
+    AP::logger().Write("PLO","TimeUS,PX,PY,VX,VY,CAX,CBX,CCX,CAY,CBY,CCY", "Qffffffffff",
+    time,
+    _ekf_x.getPos(), _ekf_y.getPos(),
+    _ekf_x.getVel(), _ekf_y.getVel(),
+    _ekf_x.getCovA(), _ekf_x.getCovB(), _ekf_x.getCovC(),
+    _ekf_y.getCovA(), _ekf_y.getCovB(), _ekf_y.getCovC());
+
+    AP::logger().Write("PLAB","TimeUS,PX,PY,VX,VY,CAX,CBX,CCX,CAY,CBY,CCY", "Qffffffffff",
+    time,
+    _ekf_x_AB.getPos(), _ekf_y_AB.getPos(),
+    _ekf_x_AB.getVel(), _ekf_y_AB.getVel(),
+    _ekf_x_AB.getCovA(), _ekf_x_AB.getCovB(), _ekf_x_AB.getCovC(),
+    _ekf_y_AB.getCovA(), _ekf_y_AB.getCovB(), _ekf_y_AB.getCovC());
+
+    AP::logger().Write("PLR","TimeUS,PX,PY,VX,VY,CAX,CBX,CCX,CAY,CBY,CCY", "Qffffffffff",
+    time,
+    _ekf_x_refactor.getPos(), _ekf_y_refactor.getPos(),
+    _ekf_x_refactor.getVel(), _ekf_y_refactor.getVel(),
+    _ekf_x_refactor.getCovA(), _ekf_x_refactor.getCovB(), _ekf_x_refactor.getCovC(),
+    _ekf_y_refactor.getCovA(), _ekf_y_refactor.getCovB(), _ekf_y_refactor.getCovC());
 }
 
