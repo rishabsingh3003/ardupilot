@@ -326,7 +326,7 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
         }
         case EstimatorType::KALMAN_FILTER: {
             // Predict
-            if (target_acquired()) {
+            if (target_acquired() || _estimator_initialized) {
                 const float& dt = inertial_data_delayed->dt;
                 const Vector3f& vehicleDelVel = inertial_data_delayed->correctedVehicleDeltaVelocityNED;
 
