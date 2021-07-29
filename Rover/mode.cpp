@@ -354,7 +354,12 @@ bool Mode::stop_vehicle()
     g2.motors.set_throttle(throttle_out);
 
     // do not attempt to steer
-    g2.motors.set_steering(0.0f);
+    if (g2.motors.have_skid_steering()) {
+        g2.motors.set_steering(0.0f);
+    } else {
+        gcs().send_text(MAV_SEVERITY_CRITICAL, "Stopping, steering locked!");
+        g2.motors.set_steering(g2.motors.get_steering(), false);
+    }
 
     // return true once stopped
     return stopped;

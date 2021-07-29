@@ -55,6 +55,10 @@ void ModeGuided::update()
                 have_attitude_target = false;
             }
             if (have_attitude_target) {
+                if (is_zero(_desired_speed)) {
+                    stop_vehicle();
+                    break;
+                }
                 // run steering and throttle controllers
                 calc_steering_to_heading(_desired_yaw_cd);
                 calc_throttle(calc_speed_nudge(_desired_speed, is_negative(_desired_speed)), true);
@@ -79,6 +83,10 @@ void ModeGuided::update()
                 have_attitude_target = false;
             }
             if (have_attitude_target) {
+                if (is_zero(_desired_speed)) {
+                    stop_vehicle();
+                    break;
+                }
                 // run steering and throttle controllers
                 float steering_out = attitude_control.get_steering_out_rate(radians(_desired_yaw_rate_cds / 100.0f),
                                                                             g2.motors.limit.steer_left,
