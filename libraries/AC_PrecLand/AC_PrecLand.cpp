@@ -216,9 +216,10 @@ void AC_PrecLand::update(float rangefinder_alt_cm, bool rangefinder_alt_valid)
     }
 
     const uint32_t now = AP_HAL::millis();
-    if (now - last_log_ms > 40) {  // 25Hz
+    if (now - last_log_ms > 30) {  // 25Hz
         last_log_ms = now;
         Write_Precland();
+        additional_logging(rangefinder_alt_cm*0.01f, rangefinder_alt_valid);
     }
 }
 
@@ -417,11 +418,10 @@ bool AC_PrecLand::retrieve_los_meas(Vector3f& target_vec_unit_body)
 
 bool AC_PrecLand::construct_pos_meas_using_rangefinder(float rangefinder_alt_m, bool rangefinder_alt_valid)
 {
-    Vector3f target_vec_unit_body;
-    if (retrieve_los_meas(target_vec_unit_body)) {
+    if (retrieve_los_meas(_target_vec_unit_body)) {
         const struct inertial_data_frame_s *inertial_data_delayed = (*_inertial_history)[0];
 
-        const Vector3f target_vec_unit_ned = inertial_data_delayed->Tbn * target_vec_unit_body;
+        const Vector3f target_vec_unit_ned = inertial_data_delayed->Tbn * _target_vec_unit_body;
         const bool target_vec_valid = target_vec_unit_ned.z > 0.0f;
         const bool alt_valid = (rangefinder_alt_valid && rangefinder_alt_m > 0.0f) || (_backend->distance_to_target() > 0.0f);
         if (target_vec_valid && alt_valid) {
@@ -530,3 +530,14 @@ void AC_PrecLand::Write_Precland()
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
 }
 
+void AC_PrecLand::additional_logging(float rangefinder_alt_m, bool rangefinder_alt_valid)
+{
+    if (!target_acquired()) {
+        return;
+    }
+    const uint64_t time = AP_HAL::micros64();
+    AP::logger().Write("PLDG","TimeUS,RV,RM,SX,SY,SZ,OX,OY", "QfBfffff",
+    time, rangefinder_alt_m, rangefinder_alt_valid,
+    _target_vec_unit_body.x, _target_vec_unit_body.y, _target_vec_unit_body.z,
+    _target_pos_rel_est_NE.x, _target_pos_rel_est_NE.y);
+}

@@ -133,6 +133,8 @@ private:
 
     Vector2f                    _target_pos_rel_out_NE; // target's position relative to the camera, fed into position controller
     Vector2f                    _target_vel_rel_out_NE; // target's velocity relative to the CG, fed into position controller
+    
+    Vector3f                    _target_vec_unit_body;
 
     // structure and buffer to hold a history of vehicle velocity
     struct inertial_data_frame_s {
@@ -153,5 +155,6 @@ private:
 
     // write out PREC message to log:
     void Write_Precland();
+    void additional_logging(float rangefinder_alt_m, bool rangefinder_alt_valid);
     uint32_t last_log_ms;  // last time we logged
 };
