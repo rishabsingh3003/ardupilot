@@ -12,7 +12,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include <AP_AHRS/AP_AHRS.h>
 #include "SIM_Precland.h"
 #include "AP_HAL/AP_HAL.h"
 #include "AP_Math/AP_Math.h"
@@ -118,11 +118,7 @@ void SIM_Precland::update(const Location &loc, const Vector3d &position)
         _healthy = false;
         return;
     }
-
-    const Location origin_center(static_cast<int32_t>(_origin_lat * 1.0e7f),
-            static_cast<int32_t>(_origin_lon * 1.0e7f),
-            static_cast<int32_t>(_origin_height),
-            Location::AltFrame::ABOVE_HOME);
+const Location origin_center(AP::ahrs().get_home());
     Vector2f center;
     if (!origin_center.get_vector_xy_from_origin_NE(center)) {
         _healthy = false;

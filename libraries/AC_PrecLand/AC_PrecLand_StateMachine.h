@@ -18,6 +18,11 @@ public:
     AC_PrecLand_StateMachine(const AC_PrecLand_StateMachine &other) = delete;
     AC_PrecLand_StateMachine &operator=(const AC_PrecLand_StateMachine&) = delete;
 
+    // return singleton
+    static AC_PrecLand_StateMachine *get_singleton() {
+        return _singleton;
+    }
+
     // Initialize the state machine. This is called everytime vehicle switches mode
     void init();
 
@@ -47,6 +52,8 @@ public:
     // At the moment this method only allows you to stop in air permanently, or land vertically
     // Failsafe will only trigger as a last resort
     FailSafeAction get_failsafe_actions();
+
+    Status get_current_status() const { return _current_status; }
 
     // Strictness that the user wants for Prec Landing
     enum class RetryStrictness: uint8_t {
@@ -100,4 +107,11 @@ private:
     bool failsafe_initialized;  // True if failsafe has been initalized
     uint32_t failsafe_start_ms; // timestamp of when failsafe was triggered
 
+    Status _current_status;
+
+    static AC_PrecLand_StateMachine *_singleton; //singleton
+};
+
+namespace AP {
+    AC_PrecLand_StateMachine *ac_precland_sm();
 };

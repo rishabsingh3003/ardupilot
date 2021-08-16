@@ -101,6 +101,8 @@ public:
     float get_min_retry_time_sec() const { return _retry_timeout_sec; }
     AC_PrecLand_StateMachine::RetryAction get_retry_behaviour() const { return static_cast<AC_PrecLand_StateMachine::RetryAction>(_retry_behave.get()); }
 
+    // get the absolute velocity of the vehicle
+    void get_target_velocity_cms(const Vector2f& vehicle_velocity_cms, Vector2f& target_vel_cms);
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -161,6 +163,7 @@ private:
     AP_Int8                     _retry_behave;      // Action to do when trying a landing retry
     AP_Float                    _sensor_min_alt;     // PrecLand minimum height required for detecting target
     AP_Float                    _sensor_max_alt;     // PrecLand maximum height the sensor can detect target
+    AP_Int8                     _moving;             // True if the landing target is moving (non-stationary)
 
     uint32_t                    _last_update_ms;    // system time in millisecond when update was last called
     bool                        _target_acquired;   // true if target has been seen recently after estimator is initialized

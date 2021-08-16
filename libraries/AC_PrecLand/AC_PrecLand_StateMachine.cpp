@@ -9,6 +9,9 @@ static const float RETRY_OFFSET_ALT_M = 1.5f;  // This gets added to the altitud
 // Initialize the state machine. This is called everytime vehicle switches mode
 void AC_PrecLand_StateMachine::init()
 {
+    // This variable will get updated as the situation demands
+    _current_status = Status::DESCEND;
+
     // init is only called ONCE per mode change. So in a particuar mode we can retry only a finite times.
     // The counter will be reset if the statemachine is called from a different mode
     _retry_count = 0;
@@ -33,14 +36,12 @@ void AC_PrecLand_StateMachine::reset_failed_landing_statemachine()
 // Parameters: Vector3f "retry_pos_m" is filled with the required location if we need to retry landing.
 AC_PrecLand_StateMachine::Status AC_PrecLand_StateMachine::update(Vector3f &retry_pos_m)
 {
-    // This variable will get updated as the situation demands
-    Status precland_status{Status::DESCEND};
-
     // grab the current status of Landing Target
     AC_PrecLand *_precland = AP::ac_precland();
     if (_precland == nullptr) {
         // should never happen
-        return precland_status = Status::ERROR;
+        _current_status = Status::ERROR;
+        return _current_status;
     }
     AC_PrecLand::TargetState precland_target_state =  _precland->get_target_state();
 
@@ -48,12 +49,14 @@ AC_PrecLand_StateMachine::Status AC_PrecLand_StateMachine::update(Vector3f &retr
     case AC_PrecLand::TargetState::TARGET_RECENTLY_LOST:
         // we have lost the target but had it in sight at least once recently
         // action will depend on what user wants
-        return do_target_lost_actions(retry_pos_m);
+        _current_status = do_target_lost_actions(retry_pos_m);
+        break;
 
     case AC_PrecLand::TargetState::TARGET_NEVER_SEEN:
         // we have no clue where we are supposed to be landing
         // let user decide how strict our failsafe actions need to be
-        return Status::FAILSAFE;
+        _current_status = Status::FAILSAFE;
+        break;
 
     case AC_PrecLand::TargetState::TARGET_OUT_OF_RANGE:
         // The target isn't in sight, but we can't run any fail safe measures or do landing retry
@@ -61,11 +64,11 @@ AC_PrecLand_StateMachine::Status AC_PrecLand_StateMachine::update(Vector3f &retr
     case AC_PrecLand::TargetState::TARGET_FOUND:
         // no action required, target is in sight
         reset_failed_landing_statemachine();
-        return Status::DESCEND;
+        _current_status =  Status::DESCEND;
+        break;
     }
 
-    // should never reach here, all values are handled above
-    return Status::ERROR;
+    return _current_status;
 }
 
 
@@ -251,4 +254,16 @@ AC_PrecLand_StateMachine::FailSafeAction AC_PrecLand_StateMachine::get_failsafe_
 
     // should never reach here
     return FailSafeAction::DESCEND;
+}
+
+// singleton instance
+AC_PrecLand_StateMachine *AC_PrecLand_StateMachine::_singleton;
+
+namespace AP {
+
+AC_PrecLand_StateMachine *ac_precland_sm()
+{
+    return AC_PrecLand_StateMachine::get_singleton();
+}
+
 }
