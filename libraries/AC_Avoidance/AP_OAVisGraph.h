@@ -38,15 +38,28 @@ public:
         OAItemID id2;       // second item's id
         float distance_cm;  // distance between the items
     };
+    
+    struct VisGraphItemStore {
+        uint16_t index;
+        float distance_cm;
+    };
 
     // clear all elements from graph
     void clear() { _num_items = 0; }
 
     // get number of items in visibility graph table
     uint16_t num_items() const { return _num_items; }
+    
+    void store_num_items()  { _num_items_old = _num_items; }
 
     // add item to visiblity graph, returns true on success, false if graph is full
     bool add_item(const OAItemID &id1, const OAItemID &id2, float distance_cm);
+
+    bool add_item_to_buffer(uint16_t index, float distance_cm);
+
+    bool empty_buffer();
+
+    bool remove_item(const uint16_t index);
 
     // allow accessing graph as an array, 0 indexed
     // Note: no protection against out-of-bounds accesses so use with num_items()
@@ -55,5 +68,8 @@ public:
 private:
 
     AP_ExpandingArray<VisGraphItem> _items;
+    AP_ExpandingArray<VisGraphItemStore> _items_backup_buffer;
     uint16_t _num_items;
+    uint16_t _num_items_old;
+    uint16_t _num_items_backup_buffer;
 };

@@ -105,6 +105,13 @@ void AP_OAPathPlanner::init()
             AP_Param::load_object_from_eeprom(_oabendyruler, AP_OABendyRuler::var_info);
         }
         break;
+
+    case OA_PATHPLAN_POTENTIAL_FIELD:
+        if(_oapotfield == nullptr) {
+            _oapotfield = new AP_OAPotentialField();
+        }
+        break;
+
     }
 
     _oadatabase.init();
@@ -353,6 +360,17 @@ void AP_OAPathPlanner::avoidance_thread()
             path_planner_used = OAPathPlannerUsed::Dijkstras;
             break;
         }
+
+        case OA_PATHPLAN_POTENTIAL_FIELD: {
+            if (_oapotfield == nullptr) {
+                continue;
+            }
+            if(_oapotfield ->update(avoidance_request2.current_loc, avoidance_request2.destination, avoidance_request2.ground_speed_vec, origin_new, destination_new, false)) {
+                res = OA_SUCCESS;
+            }
+            path_planner_used = OAPathPlannerUsed::BendyRulerHorizontal;
+        }
+
 
         } // switch
 

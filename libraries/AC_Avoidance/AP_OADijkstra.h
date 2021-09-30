@@ -95,19 +95,25 @@ private:
     // returns true on success.  returns false on failure and err_id is updated
     bool create_exclusion_circle_with_margin(float margin_cm, AP_OADijkstra_Error &err_id);
 
+    bool create_exclusion_circles_with_object_database(float margin_cm, AP_OADijkstra_Error &err_id);
+
     //
     // other methods
     //
 
     // returns total number of points across all fence types
-    uint16_t total_numpoints() const;
+    uint16_t total_numpoints(bool include_prx_points = false) const;
 
     // get a single point across the total list of points from all fence types
     // also returns the type of point
     bool get_point(uint16_t index, Vector2f& point) const;
 
+    bool get_object_database_point(uint16_t index, Vector3f& point) const;
+
     // returns true if line segment intersects polygon or circular fence
     bool intersects_fence(const Vector2f &seg_start, const Vector2f &seg_end) const;
+
+    bool intersects_proximity_obstacle(const Vector3f &seg_start, const Vector3f &seg_end) const;
 
     // create visibility graph for all fence (with margin) points
     // returns true on success.  returns false on failure and err_id is updated
@@ -118,6 +124,8 @@ private:
     // requires create_polygon_fence_with_margin and create_polygon_fence_visgraph to have been run
     // resulting path is stored in _shortest_path array as vector offsets from EKF origin
     bool calc_shortest_path(const Location &origin, const Location &destination, AP_OADijkstra_Error &err_id);
+    
+    bool calc_shortest_path_proximity(const Location &origin, const Location &destination, AP_OADijkstra_Error &err_id);
 
     // shortest path state variables
     bool _inclusion_polygon_with_margin_ok;
@@ -145,16 +153,27 @@ private:
     uint8_t _exclusion_circle_numpoints;    // number of points held in above array
     uint32_t _exclusion_circle_update_ms;   // system time exclusion circles were updated (used to detect changes)
 
+    uint16_t _exclusion_proximity_numpoints;
+    AP_ExpandingArray<Vector3f> _exclusion_proximity_pts;
+    uint32_t _exclusion_proximity_update_ms;
+
     // visibility graphs
     AP_OAVisGraph _fence_visgraph;          // holds distances between all inclusion/exclusion fence points (with margin)
     AP_OAVisGraph _source_visgraph;         // holds distances from source point to all other nodes
     AP_OAVisGraph _destination_visgraph;    // holds distances from the destination to all other nodes
+    AP_OAVisGraph _proximity_visgraph;
+    AP_OAVisGraph _proximity_fence_visgraph; // first id is from fence, second is from obstacle databse
+
 
     // updates visibility graph for a given position which is an offset (in cm) from the ekf origin
     // to add an additional position (i.e. the destination) set add_extra_position = true and provide the position in the extra_position argument
     // requires create_polygon_fence_with_margin to have been run
     // returns true on success
     bool update_visgraph(AP_OAVisGraph& visgraph, const AP_OAVisGraph::OAItemID& oaid, const Vector2f &position, bool add_extra_position = false, Vector2f extra_position = Vector2f(0,0));
+
+    bool update_visgraph_proximity(AP_OAVisGraph& visgraph, const AP_OAVisGraph::OAItemID& oaid, const Vector3f &position, bool add_extra_position = false, Vector2f extra_position = Vector2f{0,0});
+    
+    bool create_visgraph_proximity(AP_OADijkstra_Error &err_id);
 
     typedef uint8_t node_index;         // indices into short path data
     struct ShortPathNode {
@@ -186,6 +205,7 @@ private:
 
     // return point from final path as an offset (in cm) from the ekf origin
     bool get_shortest_path_point(uint8_t point_num, Vector2f& pos);
+    bool convert_node_to_point(const AP_OAVisGraph::OAItemID& id, Vector2f& pos) const;
 
     AP_OADijkstra_Error _error_last_id;                 // last error id sent to GCS
     uint32_t _error_last_report_ms;                     // last time an error message was sent to GCS

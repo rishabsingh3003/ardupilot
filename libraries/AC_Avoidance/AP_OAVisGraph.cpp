@@ -14,6 +14,7 @@
  */
 
 #include "AP_OAVisGraph.h"
+#include <AP_Math/AP_Math.h>
 
 // constructor initialises expanding array to use 20 elements per chunk
 AP_OAVisGraph::AP_OAVisGraph() :
@@ -38,4 +39,42 @@ bool AP_OAVisGraph::add_item(const OAItemID &id1, const OAItemID &id2, float dis
     _items[_num_items] = {id1, id2, distance_cm};
     _num_items++;
     return true;
+}
+
+
+// add item to visiblity graph, returns true on success, false if graph is full
+bool AP_OAVisGraph::add_item_to_buffer(uint16_t index, float distance_cm)
+{
+    // no more than 65k items
+    if (_num_items_backup_buffer == UINT16_MAX) {
+        return false;
+    }
+
+    // ensure there is space in the array
+    if (!_items_backup_buffer.expand_to_hold(_num_items_backup_buffer+1)) {
+        return false;
+    }
+
+    // add item
+    _items_backup_buffer[_num_items_backup_buffer] = {index, distance_cm};
+    _num_items_backup_buffer++;
+    return true;
+}
+
+bool AP_OAVisGraph::empty_buffer()
+{
+    for (uint16_t i=0; i<_num_items_backup_buffer; i++) {
+        _items[_items_backup_buffer[i].index].distance_cm = _items_backup_buffer[i].distance_cm;
+    }
+    _num_items_backup_buffer = 0;
+}
+
+
+bool AP_OAVisGraph::remove_item(const uint16_t index)
+{
+    if (index > _num_items) {
+        // how is this possible
+        return false;
+    }
+    _items[index].distance_cm = FLT_MAX;
 }
