@@ -673,6 +673,49 @@ bool AP_OADijkstra::update_visgraph(AP_OAVisGraph& visgraph, const AP_OAVisGraph
     return true;
 }
 
+// bool AP_OADijkstra::do_rot_sweep_visgraph(AP_OAVisGraph& visgraph, const AP_OAVisGraph::OAItemID& oaid, const Vector2f &position)
+// {
+//     // exit immediately if no fence (with margin) points
+//     if (total_numpoints() == 0) {
+//         return false;
+//     }
+//     uint16_t total_nodes = total_numpoints();
+//     //  clear visibility graph
+//     visgraph.clear();
+
+//     float angle_nodes[total_nodes];
+
+//     // calculate distance from position to all inclusion/exclusion fence points
+//     for (uint8_t i = 0; i < total_numpoints(); i++) {
+//         Vector2f seg_end;
+//         if (get_point(i, seg_end)) {
+//             const Vector2f line_seg = (seg_end - position);
+//             angle_nodes[i] = line_seg.angle_x();
+//         }
+//     }
+//     sort_array(angle_nodes, total_nodes);
+//     Vector2f horizontal_segment{999999999, 0};
+//     intersects_fence()
+    
+    
+
+// }
+
+void sort_array(float arr[], uint16_t num)
+{
+    uint16_t i, j;
+    for (i = 0; i < num-1; i++){
+    // Last i elements are already in place
+        for (j = 0; j < num-i-1; j++) {
+            if (arr[j] > arr[j+1]) {
+                float temp = arr[j];
+                *&arr[j] = *&arr[j+1];
+                *&arr[j+1] = temp;
+            }
+        }
+    }
+}
+
 // update total distance for all nodes visible from current node
 // curr_node_idx is an index into the _short_path_data array
 void AP_OADijkstra::update_visible_node_distances(node_index curr_node_idx)

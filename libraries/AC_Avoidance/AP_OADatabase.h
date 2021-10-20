@@ -4,6 +4,7 @@
 #include <AP_Math/AP_Math.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <AP_Param/AP_Param.h>
+#include <AP_Common/AP_ExpandingArray.h>
 
 class AP_OADatabase {
 public:
@@ -29,7 +30,16 @@ public:
         float radius;           // objects radius in meters
         uint8_t send_to_gcs;    // bitmask of mavlink comports to which details of this object should be sent
         OA_DbItemImportance importance;
+        uint16_t group_id;
     };
+    
+    struct OA_DBGroup {
+        Vector3f pos[10];
+        uint8_t group_no;
+    };
+
+    AP_ExpandingArray<OA_DBGroup> _groups;
+    uint8_t groups_filled;
 
     void init();
     void update();
@@ -73,6 +83,8 @@ private:
     // returns true if database item "index" is close to "item"
     bool is_close_to_item_in_database(const uint16_t index, const OA_DbItem &item) const;
 
+    void database_group_items();
+    
     // enum for use with _OUTPUT parameter
     enum class OA_DbOutputLevel {
         OUTPUT_LEVEL_DISABLED = 0,

@@ -105,7 +105,7 @@ const AP_Param::GroupInfo AP_OADatabase::var_info[] = {
     AP_GROUPEND
 };
 
-AP_OADatabase::AP_OADatabase()
+AP_OADatabase::AP_OADatabase():_groups(4)
 {
     if (_singleton != nullptr) {
         AP_HAL::panic("AP_OADatabase must be singleton");
@@ -173,7 +173,7 @@ void AP_OADatabase::queue_push(const Vector3f &pos, uint32_t timestamp_ms, float
         return;
     }
 
-    const OA_DbItem item = {pos, timestamp_ms, MAX(_radius_min, distance * dist_to_radius_scalar), 0, AP_OADatabase::OA_DbItemImportance::Normal};
+    const OA_DbItem item = {pos, timestamp_ms, MAX(_radius_min, distance * dist_to_radius_scalar), 0, AP_OADatabase::OA_DbItemImportance::Normal, UINT16_MAX};
     {
         WITH_SEMAPHORE(_queue.sem);
         _queue.items->push(item);
@@ -466,6 +466,39 @@ void AP_OADatabase::send_adsb_vehicle(mavlink_channel_t chan, uint16_t interval_
     }
 }
 
+void AP_OADatabase::database_group_items()
+{
+    groups_filled = 0;
+
+    for (uint16_t i =0; i < _database.count; i++) {
+        bool in_group = false;
+        for (uint16_t j = i + 1; j < _database.count - i; j++) {
+            if ((_database.items[i].pos - _database.items[j].pos).length() < (_database.items[i].radius + _database.items[j].radius + 0.25f)) {
+                //overlapping
+                in_group = true;
+                _groups[groups_filled].pos[_groups[groups_filled].group_no] = _database.items[j].pos;
+                _groups[groups_filled].group_no++;
+                if (_database.items[j].group_id == UINT16_MAX) {
+                    // not assigned yet
+                    _database.items[j].group_id = groups_filled;
+                } else {
+                    // already assigned, merge group
+                    if (_groups[groups_filled].group_no + _groups[_database.items[j].group_id])
+                }
+            }
+        }
+        if (in_group) {
+            database_item_remove(i);
+            groups_filled++;
+        }
+    }
+    // // gcs().send_text(MAV_SEVERITY_CRITICAL, "hello world! %5.3f", (double)0);
+    // printf("XXXXXXXXXXXXXXXXXXXXXx! %5.3f", (double)0);
+    // for (uint16_t i =0; i < _database.count; i++) {
+    //     // gcs().send_text(MAV_SEVERITY_CRITICAL, "%5.3f hello world! %5.3f", (double)i, (double)_database.items[i].group_id);
+    //     printf("%5.3f hello world! %5.3f \n", (double)i, (double)_database.items[i].group_id);
+    // }
+}
 // singleton instance
 AP_OADatabase *AP_OADatabase::_singleton;
 

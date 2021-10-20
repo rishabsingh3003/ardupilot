@@ -7,6 +7,7 @@
 #include "AP_OABendyRuler.h"
 #include "AP_OADijkstra.h"
 #include "AP_OADatabase.h"
+#include "AP_Astar_RT.h"
 
 /*
  * This class provides path planning around fence, stay-out zones and moving obstacles
@@ -44,7 +45,8 @@ public:
         None = 0,
         BendyRulerHorizontal,
         BendyRulerVertical,
-        Dijkstras
+        Dijkstras,
+        // RTAstar
     };
 
     // provides an alternative target location if path planning around obstacles is required
@@ -63,6 +65,7 @@ public:
         OA_PATHPLAN_BENDYRULER = 1,
         OA_PATHPLAN_DIJKSTRA = 2,
         OA_PATHPLAN_DJIKSTRA_BENDYRULER = 3,
+        OA_PATHPLAN_RT_ASTAR = 4
     };
 
     // enumeration for _OPTION parameter
@@ -113,6 +116,7 @@ private:
     bool _thread_created;           // true once background thread has been created
     AP_OABendyRuler *_oabendyruler; // Bendy Ruler algorithm
     AP_OADijkstra *_oadijkstra;     // Dijkstra's algorithm
+    AP_OART_AStar *_oart_astar;
     AP_OADatabase _oadatabase;      // Database of dynamic objects to avoid
     uint32_t avoidance_latest_ms;   // last time Dijkstra's or BendyRuler algorithms ran
 

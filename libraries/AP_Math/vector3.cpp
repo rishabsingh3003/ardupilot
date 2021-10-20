@@ -485,7 +485,7 @@ T Vector3<T>::distance_to_segment(const Vector3<T> &seg_start, const Vector3<T> 
 // Shortest distance between point(p) to a point contained in the line segment defined by w1,w2
 template <typename T>
 T Vector3<T>::closest_distance_between_line_and_point(const Vector3<T> &w1, const Vector3<T> &w2, const Vector3<T> &p)
-{    
+{
     const Vector3<T> nearest = point_on_line_closest_to_other_point(w1, w2, p);
     const T dist = (nearest - p).length();
     return dist;
@@ -495,10 +495,10 @@ T Vector3<T>::closest_distance_between_line_and_point(const Vector3<T> &w1, cons
 // this is based on the explanation given here: www.fundza.com/vectors/point2line/index.html
 template <typename T>
 Vector3<T> Vector3<T>::point_on_line_closest_to_other_point(const Vector3<T> &w1, const Vector3<T> &w2, const Vector3<T> &p)
-{   
+{
     const Vector3<T> line_vec = w2-w1;
     const Vector3<T> p_vec = p - w1;
-    
+
     const T line_vec_len = line_vec.length();
     // protection against divide by zero
     if(::is_zero(line_vec_len)) {
@@ -511,7 +511,7 @@ Vector3<T> Vector3<T>::point_on_line_closest_to_other_point(const Vector3<T> &w1
 
     T dot_product = unit_vec * scaled_p_vec;
     dot_product = constrain_ftype(dot_product,0.0f,1.0f);
- 
+
     const Vector3<T> closest_point = line_vec * dot_product;
     return (closest_point + w1);
 }

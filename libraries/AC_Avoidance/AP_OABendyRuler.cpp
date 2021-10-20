@@ -81,7 +81,8 @@ AP_OABendyRuler::AP_OABendyRuler()
 // returns true and updates origin_new and destination_new if a best path has been found
 // bendy_type is set to the type of BendyRuler used
 bool AP_OABendyRuler::update(const Location& current_loc, const Location& destination, const Vector2f &ground_speed_vec, Location &origin_new, Location &destination_new, OABendyType &bendy_type, bool proximity_only)
-{
+{   const uint32_t start_ms = AP_HAL::millis();
+    
     // bendy ruler always sets origin to current_loc
     origin_new = current_loc;
 
@@ -128,7 +129,7 @@ bool AP_OABendyRuler::update(const Location& current_loc, const Location& destin
             ret = search_xy_path(current_loc, destination, ground_course_deg, destination_new, lookahead_step1_dist, lookahead_step2_dist, bearing_to_dest, distance_to_dest, proximity_only);
             bendy_type = OABendyType::OA_BENDY_HORIZONTAL;
     }
-
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "time %5.3f", (double)(AP_HAL::millis()-start_ms)*0.001f);
     return ret;
 }
 

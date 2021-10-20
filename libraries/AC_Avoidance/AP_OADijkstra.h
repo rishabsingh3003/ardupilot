@@ -156,6 +156,10 @@ private:
     // returns true on success
     bool update_visgraph(AP_OAVisGraph& visgraph, const AP_OAVisGraph::OAItemID& oaid, const Vector2f &position, bool add_extra_position = false, Vector2f extra_position = Vector2f(0,0));
 
+    bool do_rot_sweep_visgraph(AP_OAVisGraph& visgraph, const AP_OAVisGraph::OAItemID& oaid, const Vector2f &position);
+
+    void sort_array(float arr[], uint16_t num);
+    
     typedef uint8_t node_index;         // indices into short path data
     struct ShortPathNode {
         AP_OAVisGraph::OAItemID id;     // unique id for node (combination of type and id number)

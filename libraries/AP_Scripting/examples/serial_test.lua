@@ -8,6 +8,7 @@ port:set_flow_control(0)
 local step = 65
 
 function spit ()
+  gcs:send_text(0, "called")
   if port:available() > 0 then
     read = port:read()
     gcs:send_text(0, read .. " = " .. step)
