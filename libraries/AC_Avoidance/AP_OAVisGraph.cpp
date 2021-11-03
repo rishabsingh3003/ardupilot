@@ -39,3 +39,34 @@ bool AP_OAVisGraph::add_item(const OAItemID &id1, const OAItemID &id2, float dis
     _num_items++;
     return true;
 }
+
+
+// Function to fill the empty adjacency matrix
+Graph::Graph(uint16_t v)
+{
+    this->vertex_no = v;
+    adj = new bool*[v];
+    for (uint16_t row = 0; row < v; row++) {
+        adj[row] = new bool[v];
+        for (uint16_t column = 0; column < v; column++) {
+            adj[row][column] = false;
+        }
+    }
+}
+
+
+// Function to add an edge to the graph
+void Graph::addEdge(uint16_t start, uint16_t e)
+{
+    // Considering a bidirectional edge
+    adj[start][e] = true;
+    adj[e][start] = true;
+}
+
+bool Graph::connected(uint16_t start, uint16_t end)
+{
+    if (adj[start][end] || adj[end][start]) {
+        return true;
+    }
+    return false;
+}

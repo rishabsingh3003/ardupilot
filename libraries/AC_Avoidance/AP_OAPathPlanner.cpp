@@ -105,6 +105,12 @@ void AP_OAPathPlanner::init()
             AP_Param::load_object_from_eeprom(_oabendyruler, AP_OABendyRuler::var_info);
         }
         break;
+        
+    case OA_PATHPLAN_RT_ASTAR:
+        if (_oart_astar == nullptr) {
+            _oart_astar = new AP_OART_AStar();
+        }
+        break;
     }
 
     _oadatabase.init();
@@ -352,6 +358,17 @@ void AP_OAPathPlanner::avoidance_thread()
             }
             path_planner_used = OAPathPlannerUsed::Dijkstras;
             break;
+        }
+
+        case OA_PATHPLAN_RT_ASTAR: {
+            if (_oart_astar == nullptr) {
+                continue;
+            }
+            if(_oart_astar ->update(avoidance_request2.current_loc, avoidance_request2.destination, avoidance_request2.ground_speed_vec, origin_new, destination_new, false)) {
+                res = OA_SUCCESS;
+            }
+            // to do: make another WP Nav backend to handle RT-ASTAR
+            path_planner_used = OAPathPlannerUsed::BendyRulerHorizontal;
         }
 
         } // switch

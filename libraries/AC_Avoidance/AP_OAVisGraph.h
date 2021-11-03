@@ -23,7 +23,7 @@ public:
     };
 
     // support up to 255 items of each type
-    typedef uint8_t oaid_num;
+    typedef uint16_t oaid_num;
 
     // id for uniquely identifying objects held in visibility graphs and paths
     class OAItemID {
@@ -56,4 +56,24 @@ private:
 
     AP_ExpandingArray<VisGraphItem> _items;
     uint16_t _num_items;
+};
+
+class Graph {
+
+    // Number of vertex
+    uint16_t vertex_no;
+
+public:
+    // Adjacency matrix
+    bool** adj;
+
+    // To create the initial adjacency matrix
+    Graph(uint16_t v);
+
+    // Function to insert a new edge
+    void addEdge(uint16_t start, uint16_t end);
+
+    bool connected(uint16_t start, uint16_t end);
+
+    uint16_t total_nodes() const { return vertex_no; }
 };

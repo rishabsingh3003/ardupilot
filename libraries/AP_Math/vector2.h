@@ -99,6 +99,8 @@ struct Vector2
     // computes the angle of this vector in radians, from 0 to 2pi,
     // from a unit vector(1,0); a (1,1) vector's angle is +M_PI/4
     T angle(void) const;
+    
+    T angle_x(void) const;
 
     // check if any elements are NAN
     bool is_nan(void) const WARN_IF_UNUSED;

@@ -164,6 +164,12 @@ T Vector2<T>::angle(void) const
     return M_PI_2 + atan2F(-x, y);
 }
 
+template <typename T>
+T Vector2<T>::angle_x(void) const
+{
+    return atan2F(-x, y);
+}
+
 // find the intersection between two line segments
 // returns true if they intersect, false if they do not
 // the point of intersection is returned in the intersection argument
