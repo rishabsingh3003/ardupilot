@@ -322,11 +322,14 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 #endif
 #if AC_OAPATHPLANNER_ENABLED == ENABLED
         AP_OADatabase *oadb = AP_OADatabase::get_singleton();
-        if (oadb != nullptr) {
+        AP_OART_AStar *oa_RTastar = AP_OART_AStar::get_singleton();
+
+        if (oadb != nullptr && oa_RTastar != nullptr) {
             CHECK_PAYLOAD_SIZE(ADSB_VEHICLE);
             uint16_t interval_ms = 0;
             if (get_ap_message_interval(id, interval_ms)) {
                 oadb->send_adsb_vehicle(chan, interval_ms);
+                oa_RTastar->send_debug_info(chan, interval_ms);
             }
         }
 #endif
