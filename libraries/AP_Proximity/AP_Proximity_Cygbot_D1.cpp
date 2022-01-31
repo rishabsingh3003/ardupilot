@@ -1,4 +1,6 @@
 #include "AP_Proximity_Cygbot_D1.h"
+#include <AP_RangeFinder/AP_RangeFinder.h>
+#include <AP_RangeFinder/AP_RangeFinder_Backend.h>
 
 #if HAL_PROXIMITY_ENABLED && AP_PROXIMITY_CYGBOT_ENABLED
 
@@ -156,6 +158,42 @@ void AP_Proximity_Cygbot_D1::parse_payload()
         }
         // increment sampled angle
         sampled_angle += CYGBOT_2D_ANGLE_STEP;
+    }
+}
+
+void AP_Proximity_Cygbot_D1::handle_rangefinder()
+{
+    // exit immediately if no rangefinder object
+    const RangeFinder *rngfnd = AP::rangefinder();
+    if (rngfnd == nullptr) {
+        return;
+    }
+
+    // look through all rangefinders
+    for (uint8_t i=0; i < rngfnd->num_sensors(); i++) {
+        AP_RangeFinder_Backend *sensor = rngfnd->get_backend(i);
+        if (sensor == nullptr) {
+            continue;
+        }
+        if (sensor->has_data()) {
+            // check for horizontal range finders
+            if (sensor->orientation() <= ROTATION_YAW_315) {
+                const uint8_t sector = (uint8_t)sensor->orientation();
+                const float angle = sector * 45;
+                const AP_Proximity_Boundary_3D::Face face = boundary.get_face(angle);
+                // distance in meters
+                const float distance = sensor->distance();
+                const float _distance_min = sensor->min_distance_cm() * 0.01f;
+                const float _distance_max = sensor->max_distance_cm() * 0.01f;
+                if ((distance <= _distance_max) && (distance >= _distance_min) && !check_obstacle_near_ground(angle, distance)) {
+                    _temp_boundary.add_distance(face, angle, distance);
+                    // update OA database
+                    database_push(angle, distance);
+                } else {
+                    boundary.reset_face(face);
+                }
+            }
+        }
     }
 }
 

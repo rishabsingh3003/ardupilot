@@ -50,6 +50,8 @@ private:
     // parse payload, to pick out distances, and feed them to the correct faces
     void parse_payload();
 
+    void handle_rangefinder();
+
     // Checksum
     uint8_t calc_checksum(uint8_t *buff, int buffSize);
 
