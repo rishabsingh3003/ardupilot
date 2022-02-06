@@ -186,13 +186,26 @@ void AP_Proximity_Cygbot_D1::handle_rangefinder()
                 const float distance = sensor->distance();
                 const float _distance_min = sensor->min_distance_cm() * 0.01f;
                 const float _distance_max = sensor->max_distance_cm() * 0.01f;
-                if ((distance <= _distance_max) && (distance >= _distance_min) && !check_obstacle_near_ground(angle, distance)) {
+                if ((distance <= _distance_max) && (distance >= _distance_min) && !ignore_reading(angle, distance, false)) {
                     _temp_boundary.add_distance(face, angle, distance);
                     // update OA database
                     database_push(angle, distance);
                 } else {
                     boundary.reset_face(face);
                 }
+            }
+
+            // check upward facing range finder
+            if (sensor->orientation() == ROTATION_PITCH_90) {
+                int16_t distance_upward = sensor->distance_cm();
+                int16_t up_distance_min = sensor->min_distance_cm();
+                int16_t up_distance_max = sensor->max_distance_cm();
+                if ((distance_upward >= up_distance_min) && (distance_upward <= up_distance_max)) {
+                    _distance_upward = distance_upward * 0.01f;
+                } else {
+                    _distance_upward = -1.0; // mark an valid reading
+                }
+                _last_upward_update_ms = AP_HAL::millis();
             }
         }
     }
@@ -217,6 +230,17 @@ void AP_Proximity_Cygbot_D1::reset()
     _msg.payload_counter = 0;
     _msg.payload_len = 0;
     _temp_boundary.reset();
+}
+
+// get distance upwards in meters. returns true on success
+bool AP_Proximity_Cygbot_D1::get_upward_distance(float &distance) const
+{
+    if ((AP_HAL::millis() - _last_upward_update_ms <= CYGBOT_TIMEOUT_MS) &&
+        is_positive(_distance_upward)) {
+        distance = _distance_upward;
+        return true;
+    }
+    return false;
 }
 
 #endif // HAL_PROXIMITY_ENABLED
