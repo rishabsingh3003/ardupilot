@@ -36,6 +36,10 @@ public:
     float distance_max() const override { return CYGBOT_MAX_RANGE_M; }
     float distance_min() const override { return CYGBOT_MIN_RANGE_M; }
 
+
+    // get distance upwards in meters. returns true on success
+    bool get_upward_distance(float &distance) const override;
+
 private:
 
     // send message to the sensor to start streaming 2-D data
@@ -83,6 +87,10 @@ private:
     uint32_t _last_distance_received_ms;    // system time of last distance measurement received from sensor
 
     AP_Proximity_Temp_Boundary _temp_boundary; // temporary boundary to store incoming payload
+
+    // upward distance support
+    uint32_t _last_upward_update_ms;    // system time of last update distance
+    float _distance_upward = -1;        // upward distance in meters, negative if the last reading was out of range
 
 };
 
