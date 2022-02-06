@@ -51,6 +51,7 @@
 #include "AP_RangeFinder_MSP.h"
 #include "AP_RangeFinder_USD1_CAN.h"
 #include "AP_RangeFinder_Benewake_CAN.h"
+#include "AP_RangeFinder_Lua.h"
 
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_Logger/AP_Logger.h>
@@ -158,7 +159,7 @@ const AP_Param::GroupInfo RangeFinder::var_info[] = {
     // @Path: AP_RangeFinder_Wasp.cpp,AP_RangeFinder_Benewake_CAN.cpp
     AP_SUBGROUPVARPTR(drivers[9], "A_",  44, RangeFinder, backend_var_info[9]),
 #endif
-    
+
     AP_GROUPEND
 };
 
@@ -609,6 +610,12 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
         _add_backend(new AP_RangeFinder_Benewake_CAN(state[instance], params[instance]), instance);
         break;
 #endif
+    case Type::Lua_Scripting:
+#if AP_SCRIPTING_ENABLED
+        _add_backend(new AP_RangeFinder_Lua(state[instance], params[instance]), instance);
+        break;
+#endif
+
     case Type::NONE:
         break;
     }
@@ -686,12 +693,13 @@ bool RangeFinder::has_orientation(enum Rotation orientation) const
 // find first range finder instance with the specified orientation
 AP_RangeFinder_Backend *RangeFinder::find_instance(enum Rotation orientation) const
 {
-    // first try for a rangefinder that is in range
+    // first try for a rangefinder that is in range and also in use
     for (uint8_t i=0; i<num_instances; i++) {
         AP_RangeFinder_Backend *backend = get_backend(i);
         if (backend != nullptr &&
             backend->orientation() == orientation &&
-            backend->status() == Status::Good) {
+            backend->status() == Status::Good &&
+            backend->use_sensor()) {
             return backend;
         }
     }
