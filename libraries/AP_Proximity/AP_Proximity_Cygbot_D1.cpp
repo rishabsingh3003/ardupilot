@@ -121,6 +121,7 @@ bool AP_Proximity_Cygbot_D1::parse_byte(uint8_t data)
         _last_distance_received_ms = AP_HAL::millis();
         parse_payload();
         handle_rangefinder();
+        handle_othersensor();
         _temp_boundary.update_3D_boundary(boundary);
         reset();
         return true;
@@ -162,6 +163,22 @@ void AP_Proximity_Cygbot_D1::parse_payload()
     }
 }
 
+void AP_Proximity_Cygbot_D1::handle_othersensor()
+{
+    AP_Proximity::Proximity_Distance_Array prx_dist_array;
+    AP_Proximity::Proximity_Distance_Array prx_dist_filt_array;
+    if (frontend.get_instance_layer_distances(1,2,prx_dist_array, prx_dist_filt_array)) {
+        for (uint8_t i = 0; i < PROXIMITY_MAX_DIRECTION; i++) {
+            if (!prx_dist_filt_array.valid(i)) {
+                continue;
+            }
+            const float angle = prx_dist_array.orientation[i] * 45;
+            const float distance = prx_dist_filt_array.distance[i];
+            const AP_Proximity_Boundary_3D::Face face = boundary.get_face(angle);
+            _temp_boundary.add_distance(face, angle, distance);
+        }
+    }
+}
 void AP_Proximity_Cygbot_D1::handle_rangefinder()
 {
     // exit immediately if no rangefinder object

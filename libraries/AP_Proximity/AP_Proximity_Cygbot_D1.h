@@ -56,6 +56,8 @@ private:
 
     void handle_rangefinder();
 
+    void handle_othersensor();
+
     // Checksum
     uint8_t calc_checksum(uint8_t *buff, int buffSize);
 
