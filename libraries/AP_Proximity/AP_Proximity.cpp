@@ -190,6 +190,30 @@ const AP_Param::GroupInfo AP_Proximity::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_MAX", 20, AP_Proximity, _max_m, 0.0f),
 
+    // @Param: 2_TYPE
+    // @DisplayName: Second Proximity type
+    // @Description: What type of proximity sensor is connected
+    // @Values: 0:None,7:LightwareSF40c,2:MAVLink,3:TeraRangerTower,4:RangeFinder,5:RPLidarA2,6:TeraRangerTowerEvo,8:LightwareSF45B,10:SITL,12:AirSimSITL,13:CygbotD1
+    // @User: Advanced
+    // @RebootRequired: True
+    AP_GROUPINFO("2_TYPE", 21, AP_Proximity, _type[1], 0),
+
+    // @Param: 2_ORIENT
+    // @DisplayName: Second Proximity sensor orientation
+    // @Description: Second Proximity sensor orientation
+    // @Values: 0:Default,1:Upside Down
+    // @User: Standard
+    AP_GROUPINFO("2_ORIENT", 22, AP_Proximity, _orientation[1], 0),
+
+    // @Param: 2_YAW_CORR
+    // @DisplayName: Second Proximity sensor yaw correction
+    // @Description: Second Proximity sensor yaw correction
+    // @Units: deg
+    // @Range: -180 180
+    // @User: Standard
+    AP_GROUPINFO("2_YAW_CORR", 23, AP_Proximity, _yaw_correction[1], 0),
+
+
     AP_GROUPEND
 };
 
@@ -337,18 +361,18 @@ void AP_Proximity::detect_instance(uint8_t instance)
         break;
 
     case Type::SF45B:
-        if (AP_Proximity_LightWareSF45B::detect()) {
+        if (AP_Proximity_LightWareSF45B::detect(instance)) {
             state[instance].instance = instance;
-            drivers[instance] = new AP_Proximity_LightWareSF45B(*this, state[instance]);
+            drivers[instance] = new AP_Proximity_LightWareSF45B(*this, state[instance], instance);
             return;
         }
         break;
 
     case Type::CYGBOT_D1:
 #if AP_PROXIMITY_CYGBOT_ENABLED
-    if (AP_Proximity_Cygbot_D1::detect()) {
+    if (AP_Proximity_Cygbot_D1::detect(instance)) {
         state[instance].instance = instance;
-        drivers[instance] = new AP_Proximity_Cygbot_D1(*this, state[instance]);
+        drivers[instance] = new AP_Proximity_Cygbot_D1(*this, state[instance], instance);
         return;
     }
 # endif
@@ -387,6 +411,15 @@ bool AP_Proximity::get_active_layer_distances(uint8_t layer, AP_Proximity::Proxi
     }
     // get distances from backend
     return drivers[primary_instance]->get_active_layer_distances(layer, prx_dist_array, prx_filt_dist_array);
+}
+
+bool AP_Proximity::get_instance_layer_distances(uint8_t instance, uint8_t layer, AP_Proximity::Proximity_Distance_Array &prx_dist_array, AP_Proximity::Proximity_Distance_Array &prx_filt_dist_array) const
+{
+    if (!valid_instance(instance)) {
+        return false;
+    }
+    // get distances from backend
+    return drivers[instance ]->get_active_layer_distances(layer, prx_dist_array, prx_filt_dist_array);
 }
 
 // get total number of obstacles, used in GPS based Simple Avoidance

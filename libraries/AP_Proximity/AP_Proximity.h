@@ -28,7 +28,7 @@
 #include <AP_Math/AP_Math.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
-#define PROXIMITY_MAX_INSTANCES             1   // Maximum number of proximity sensor instances available on this platform
+#define PROXIMITY_MAX_INSTANCES             2   // Maximum number of proximity sensor instances available on this platform
 #define PROXIMITY_MAX_IGNORE                6   // up to six areas can be ignored
 #define PROXIMITY_MAX_DIRECTION 8
 #define PROXIMITY_SENSOR_ID_START 10
@@ -106,6 +106,8 @@ public:
 
     // get raw and filtered distances in 8 directions per layer. used for logging
     bool get_active_layer_distances(uint8_t layer, AP_Proximity::Proximity_Distance_Array &prx_dist_array, AP_Proximity::Proximity_Distance_Array &prx_filt_dist_array) const;
+
+    bool get_instance_layer_distances(uint8_t instance, uint8_t layer, AP_Proximity::Proximity_Distance_Array &prx_dist_array, AP_Proximity::Proximity_Distance_Array &prx_filt_dist_array) const;
 
     // get total number of obstacles, used in GPS based Simple Avoidance
     uint8_t get_obstacle_count() const;

@@ -34,7 +34,7 @@ AP_RangeFinder_SITL::AP_RangeFinder_SITL(RangeFinder::RangeFinder_State &_state,
  */
 void AP_RangeFinder_SITL::update(void)
 {
-    const float dist = sitl->get_rangefinder(_instance);
+    const float dist = 10;
 
     // negative distance means nothing is connected
     if (is_negative(dist)) {

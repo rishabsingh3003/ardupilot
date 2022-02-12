@@ -82,6 +82,8 @@ public:
     // store rangefinder values
     void set_rangefinder_alt(bool use, bool healthy, float alt_cm);
 
+    AP_Proximity &frontend;
+
 protected:
 
     // set status and update valid_count
@@ -121,7 +123,6 @@ protected:
     bool     _rangefinder_healthy;
     float    _rangefinder_alt;
 
-    AP_Proximity &frontend;
     AP_Proximity::Proximity_State &state;   // reference to this instances state
 
     // Methods to manipulate 3D boundary in this class
