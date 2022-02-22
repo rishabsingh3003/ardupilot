@@ -170,6 +170,17 @@ bool AC_Circle::update(float climb_rate_cms)
 
     // update the target angle and total angle traveled
     float angle_change = _angular_vel * dt;
+
+    // check if avoidance is required
+    AC_Avoid *_avoid = AP::ac_avoid();
+    bool auto_modes_simple_avoidance = false;
+    if (_avoid != nullptr) {
+        auto_modes_simple_avoidance = _avoid->simple_avoidance_in_auto();
+        if (auto_modes_simple_avoidance && _avoid->limits_active()) {
+            angle_change = 0;
+        }
+    }
+
     _angle += angle_change;
     _angle = wrap_PI(_angle);
     _angle_total += angle_change;
@@ -224,7 +235,7 @@ bool AC_Circle::update(float climb_rate_cms)
     }
 
     // update position controller
-    _pos_control.update_xy_controller();
+    _pos_control.update_xy_controller(auto_modes_simple_avoidance);
 
     // set update time
     _last_update_ms = AP_HAL::millis();
