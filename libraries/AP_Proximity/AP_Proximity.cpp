@@ -26,6 +26,7 @@
 #include "AP_Proximity_SITL.h"
 #include "AP_Proximity_AirSimSITL.h"
 #include "AP_Proximity_Cygbot_D1.h"
+#include "AP_Proximity_Lua.h"
 
 extern const AP_HAL::HAL &hal;
 
@@ -36,7 +37,7 @@ const AP_Param::GroupInfo AP_Proximity::var_info[] = {
     // @Param: _TYPE
     // @DisplayName: Proximity type
     // @Description: What type of proximity sensor is connected
-    // @Values: 0:None,7:LightwareSF40c,2:MAVLink,3:TeraRangerTower,4:RangeFinder,5:RPLidarA2,6:TeraRangerTowerEvo,8:LightwareSF45B,10:SITL,12:AirSimSITL,13:CygbotD1
+    // @Values: 0:None,7:LightwareSF40c,2:MAVLink,3:TeraRangerTower,4:RangeFinder,5:RPLidarA2,6:TeraRangerTowerEvo,8:LightwareSF45B,10:SITL,12:AirSimSITL,13:CygbotD1,14:Lua_Scripting
     // @RebootRequired: True
     // @User: Standard
     AP_GROUPINFO_FLAGS("_TYPE",   1, AP_Proximity, _type[0], 0, AP_PARAM_FLAG_ENABLE),
@@ -353,6 +354,13 @@ void AP_Proximity::detect_instance(uint8_t instance)
     }
 # endif
     break;
+#if AP_SCRIPTING_ENABLED
+    case Type::Lua_Scripting:
+        state[instance].instance = instance;
+        drivers[instance] = new AP_Proximity_Lua(*this, state[instance]);
+#endif
+    break;
+
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     case Type::SITL:
@@ -522,6 +530,13 @@ void AP_Proximity::set_rangefinder_alt(bool use, bool healthy, float alt_cm)
     drivers[primary_instance]->set_rangefinder_alt(use, healthy, alt_cm);
 }
 
+// return proximity backend for Lua scripting
+AP_Proximity_Backend *AP_Proximity::get_backend(uint8_t id) const {
+    if (!valid_instance(id)) {
+        return nullptr;
+    }
+    return drivers[id];
+}
 
 AP_Proximity *AP_Proximity::_singleton;
 

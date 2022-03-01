@@ -52,6 +52,12 @@ public:
     // handle mavlink DISTANCE_SENSOR messages
     virtual void handle_msg(const mavlink_message_t &msg) {}
 
+#if AP_SCRIPTING_ENABLED
+    // handle Lua obstacle messages
+    virtual bool handle_script_distance_msg(float dist_m, float azimuth_deg, float elevation_deg) { return false; }
+    virtual bool handle_script_3d_msg(Vector3f vec_to_obstacle) { return false; }
+#endif
+
     // get total number of obstacles, used in GPS based Simple Avoidance
     uint8_t get_obstacle_count() { return boundary.get_obstacle_count(); }
     

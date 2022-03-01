@@ -61,6 +61,7 @@ public:
         AirSimSITL = 12,
 #endif
         CYGBOT_D1 = 13,
+        Lua_Scripting = 14
     };
 
     enum class Status {
@@ -167,6 +168,9 @@ public:
 
     // set alt as read from downward facing rangefinder. Tilt is already adjusted for
     void set_rangefinder_alt(bool use, bool healthy, float alt_cm);
+
+    // return backend object for Lua scripting
+    AP_Proximity_Backend *get_backend(uint8_t id) const;
 
 private:
     static AP_Proximity *_singleton;
