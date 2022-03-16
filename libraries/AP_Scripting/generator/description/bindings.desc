@@ -489,3 +489,8 @@ singleton AP::fwversion() field patch uint8_t read
 singleton AP::fwversion() field fw_hash_str string read
 singleton AP::fwversion() field fw_hash_str alias hash
 
+include AC_PrecLand/AC_PrecLand.h
+singleton AC_PrecLand alias precland
+singleton AC_PrecLand method target_acquired boolean
+singleton AC_PrecLand method get_target_state uint8_t
+singleton AC_PrecLand method get_target_position_cm boolean Vector2f

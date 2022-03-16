@@ -156,6 +156,8 @@ public:
     // true if raw distances should be logged
     bool get_raw_log_enable() const { return _raw_log_enable; }
 
+    uint8_t get_primary_instance() const { return primary_instance; }
+
     // parameter list
     static const struct AP_Param::GroupInfo var_info[];
 

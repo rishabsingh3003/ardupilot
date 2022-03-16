@@ -15,6 +15,8 @@ public:
 protected:
     virtual uint16_t rxspace() const { return 0; };
 
+    uint8_t _this_instance;
+
     AP_HAL::UARTDriver *_uart;              // uart for communicating with sensor
 };
 

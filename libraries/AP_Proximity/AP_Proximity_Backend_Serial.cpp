@@ -27,6 +27,7 @@ AP_Proximity_Backend_Serial::AP_Proximity_Backend_Serial(AP_Proximity &_frontend
                                                          AP_Proximity::Proximity_State &_state, uint8_t instance) :
     AP_Proximity_Backend(_frontend, _state)
 {
+    _this_instance = instance;
     const AP_SerialManager &serial_manager = AP::serialmanager();
     _uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_Lidar360, instance);
     if (_uart != nullptr) {
