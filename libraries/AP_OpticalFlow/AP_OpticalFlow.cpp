@@ -14,6 +14,7 @@
 #include "AP_OpticalFlow_UPFLOW.h"
 #include <AP_Logger/AP_Logger.h>
 #include <GCS_MAVLink/GCS.h>
+#include <AP_RangeFinder/AP_RangeFinder.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -254,6 +255,27 @@ void OpticalFlow::update_state(const OpticalFlow_state &state)
     _state = state;
     _last_update_ms = AP_HAL::millis();
 
+    // RangeFinder *rangefinder = RangeFinder::get_singleton();
+    // if (rangefinder == nullptr) {
+    //     return;
+    // }
+
+    // if (quality() < 20) {
+    //     float rangefinder_cm = 0.0f;
+    //     Vector2f zero_flow_rate;
+    //     if (rangefinder && rangefinder->has_data_orient(ROTATION_PITCH_270)) {
+    //         rangefinder_cm = rangefinder->distance_cm_orient(ROTATION_PITCH_270);
+    //         if (rangefinder_cm < 8.0f) {
+    //             AP::ahrs().writeOptFlowMeas(220,
+    //                             _state.flowRate,
+    //                             _state.bodyRate,
+    //                             _last_update_ms,
+    //                             get_pos_offset());
+    //             Log_Write_Optflow();
+    //             return;
+    //         }
+    //     }
+    // }
     // write to log and send to EKF if new data has arrived
     AP::ahrs().writeOptFlowMeas(quality(),
                                 _state.flowRate,
