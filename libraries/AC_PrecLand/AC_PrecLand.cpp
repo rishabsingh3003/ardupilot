@@ -12,9 +12,9 @@
 
 extern const AP_HAL::HAL& hal;
 
-static const uint32_t EKF_INIT_TIME_MS = 2000; // EKF initialisation requires this many milliseconds of good sensor data
+static const uint32_t EKF_INIT_TIME_MS = 2000; // EKF initialisation requir0es this many milliseconds of good sensor data
 static const uint32_t EKF_INIT_SENSOR_MIN_UPDATE_MS = 500; // Sensor must update within this many ms during EKF init, else init will fail
-static const uint32_t LANDING_TARGET_TIMEOUT_MS = 2000; // Sensor must update within this many ms, else prec landing will be switched off
+static const uint32_t LANDING_TARGET_TIMEOUT_MS = 20000; // Sensor must update within this many ms, else prec landing will be switched off
 static const uint32_t LANDING_TARGET_LOST_TIMEOUT_MS = 180000; // Target will be considered as "lost" if the last known location of the target is more than this many ms ago
 static const float    LANDING_TARGET_LOST_DIST_THRESH_M  = 30; // If the last known location of the landing target is beyond this many meters, then we will consider it lost
 

@@ -75,7 +75,7 @@ void ModeLoiter::precision_loiter_xy()
     // target vel will remain zero if landing target is stationary
     pos_control->input_pos_vel_accel_xy(landing_pos, target_vel, zero);
     // run pos controller
-    pos_control->update_xy_controller();
+    pos_control->update_xy_controller(true);
 }
 #endif
 

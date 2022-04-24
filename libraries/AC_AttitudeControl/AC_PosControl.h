@@ -14,7 +14,7 @@
 #include "AC_AttitudeControl.h"     // Attitude control library
 #include <AP_Motors/AP_Motors.h>    // motors library
 #include <AP_Vehicle/AP_Vehicle.h>  // common vehicle parameters
-
+#include <AC_Avoidance/AC_Avoid.h> // Simple Avoidance
 
 // position controller default definitions
 #define POSCONTROL_ACCEL_XY                     100.0f  // default horizontal acceleration in cm/s/s.  This is overwritten by waypoint and loiter controllers
@@ -138,7 +138,7 @@ public:
     ///     Position and velocity errors are converted to velocity and acceleration targets using PID objects
     ///     Desired velocity and accelerations are added to these corrections as they are calculated
     ///     Kinematically consistent target position and desired velocity and accelerations should be provided before calling this function
-    void update_xy_controller();
+    void update_xy_controller(bool avoid_enable = false);
 
     ///
     /// Vertical position controller
