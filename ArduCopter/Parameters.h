@@ -673,6 +673,8 @@ public:
 #if HAL_WITH_ESC_TELEM && FRAME_CONFIG != HELI_FRAME
     AP_Int16 takeoff_rpm_min;
 #endif
+    AP_Float                mower_amplitude_m;
+    AP_Float                mower_period_sec;
 };
 
 extern const AP_Param::Info        var_info[];

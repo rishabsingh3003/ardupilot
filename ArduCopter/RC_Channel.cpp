@@ -103,6 +103,8 @@ void RC_Channel_Copter::init_aux_function(const aux_func_t ch_option, const AuxS
     case AUX_FUNC::SIMPLE_HEADING_RESET:
     case AUX_FUNC::ARMDISARM_AIRMODE:
     case AUX_FUNC::TURBINE_START:
+    case AUX_FUNC::MOWER_AMPLITUDE:
+    case AUX_FUNC::MOWER_PERIOD:
         break;
     case AUX_FUNC::ACRO_TRAINER:
     case AUX_FUNC::ATTCON_ACCEL_LIM:
@@ -617,6 +619,11 @@ bool RC_Channel_Copter::do_aux_function(const aux_func_t ch_option, const AuxSwi
             copter.custom_control.set_custom_controller(ch_flag == AuxSwitchPos::HIGH);
             break;
 #endif
+
+        // manual inputs, do nothing
+        case AUX_FUNC::MOWER_AMPLITUDE:
+        case AUX_FUNC::MOWER_PERIOD:
+            break;
 
     default:
         return RC_Channel::do_aux_function(ch_option, ch_flag);

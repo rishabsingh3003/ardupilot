@@ -939,6 +939,17 @@ private:
     void userhook_auxSwitch2(const RC_Channel::AuxSwitchPos ch_flag);
     void userhook_auxSwitch3(const RC_Channel::AuxSwitchPos ch_flag);
 
+    // mower.cpp
+    void mower_init();
+    void mower_update();
+    struct {
+        RC_Channel *amplitude_control;
+        RC_Channel *period_control;
+        uint32_t last_update_ms;
+        float pos_offset_m;
+        float time_sec;
+    } mower;
+
 #if MODE_ACRO_ENABLED == ENABLED
 #if FRAME_CONFIG == HELI_FRAME
     ModeAcro_Heli mode_acro;
