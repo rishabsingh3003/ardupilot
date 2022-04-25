@@ -252,6 +252,10 @@ public:
         // inputs 248-249 are reserved for the Skybrush fork at
         // https://github.com/skybrush-io/ardupilot
 
+        // mower controls
+        MOWER_AMPLITUDE =    220,  // Copter mower feature amplitude control
+        MOWER_PERIOD    =    221,  // Copter mower feature period control
+
         // inputs for the use of onboard lua scripting
         SCRIPTING_1 =        300,
         SCRIPTING_2 =        301,
