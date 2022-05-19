@@ -2,7 +2,7 @@
 
 local SERVO_NO = 94
 local last_servo = 0
-local rc_channel = 7
+local rc_channel = 8
 
 -- bottom right - SERVO5 - SCR 94
 -- bottom left - SERVO6 - SCR 95
@@ -16,7 +16,9 @@ local pwm_array = {1500,1500,1500,1500} -- bottom_right, bottom _left, top_left,
 function update() -- this is the loop which periodically runs
 
   local rc_pwm = rc:get_pwm(rc_channel)
-  if rc_pwm < 1000 or rc_pwm > 2000 then
+  gcs:send_text(0, string.format("pwm: %0.2f",rc_pwm))
+
+  if rc_pwm < 900 or rc_pwm > 2100 then
     return update, 25
   end
 
@@ -31,9 +33,9 @@ function update() -- this is the loop which periodically runs
     rc_pwm = 1700
   end
 
-  if rc_pwm < 1700 and rc_pwm > 1300 then
-    rc_pwm = 1500
-  end
+  -- if rc_pwm < 1700 and rc_pwm > 1300 then
+  --   rc_pwm = 1500
+  -- end
   pwm_array[0] = rc_pwm
   pwm_array[1] = 3000 - rc_pwm
   pwm_array[2] = rc_pwm
@@ -42,6 +44,8 @@ function update() -- this is the loop which periodically runs
   for i = 0,4 do
     SRV_Channels:set_output_pwm(SERVO_NO+i, pwm_array[i])
   end
+  
+  gcs:send_text(0, string.format("pwm: %0.2f",rc_pwm))
 
   return update, 25
 

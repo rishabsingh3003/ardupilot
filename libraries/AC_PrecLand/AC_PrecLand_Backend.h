@@ -37,6 +37,8 @@ public:
     // parses a mavlink message from the companion computer
     virtual void handle_msg(const mavlink_landing_target_t &packet, uint32_t timestamp_ms) {};
 
+    virtual float get_area() { return 0.0f; }
+
     // get bus parameter
     int8_t get_bus(void) const { return _frontend._bus.get(); }
     

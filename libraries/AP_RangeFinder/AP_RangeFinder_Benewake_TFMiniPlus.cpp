@@ -156,7 +156,7 @@ void AP_RangeFinder_Benewake_TFMiniPlus::process_raw_measure(le16_t distance_raw
 {
     uint16_t strength = le16toh(strength_raw);
     const uint16_t MAX_DIST_CM = 1200;
-    const uint16_t MIN_DIST_CM = 10;
+    const uint16_t MIN_DIST_CM = 0;
 
     output_distance_cm = le16toh(distance_raw);
 

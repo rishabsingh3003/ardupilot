@@ -107,6 +107,12 @@ public:
     float get_min_retry_time_sec() const { return _retry_timeout_sec; }
     AC_PrecLand_StateMachine::RetryAction get_retry_behaviour() const { return static_cast<AC_PrecLand_StateMachine::RetryAction>(_retry_behave.get()); }
 
+    void precland_override(bool override) { _precland_override = true; }
+    void override_vel(float vel) { _override_vel = vel; }
+    bool alt_override() const { return _precland_override; }
+    float alt_vel() const { return _override_vel;  }
+    float get_area();
+
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -196,6 +202,9 @@ private:
     Vector2f                    _target_vel_rel_out_NE; // target's velocity relative to the CG, fed into position controller
 
     TargetState                 _current_target_state;  // Current status of the landing target
+
+    bool                        _precland_override;
+    float                       _override_vel;
 
     // structure and buffer to hold a history of vehicle velocity
     struct inertial_data_frame_s {

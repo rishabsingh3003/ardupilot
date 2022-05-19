@@ -677,7 +677,7 @@ uint32_t AP_Frsky_SPort_Passthrough::calc_velandyaw(void)
  */
 uint32_t AP_Frsky_SPort_Passthrough::calc_attiandrng(void)
 {
-    const RangeFinder *_rng = RangeFinder::get_singleton();
+    RangeFinder *_rng = RangeFinder::get_singleton();
 
     AP_AHRS &_ahrs = AP::ahrs();
     // roll from [-18000;18000] centidegrees to unsigned .2 degree increments [0;1800] (just in case, limit to 2047 (0x7FF) since the value is stored on 11 bits)

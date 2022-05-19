@@ -24,7 +24,6 @@
 
 #include "AP_Filesystem.h"
 
-#if HAVE_FILESYSTEM_SUPPORT
 
 #include "posix_compat.h"
 #include <stdarg.h>
@@ -264,5 +263,3 @@ int apfs_remove(const char *pathname)
 {
     return AP::FS().unlink(pathname);
 }
-
-#endif // HAVE_FILESYSTEM_SUPPORT

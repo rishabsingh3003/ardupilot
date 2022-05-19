@@ -54,6 +54,8 @@
 #include <AP_Logger/AP_Logger.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
+#include "AP_RangeFinder_Lua.h"
+
 extern const AP_HAL::HAL &hal;
 
 // table of user settable parameters
@@ -585,6 +587,13 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
         _add_backend(new AP_RangeFinder_Benewake_CAN(state[instance], params[instance]), instance);
         break;
 #endif //HAL_MAX_CAN_PROTOCOL_DRIVERS
+
+    #if AP_SCRIPTING_ENABLED
+    case Type::Lua_Scripting:
+        _add_backend(new AP_RangeFinder_Lua(state[instance], params[instance]), instance);
+        break;
+    #endif
+
     case Type::NONE:
     default:
         break;
@@ -654,6 +663,16 @@ bool RangeFinder::has_orientation(enum Rotation orientation) const
 // find first range finder instance with the specified orientation
 AP_RangeFinder_Backend *RangeFinder::find_instance(enum Rotation orientation) const
 {
+    // first check if user wants a particular instance to be used by default (For example, lua script backend)
+    for (uint8_t i=0; i<num_instances; i++) {
+        AP_RangeFinder_Backend *backend = get_backend(i);
+        if (backend != nullptr &&
+            backend->orientation() == orientation &&
+            backend->primary_sensor()) {
+                return backend;
+        }
+    }
+
     // first try for a rangefinder that is in range
     for (uint8_t i=0; i<num_instances; i++) {
         AP_RangeFinder_Backend *backend = get_backend(i);

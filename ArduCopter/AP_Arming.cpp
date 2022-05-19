@@ -454,18 +454,18 @@ bool AP_Arming_Copter::proximity_checks(bool display_failure) const
         return true;
     }
 
-    // get closest object if we might use it for avoidance
-#if AC_AVOID_ENABLED == ENABLED
-    float angle_deg, distance;
-    if (copter.avoid.proximity_avoidance_enabled() && copter.g2.proximity.get_closest_object(angle_deg, distance)) {
-        // display error if something is within 60cm
-        const float tolerance = 0.6f;
-        if (distance <= tolerance) {
-            check_failed(ARMING_CHECK_PARAMETERS, display_failure, "Proximity %d deg, %4.2fm (want > %0.1fm)", (int)angle_deg, (double)distance, (double)tolerance);
-            return false;
-        }
-    }
-#endif
+//     // get closest object if we might use it for avoidance
+// #if AC_AVOID_ENABLED == ENABLED
+//     float angle_deg, distance;
+//     if (copter.avoid.proximity_avoidance_enabled() && copter.g2.proximity.get_closest_object(angle_deg, distance)) {
+//         // display error if something is within 60cm
+//         const float tolerance = 0.6f;
+//         if (distance <= tolerance) {
+//             check_failed(ARMING_CHECK_PARAMETERS, display_failure, "Proximity %d deg, %4.2fm (want > %0.1fm)", (int)angle_deg, (double)distance, (double)tolerance);
+//             return false;
+//         }
+//     }
+// #endif
 
 #endif
     return true;

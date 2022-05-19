@@ -572,9 +572,12 @@ int32_t Mode::get_alt_above_ground_cm(void)
 
 void Mode::land_run_vertical_control(bool pause_descent)
 {
+
     float cmb_rate = 0;
     bool ignore_descent_limit = false;
-    if (!pause_descent) {
+    const bool override = copter.precland.alt_override();
+
+    if (!pause_descent && !override) {
 
         // do not ignore limits until we have slowed down for landing
         ignore_descent_limit = (MAX(g2.land_alt_low,100) > get_alt_above_ground_cm()) || copter.ap.land_complete_maybe;
@@ -627,6 +630,11 @@ void Mode::land_run_vertical_control(bool pause_descent)
             }
         }
 #endif
+    }
+
+    if (override) {
+        float desired_climb_rate = copter.precland.alt_vel() * 100.0f;
+        cmb_rate = constrain_float(desired_climb_rate, -float(g.land_speed), float(g.land_speed));
     }
 
     // update altitude target and call position controller

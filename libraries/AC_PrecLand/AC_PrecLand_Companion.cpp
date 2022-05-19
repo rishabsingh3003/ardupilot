@@ -50,6 +50,8 @@ void AC_PrecLand_Companion::handle_msg(const mavlink_landing_target_t &packet, u
     _los_meas_body = Vector3f(-tanf(packet.angle_y), tanf(packet.angle_x), 1.0f);
     _los_meas_body /= _los_meas_body.length();
 
+    _area = packet.size_x * packet.size_y;
+
     _los_meas_time_ms = timestamp_ms;
     _have_los_meas = true;
 }

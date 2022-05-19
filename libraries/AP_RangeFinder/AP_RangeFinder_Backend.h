@@ -37,6 +37,18 @@ public:
     virtual void handle_msp(const MSP::msp_rangefinder_data_message_t &pkt) { return; }
 #endif
 
+    #if AP_SCRIPTING_ENABLED
+    // Returns false if scripting backing hasn't been setup
+    // Get distance from lua script
+    virtual bool handle_script_msg(float dist_m) { return false; }
+
+    // Set this to be the primary sensor in use for a given orientation. Used only by Lua Scripting
+    void set_primary(bool primary_device ) { _primary_backend = primary_device; }
+    #endif
+
+    // returns true if this sensor backend should be the primary sensor (i.e read values of this sensor irrespective of its status)
+    bool primary_sensor() const { return _primary_backend; }
+
     enum Rotation orientation() const { return (Rotation)params.orientation.get(); }
     float distance() const { return state.distance_m; }
     uint16_t distance_cm() const { return state.distance_m*100.0f; }
@@ -86,4 +98,7 @@ protected:
     RangeFinder::Type _backend_type;
 
     virtual MAV_DISTANCE_SENSOR _get_mav_distance_sensor_type() const = 0;
+
+    bool _primary_backend;
+
 };

@@ -158,6 +158,16 @@ singleton AP_Proximity method get_object_angle_and_distance boolean uint8_t 0 UI
 
 include AP_RangeFinder/AP_RangeFinder.h
 
+include AP_RangeFinder/AP_RangeFinder_Backend.h
+
+ap_object AP_RangeFinder_Backend method has_data boolean
+ap_object AP_RangeFinder_Backend method distance float
+ap_object AP_RangeFinder_Backend method orientation Rotation'enum
+ap_object AP_RangeFinder_Backend method type uint8_t
+ap_object AP_RangeFinder_Backend method status uint8_t
+ap_object AP_RangeFinder_Backend method handle_script_msg boolean float'skip_check
+ap_object AP_RangeFinder_Backend method set_primary void boolean'skip_check 
+
 singleton RangeFinder alias rangefinder
 singleton RangeFinder method num_sensors uint8_t
 singleton RangeFinder method has_orientation boolean Rotation'enum ROTATION_NONE ROTATION_MAX-1
@@ -168,6 +178,8 @@ singleton RangeFinder method ground_clearance_cm_orient uint16_t Rotation'enum R
 singleton RangeFinder method status_orient uint8_t Rotation'enum ROTATION_NONE ROTATION_MAX-1
 singleton RangeFinder method has_data_orient boolean Rotation'enum ROTATION_NONE ROTATION_MAX-1
 singleton RangeFinder method get_pos_offset_orient Vector3f Rotation'enum ROTATION_NONE ROTATION_MAX-1
+
+singleton RangeFinder method get_backend AP_RangeFinder_Backend uint8_t'skip_check
 
 include AP_Terrain/AP_Terrain.h
 
@@ -504,3 +516,12 @@ singleton AP_Follow method get_target_location_and_velocity boolean Location'Nul
 singleton AP_Follow method get_target_location_and_velocity_ofs boolean Location'Null Vector3f'Null
 singleton AP_Follow method get_target_heading_deg boolean float'Null
 
+include AC_PrecLand/AC_PrecLand.h
+singleton AC_PrecLand alias precland
+singleton AC_PrecLand method target_acquired boolean
+singleton AC_PrecLand method get_target_state uint8_t
+singleton AC_PrecLand method get_target_position_cm boolean Vector2f
+singleton AC_PrecLand method get_target_position_relative_cm boolean Vector2f
+singleton AC_PrecLand method precland_override void boolean
+singleton AC_PrecLand method override_vel void float'skip_check
+singleton AC_PrecLand method get_area float
