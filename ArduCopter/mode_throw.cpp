@@ -71,7 +71,7 @@ void ModeThrow::run()
         // initialise the demanded height to 3m above the throw height
         // we want to rapidly clear surrounding obstacles
         if (g2.throw_type == ThrowType::Drop) {
-            pos_control->set_pos_target_z_cm(inertial_nav.get_position_z_up_cm() - 100);
+            pos_control->set_pos_target_z_cm(inertial_nav.get_position_z_up_cm() - 25);
         } else {
             pos_control->set_pos_target_z_cm(inertial_nav.get_position_z_up_cm() + 300);
         }
@@ -248,11 +248,11 @@ void ModeThrow::run()
 
 bool ModeThrow::throw_detected()
 {
-    // Check that we have a valid navigation solution
-    nav_filter_status filt_status = inertial_nav.get_filter_status();
-    if (!filt_status.flags.attitude || !filt_status.flags.horiz_pos_abs || !filt_status.flags.vert_pos) {
-        return false;
-    }
+    // // Check that we have a valid navigation solution
+    // nav_filter_status filt_status = inertial_nav.get_filter_status();
+    // if (!filt_status.flags.attitude || !filt_status.flags.horiz_pos_abs || !filt_status.flags.vert_pos) {
+    //     return false;
+    // }
 
     // Check for high speed (>500 cm/s)
     bool high_speed = inertial_nav.get_velocity_neu_cms().length_squared() > (THROW_HIGH_SPEED * THROW_HIGH_SPEED);
@@ -281,10 +281,11 @@ bool ModeThrow::throw_detected()
     }
 
     // Once a possible throw condition has been detected, we check for 2.5 m/s of downwards velocity change in less than 0.5 seconds to confirm
-    bool throw_condition_confirmed = ((AP_HAL::millis() - free_fall_start_ms < 500) && ((inertial_nav.get_velocity_z_up_cms() - free_fall_start_velz) < -250.0f));
+    // bool throw_condition_confirmed = ((AP_HAL::millis() - free_fall_start_ms < 500) && ((inertial_nav.get_velocity_z_up_cms() - free_fall_start_velz) < -250.0f));
 
     // start motors and enter the control mode if we are in continuous freefall
-    return throw_condition_confirmed;
+    return possible_throw_detected;
+;
 }
 
 bool ModeThrow::throw_attitude_good() const
@@ -297,13 +298,13 @@ bool ModeThrow::throw_attitude_good() const
 bool ModeThrow::throw_height_good() const
 {
     // Check that we are within 0.5m of the demanded height
-    return (pos_control->get_pos_error_z_cm() < 50.0f);
+    return (pos_control->get_pos_error_z_cm() < 8.0f);
 }
 
 bool ModeThrow::throw_position_good() const
 {
     // check that our horizontal position error is within 50cm
-    return (pos_control->get_pos_error_xy_cm() < 50.0f);
+    return (pos_control->get_pos_error_xy_cm() < 20.0f);
 }
 
 #endif
