@@ -269,10 +269,10 @@ bool ModeThrow::throw_detected()
     bool free_falling = ahrs.get_accel_ef().z > -0.25 * GRAVITY_MSS;
 
     // Check if the accel length is < 1.0g indicating that any throw action is complete and the copter has been released
-    bool no_throw_action = copter.ins.get_accel().length() < 1.0f * GRAVITY_MSS;
+    // bool no_throw_action = copter.ins.get_accel().length() < 1.0f * GRAVITY_MSS;
 
     // High velocity or free-fall combined with increasing height indicate a possible air-drop or throw release
-    bool possible_throw_detected = (free_falling || high_speed) && changing_height && no_throw_action;
+    bool possible_throw_detected = (free_falling || high_speed) && changing_height;
 
     // Record time and vertical velocity when we detect the possible throw
     if (possible_throw_detected && ((AP_HAL::millis() - free_fall_start_ms) > 500)) {
@@ -284,6 +284,8 @@ bool ModeThrow::throw_detected()
     // bool throw_condition_confirmed = ((AP_HAL::millis() - free_fall_start_ms < 500) && ((inertial_nav.get_velocity_z_up_cms() - free_fall_start_velz) < -250.0f));
 
     // start motors and enter the control mode if we are in continuous freefall
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "throw! %5.3f", (double)possible_throw_detected);
+
     return possible_throw_detected;
 ;
 }
