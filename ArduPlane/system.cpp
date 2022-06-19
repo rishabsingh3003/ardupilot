@@ -116,6 +116,7 @@ void Plane::init_ardupilot()
 
 #if HAL_QUADPLANE_ENABLED
     quadplane.setup();
+    precland.init(50);
 #endif
 
     AP_Param::reload_defaults_file(true);

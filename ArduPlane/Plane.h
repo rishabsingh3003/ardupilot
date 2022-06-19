@@ -247,6 +247,8 @@ private:
     OpticalFlow optflow;
 #endif
 
+    AC_PrecLand precland;
+
     // Rally Ponints
     AP_Rally rally;
 

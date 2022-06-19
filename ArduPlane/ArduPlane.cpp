@@ -212,6 +212,8 @@ void Plane::update_speed_height(void)
         quadplane.in_assisted_flight()) {
         quadplane.update_throttle_mix();
     }
+        precland.update(rangefinder_state.height_estimate,
+                           rangefinder_state.in_use);
 #endif
 }
 

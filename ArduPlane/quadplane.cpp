@@ -569,7 +569,28 @@ void QuadPlane::setup_default_channels(uint8_t num_motors)
         SRV_Channels::set_aux_channel_default(SRV_Channels::get_motor_function(i), CH_5+i);
     }
 }
-    
+
+bool QuadPlane::try_precision_landing() {
+    // No precland if the pilot is making corrections.
+    if (poscontrol.pilot_correction_active) return false;
+
+    if (!plane.precland.target_acquired()) return false;
+
+    Vector2f target_pos, target_vel;
+    if (!plane.precland.get_target_position_cm(target_pos)) {
+        target_pos = inertial_nav.get_position_xy_cm();
+    }
+    plane.precland.get_target_velocity_cms(inertial_nav.get_velocity_xy_cms(), target_vel);
+
+    Vector2f zero;
+    Vector2p landing_pos = target_pos.topostype();
+    // target vel will remain zero if landing target is stationary
+    pos_control->input_pos_vel_accel_xy(landing_pos, target_vel, zero);
+    // run pos controller
+    pos_control->update_xy_controller();
+    return true;
+}
+
 
 bool QuadPlane::setup(void)
 {
@@ -2561,9 +2582,12 @@ void QuadPlane::vtol_position_controller(void)
         /*
           for final land repositioning and descent we run the position controller
          */
+        
+        if (!try_precision_landing()) {
         Vector2f zero;
         Vector2f vel_cms = poscontrol.target_vel_cms.xy() + landing_velocity*100;
         pos_control->input_pos_vel_accel_xy(poscontrol.target_cm.xy(), vel_cms, zero);
+        }
 
         // also run fixed wing navigation
         plane.nav_controller->update_waypoint(plane.current_loc, loc);
@@ -2593,7 +2617,7 @@ void QuadPlane::vtol_position_controller(void)
         // relax when close to the ground
         if (should_relax()) {
             pos_control->relax_velocity_controller_xy();
-        } else {
+        } else if (!try_precision_landing()){
             Vector2f zero;
             Vector2f vel_cms = poscontrol.target_vel_cms.xy() + landing_velocity*100;
             Vector2f rpos;

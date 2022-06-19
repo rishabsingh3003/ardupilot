@@ -352,6 +352,7 @@ public:
         k_param_gcs6,          // stream rates
         k_param_fence,         // vehicle fence
         k_param_acro_yaw_rate,
+        k_param_precland,
     };
 
     AP_Int16 format_version;

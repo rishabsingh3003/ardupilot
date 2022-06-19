@@ -25,6 +25,7 @@
 #include "tailsitter.h"
 #include "tiltrotor.h"
 #include "transition.h"
+#include <AC_PrecLand/AC_PrecLand.h>
 
 /*
   QuadPlane specific functionality
@@ -278,6 +279,8 @@ private:
     // distance below which we don't do approach, based on stopping
     // distance for cruise speed
     float transition_threshold(void);
+    
+    bool try_precision_landing();
 
     AP_Int16 transition_time_ms;
     AP_Int16 back_trans_pitch_limit_ms;
