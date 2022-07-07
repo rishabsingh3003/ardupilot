@@ -29,8 +29,9 @@ extern const AP_HAL::HAL& hal;
 void AP_Proximity_MAV::update(void)
 {
     // check for timeout and set health status
-    if ((_last_update_ms == 0 || (AP_HAL::millis() - _last_update_ms > PROXIMITY_MAV_TIMEOUT_MS)) &&
-        (_last_upward_update_ms == 0 || (AP_HAL::millis() - _last_upward_update_ms > PROXIMITY_MAV_TIMEOUT_MS))) {
+    const uint32_t now_ms = AP_HAL::millis();
+    if ((_last_update_ms == 0 || (now_ms - _last_update_ms > PROXIMITY_MAV_TIMEOUT_MS)) &&
+        (_last_upward_update_ms == 0 || (now_ms - _last_upward_update_ms > PROXIMITY_MAV_TIMEOUT_MS))) {
         set_status(AP_Proximity::Status::NoData);
     } else {
         set_status(AP_Proximity::Status::Good);
