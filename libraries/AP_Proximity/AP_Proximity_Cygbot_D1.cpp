@@ -5,14 +5,16 @@
 // update the state of the sensor
 void AP_Proximity_Cygbot_D1::update()
 {
+    const uint32_t now_ms = AP_HAL::millis();
+
     if (!_initialized) {
         send_sensor_start();
         _temp_boundary.reset();
         _initialized = true;
-        _last_init_ms = AP_HAL::millis();
+        _last_init_ms = now_ms;
     }
 
-    if ((AP_HAL::millis() - _last_init_ms) < CYGBOT_INIT_TIMEOUT_MS) {
+    if ((now_ms - _last_init_ms) < CYGBOT_INIT_TIMEOUT_MS) {
         // just initialized
         set_status(AP_Proximity::Status::NoData);
         return;
@@ -21,7 +23,7 @@ void AP_Proximity_Cygbot_D1::update()
     // read data
     read_sensor_data();
 
-    if (AP_HAL::millis() - _last_distance_received_ms < CYGBOT_TIMEOUT_MS) {
+    if (now_ms - _last_distance_received_ms < CYGBOT_TIMEOUT_MS) {
         set_status(AP_Proximity::Status::Good);
     } else {
         // long time since we received any valid sensor data
