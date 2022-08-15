@@ -158,6 +158,15 @@ singleton AP_Proximity method get_object_count uint8_t
 singleton AP_Proximity method get_closest_object boolean float'Null float'Null
 singleton AP_Proximity method get_object_angle_and_distance boolean uint8_t 0 UINT8_MAX float'Null float'Null
 
+
+include AC_PrecLand/AC_PrecLand.h
+singleton AC_PrecLand rename precland
+singleton AC_PrecLand method target_acquired boolean
+singleton AC_PrecLand method get_target_state uint8_t
+singleton AC_PrecLand method get_target_position_cm boolean Vector2f
+singleton AC_PrecLand method get_los_meas boolean Vector3f
+
+
 include AP_RangeFinder/AP_RangeFinder.h
 
 singleton RangeFinder rename rangefinder

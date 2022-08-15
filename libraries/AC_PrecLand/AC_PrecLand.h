@@ -107,6 +107,9 @@ public:
     float get_min_retry_time_sec() const { return _retry_timeout_sec; }
     AC_PrecLand_StateMachine::RetryAction get_retry_behaviour() const { return static_cast<AC_PrecLand_StateMachine::RetryAction>(_retry_behave.get()); }
 
+    // get vehicle body frame 3D vector from vehicle to target.  returns true on success, false on failure
+    bool get_los_meas(Vector3f& target_vec_unit_body);
+
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
 

@@ -594,36 +594,36 @@ void Mode::land_run_vertical_control(bool pause_descent)
         // Constrain the demanded vertical velocity so that it is between the configured maximum descent speed and the configured minimum descent speed.
         cmb_rate = constrain_float(cmb_rate, max_land_descent_velocity, -abs(g.land_speed));
 
-#if PRECISION_LANDING == ENABLED
-        const bool navigating = pos_control->is_active_xy();
-        bool doing_precision_landing = !copter.ap.land_repo_active && copter.precland.target_acquired() && navigating;
+// #if PRECISION_LANDING == ENABLED
+//         const bool navigating = pos_control->is_active_xy();
+//         bool doing_precision_landing = !copter.ap.land_repo_active && copter.precland.target_acquired() && navigating;
 
-        if (doing_precision_landing) {
-            // prec landing is active
-            Vector2f target_pos;
-            float target_error_cm = 0.0f;
-            if (copter.precland.get_target_position_cm(target_pos)) {
-                const Vector2f current_pos = inertial_nav.get_position_xy_cm();
-                // target is this many cm away from the vehicle
-                target_error_cm = (target_pos - current_pos).length();
-            }
-            // check if we should descend or not
-            const float max_horiz_pos_error_cm = copter.precland.get_max_xy_error_before_descending_cm();
-            if (target_error_cm > max_horiz_pos_error_cm && !is_zero(max_horiz_pos_error_cm)) {
-                // doing precland but too far away from the obstacle
-                // do not descend
-                cmb_rate = 0.0f;
-            } else if (copter.rangefinder_alt_ok() && copter.rangefinder_state.alt_cm > 35.0f && copter.rangefinder_state.alt_cm < 200.0f) {
-                // very close to the ground and doing prec land, lets slow down to make sure we land on target
-                // compute desired descent velocity
-                const float precland_acceptable_error_cm = 15.0f;
-                const float precland_min_descent_speed_cms = 10.0f;
-                const float max_descent_speed_cms = abs(g.land_speed)*0.5f;
-                const float land_slowdown = MAX(0.0f, target_error_cm*(max_descent_speed_cms/precland_acceptable_error_cm));
-                cmb_rate = MIN(-precland_min_descent_speed_cms, -max_descent_speed_cms+land_slowdown);
-            }
-        }
-#endif
+//         if (doing_precision_landing) {
+//             // prec landing is active
+//             Vector2f target_pos;
+//             float target_error_cm = 0.0f;
+//             if (copter.precland.get_target_position_cm(target_pos)) {
+//                 const Vector2f current_pos = inertial_nav.get_position_xy_cm();
+//                 // target is this many cm away from the vehicle
+//                 target_error_cm = (target_pos - current_pos).length();
+//             }
+//             // check if we should descend or not
+//             const float max_horiz_pos_error_cm = copter.precland.get_max_xy_error_before_descending_cm();
+//             if (target_error_cm > max_horiz_pos_error_cm && !is_zero(max_horiz_pos_error_cm)) {
+//                 // doing precland but too far away from the obstacle
+//                 // do not descend
+//                 cmb_rate = 0.0f;
+//             } else if (copter.rangefinder_alt_ok() && copter.rangefinder_state.alt_cm > 35.0f && copter.rangefinder_state.alt_cm < 200.0f) {
+//                 // very close to the ground and doing prec land, lets slow down to make sure we land on target
+//                 // compute desired descent velocity
+//                 const float precland_acceptable_error_cm = 15.0f;
+//                 const float precland_min_descent_speed_cms = 10.0f;
+//                 const float max_descent_speed_cms = abs(g.land_speed)*0.5f;
+//                 const float land_slowdown = MAX(0.0f, target_error_cm*(max_descent_speed_cms/precland_acceptable_error_cm));
+//                 cmb_rate = MIN(-precland_min_descent_speed_cms, -max_descent_speed_cms+land_slowdown);
+//             }
+//         }
+// #endif
     }
 
     // update altitude target and call position controller
@@ -680,7 +680,7 @@ void Mode::land_run_horizontal_control()
     // this variable will be updated if prec land target is in sight and pilot isn't trying to reposition the vehicle
     copter.ap.prec_land_active = false;
 #if PRECISION_LANDING == ENABLED
-    copter.ap.prec_land_active = !copter.ap.land_repo_active && copter.precland.target_acquired();
+    // copter.ap.prec_land_active = !copter.ap.land_repo_active && copter.precland.target_acquired();
     // run precision landing
     if (copter.ap.prec_land_active) {
         Vector2f target_pos, target_vel;
@@ -741,19 +741,19 @@ void Mode::land_run_horizontal_control()
 // pause_descent is true if vehicle should not descend
 void Mode::land_run_normal_or_precland(bool pause_descent)
 {
-#if PRECISION_LANDING == ENABLED
-    if (pause_descent || !copter.precland.enabled()) {
-        // we don't want to start descending immediately or prec land is disabled
-        // in both cases just run simple land controllers
-        land_run_horiz_and_vert_control(pause_descent);
-    } else {
-        // prec land is enabled and we have not paused descent
-        // the state machine takes care of the entire prec landing procedure
-        precland_run();
-    }
-#else
+// #if PRECISION_LANDING == ENABLED
+//     if (pause_descent || !copter.precland.enabled()) {
+//         // we don't want to start descending immediately or prec land is disabled
+//         // in both cases just run simple land controllers
+//         land_run_horiz_and_vert_control(pause_descent);
+//     } else {
+//         // prec land is enabled and we have not paused descent
+//         // the state machine takes care of the entire prec landing procedure
+//         precland_run();
+//     }
+// #else
     land_run_horiz_and_vert_control(pause_descent);
-#endif
+// #endif
 }
 
 #if PRECISION_LANDING == ENABLED
