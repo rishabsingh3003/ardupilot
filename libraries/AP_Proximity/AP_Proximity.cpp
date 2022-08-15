@@ -75,6 +75,12 @@ const AP_Param::GroupInfo AP_Proximity::var_info[] = {
     AP_SUBGROUPINFO(params[1], "2", 22, AP_Proximity, AP_Proximity_Params),
 #endif
 
+#if PROXIMITY_MAX_INSTANCES > 2
+    // @Group: 3
+    // @Path: AP_Proximity_Params.cpp
+    AP_SUBGROUPINFO(params[2], "3", 23, AP_Proximity, AP_Proximity_Params),
+#endif
+
     AP_GROUPEND
 };
 
@@ -103,7 +109,7 @@ void AP_Proximity::init()
     for (uint8_t instance=0; instance<PROXIMITY_MAX_INSTANCES; instance++) {
         switch (get_type(instance)) {
         case Type::None:
-            return;
+            break;
         case Type::RPLidarA2:
             if (AP_Proximity_RPLidarA2::detect(serial_instance)) {
                 state[instance].instance = instance;

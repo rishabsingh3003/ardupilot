@@ -5,16 +5,16 @@
 // update the state of the sensor
 void AP_Proximity_Cygbot_D1::update()
 {
-    const uint32_t now_ms = AP_HAL::millis();
+    // const uint32_t now_ms = AP_HAL::millis();
 
     if (!_initialized) {
         send_sensor_start();
         _temp_boundary.reset();
         _initialized = true;
-        _last_init_ms = now_ms;
+        _last_init_ms = AP_HAL::millis();
     }
 
-    if ((now_ms - _last_init_ms) < CYGBOT_INIT_TIMEOUT_MS) {
+    if ((AP_HAL::millis() - _last_init_ms) < CYGBOT_INIT_TIMEOUT_MS) {
         // just initialized
         set_status(AP_Proximity::Status::NoData);
         return;
@@ -23,7 +23,7 @@ void AP_Proximity_Cygbot_D1::update()
     // read data
     read_sensor_data();
 
-    if (now_ms - _last_distance_received_ms < CYGBOT_TIMEOUT_MS) {
+    if (AP_HAL::millis() - _last_distance_received_ms < CYGBOT_TIMEOUT_MS) {
         set_status(AP_Proximity::Status::Good);
     } else {
         // long time since we received any valid sensor data
@@ -141,20 +141,21 @@ void AP_Proximity_Cygbot_D1::parse_payload()
 
     // start from second byte as first byte is part of the header
     for (uint16_t i = 2; i < _msg.payload_len; i += 2) {
+        const float corrected_angle = correct_angle_for_orientation(sampled_angle);
         const uint16_t distance_mm = UINT16_VALUE(_msg.payload[i], _msg.payload[i+1]);
         float distance_m = distance_mm * 0.001f;
         if (distance_m > distance_min() && distance_m < distance_max()) {
-            if (ignore_reading(sampled_angle, distance_m)) {
+            if (ignore_reading(corrected_angle, distance_m)) {
                 // ignore this angle
                 sampled_angle += CYGBOT_2D_ANGLE_STEP;
                 continue;
             }
             // convert angle to face
-            const AP_Proximity_Boundary_3D::Face face = frontend.boundary.get_face(sampled_angle);
+            const AP_Proximity_Boundary_3D::Face face = frontend.boundary.get_face(corrected_angle);
             // push face to temp boundary
-            _temp_boundary.add_distance(face, sampled_angle, distance_m);
+            _temp_boundary.add_distance(face, corrected_angle, distance_m);
             // push to OA_DB
-            database_push(sampled_angle, distance_m);
+            database_push(corrected_angle, distance_m);
         }
         // increment sampled angle
         sampled_angle += CYGBOT_2D_ANGLE_STEP;
