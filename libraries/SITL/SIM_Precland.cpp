@@ -122,8 +122,8 @@ void SIM_Precland::update(const Location &loc, const Vector3d &position)
 
 
     const Location device_center = AP_AHRS::get_singleton()->get_home();
-    Vector2f centerf;
-    if (!device_center.get_vector_xy_from_origin_NE(centerf)) {
+    Vector3f centerf;
+    if (!device_center.get_vector_from_origin_NEU(centerf)) {
         _healthy = false;
         return;
     }
