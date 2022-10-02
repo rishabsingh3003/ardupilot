@@ -34,9 +34,6 @@ protected:
         return MAV_DISTANCE_SENSOR_UNKNOWN;
     }
 
-private:
-    SITL::SIM *sitl;
-
     uint8_t _instance;
 
 };
