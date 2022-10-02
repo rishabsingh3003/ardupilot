@@ -61,6 +61,7 @@ public:
 #endif
         CYGBOT_D1 = 13,
         DroneCAN = 14,
+        Lua_Scripting = 15,
     };
 
     enum class Status {
@@ -159,6 +160,9 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
 
     static AP_Proximity *get_singleton(void) { return _singleton; };
+
+    // return backend object for Lua scripting
+    AP_Proximity_Backend *get_backend(uint8_t id) const;
 
     // 3D boundary
     AP_Proximity_Boundary_3D boundary;
