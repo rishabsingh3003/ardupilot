@@ -370,6 +370,7 @@ private:
 
     enum class Options {
         DisableDownload = (1U<<0),
+        UseMaximumHeight = (1U<<1),
     };
 
     // cache of grids in memory, LRU

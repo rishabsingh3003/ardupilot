@@ -57,7 +57,7 @@ const AP_Param::GroupInfo AP_Terrain::var_info[] = {
     // @Param: OPTIONS
     // @DisplayName: Terrain options
     // @Description: Options to change behaviour of terrain system
-    // @Bitmask: 0:Disable Download
+    // @Bitmask: 0:Disable Download, 1: Use maximum height of terrain grid points
     // @User: Advanced
     AP_GROUPINFO("OPTIONS",   2, AP_Terrain, options, 0),
 
@@ -76,7 +76,7 @@ const AP_Param::GroupInfo AP_Terrain::var_info[] = {
     // @Range: 0 50
     // @User: Advanced
     AP_GROUPINFO("OFS_MAX",  4, AP_Terrain, offset_max, 30),
-    
+
     AP_GROUPEND
 };
 
@@ -153,14 +153,18 @@ bool AP_Terrain::height_amsl(const Location &loc, float &height, bool corrected)
     h10 = grid.height[info.idx_x+1][info.idx_y+0];
     h11 = grid.height[info.idx_x+1][info.idx_y+1];
 
-    // do a simple dual linear interpolation. We could do something
-    // fancier, but it probably isn't worth it as long as the
-    // grid_spacing is kept small enough
-    float avg1 = (1.0f-info.frac_x) * h00  + info.frac_x * h10;
-    float avg2 = (1.0f-info.frac_x) * h01  + info.frac_x * h11;
-    float avg  = (1.0f-info.frac_y) * avg1 + info.frac_y * avg2;
-
-    height = avg;
+    if (options & uint16_t(Options::UseMaximumHeight)) {
+        // use the maximum height of the 4 surrounding grid points
+        height = MAX(h00, MAX(h01, MAX(h10, h11)));
+    } else {
+        // do a simple dual linear interpolation. We could do something
+        // fancier, but it probably isn't worth it as long as the
+        // grid_spacing is kept small enough
+        float avg1 = (1.0f-info.frac_x) * h00  + info.frac_x * h10;
+        float avg2 = (1.0f-info.frac_x) * h01  + info.frac_x * h11;
+        float avg  = (1.0f-info.frac_y) * avg1 + info.frac_y * avg2;
+        height = avg;
+    }
 
     if (loc.lat == ahrs.get_home().lat &&
         loc.lng == ahrs.get_home().lng) {
@@ -173,7 +177,7 @@ bool AP_Terrain::height_amsl(const Location &loc, float &height, bool corrected)
     if (corrected && have_reference_offset) {
         height += reference_offset;
     }
-    
+
     return true;
 }
 
