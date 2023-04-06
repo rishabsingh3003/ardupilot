@@ -2594,6 +2594,10 @@ function ahrs:get_position() end
 
 -- desc
 ---@return number
+function ahrs:get_yaw_rate_earth() end
+
+-- desc
+---@return number
 function ahrs:get_yaw() end
 
 -- desc
