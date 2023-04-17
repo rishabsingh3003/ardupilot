@@ -1699,6 +1699,11 @@ function terrain:status() end
 ---@return boolean
 function terrain:enabled() end
 
+-- desc
+-- set the terrain offset in meters
+---@param offset number -- offset in meters
+---@return number|nil
+function terrain:set_terrain_offset_m() end
 
 -- desc
 ---@class rangefinder
