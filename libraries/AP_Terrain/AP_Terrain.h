@@ -197,6 +197,9 @@ public:
      */
     void set_reference_location(void);
 
+    // Allow lua script to set an offset to terrain height
+    void set_terrain_offset_m(float offset) { offset_m = offset; }
+
 private:
     // allocate the terrain subsystem data
     bool allocate(void);
@@ -423,6 +426,8 @@ private:
     bool have_reference_offset;
     float reference_offset;
 
+    // added offset to the final terrain height in m
+    float offset_m;
 
     // cache the last terrain height (AMSL) of the AHRS current
     // location. This is used for extrapolation when terrain data is

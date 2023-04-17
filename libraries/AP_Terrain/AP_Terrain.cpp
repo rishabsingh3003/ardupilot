@@ -75,7 +75,7 @@ const AP_Param::GroupInfo AP_Terrain::var_info[] = {
     // @Range: 0 50
     // @User: Advanced
     AP_GROUPINFO("OFS_MAX",  4, AP_Terrain, offset_max, 15),
-    
+
     AP_GROUPEND
 };
 
@@ -164,6 +164,8 @@ bool AP_Terrain::height_amsl(const Location &loc, float &height, bool corrected)
         float avg  = (1.0f-info.frac_y) * avg1 + info.frac_y * avg2;
         height = avg;
     }
+
+    height +=  offset_m; // if user has set a terrain offset, add it now (via lua script)
 
     if (loc.lat == ahrs.get_home().lat &&
         loc.lng == ahrs.get_home().lng) {
