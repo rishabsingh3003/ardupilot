@@ -201,6 +201,9 @@ const AP_Param::GroupInfo AP_Vehicle::var_info[] = {
     AP_GROUPINFO("FLTMODE_GCSBLOCK", 20, AP_Vehicle, flight_mode_GCS_block, 0),
 #endif // APM_BUILD_COPTER_OR_HELI || APM_BUILD_TYPE(APM_BUILD_ArduPlane) || APM_BUILD_TYPE(APM_BUILD_Rover)
 
+    // @Group: LDB_
+    // @Path: ../AP_LocationDB/AP_LocationDB.cpp
+    AP_SUBGROUPINFO(locationdb, "LDB_",  21, AP_Vehicle, AP_LocationDB),
 
     AP_GROUPEND
 };
@@ -372,6 +375,8 @@ void AP_Vehicle::setup()
 
     custom_rotations.init();
 
+    locationdb.init();
+
 #if HAL_WITH_ESC_TELEM && HAL_GYROFFT_ENABLED
     for (uint8_t i = 0; i<ESC_TELEM_MAX_ESCS; i++) {
         esc_noise[i].set_cutoff_frequency(2);
@@ -502,6 +507,7 @@ const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
 #endif
 #if HAL_EFI_ENABLED
     SCHED_TASK_CLASS(AP_EFI,       &vehicle.efi,            update,                   50, 200, 250),
+    SCHED_TASK_CLASS(AP_LocationDB, &vehicle.locationdb,    update,                    1, 100, 251),
 #endif
 #if HAL_INS_ACCELCAL_ENABLED
     SCHED_TASK(one_Hz_update,                                                         1, 100, 252),
