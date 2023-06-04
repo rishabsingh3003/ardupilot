@@ -56,6 +56,9 @@ static AP_Filesystem_Sys fs_sys;
 static AP_Filesystem_Mission fs_mission;
 #endif
 
+#include "AP_Filesystem_LocationDB.h"
+static AP_Filesystem_LocationDB fs_locationdb;
+
 /*
   mapping from filesystem prefix to backend
  */
@@ -74,6 +77,7 @@ const AP_Filesystem::Backend AP_Filesystem::backends[] = {
 #if AP_FILESYSTEM_MISSION_ENABLED
     { "@MISSION/", fs_mission },
 #endif
+    { "@LOCATIONDB/", fs_locationdb},
 };
 
 extern const AP_HAL::HAL& hal;
