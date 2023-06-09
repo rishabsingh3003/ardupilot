@@ -4058,6 +4058,10 @@ void GCS_MAVLINK::handle_common_message(const mavlink_message_t &msg)
         handle_adsb_message(msg);
         break;
 
+    case MAVLINK_MSG_ID_GLOBAL_POSITION_INT:
+        handle_global_position_int(msg);
+        break;
+
     case MAVLINK_MSG_ID_LANDING_TARGET:
         handle_landing_target(msg);
         break;
@@ -6702,4 +6706,44 @@ MAV_RESULT GCS_MAVLINK::handle_control_high_latency(const mavlink_command_long_t
 
     return MAV_RESULT_ACCEPTED;
 }
+
+void GCS_MAVLINK::handle_global_position_int(const mavlink_message_t &msg)
+{
+    AP_LocationDB *db = AP::locationdb();
+    if (db == nullptr) {
+        return;
+    }
+
+    // decode message
+    mavlink_global_position_int_t packet;
+    mavlink_msg_global_position_int_decode(&msg, &packet);
+
+    // ignore message if lat and lon are (exactly) zero
+    if ((packet.lat == 0 && packet.lon == 0)) {
+        return;
+    }
+
+    const Location loc {
+        packet.lat,
+        packet.lon,
+        packet.alt / 10,
+        Location::AltFrame::ABSOLUTE
+    };
+
+    Vector3f pos;
+    if (!loc.get_vector_from_origin_NEU(pos)) {
+        return;
+    }
+
+    Vector3f vel(packet.vx, packet.vy, -packet.vz);
+    const uint32_t key = AP_LocationDB::construct_key_mavlink(msg.sysid, msg.compid, msg.msgid);
+
+    const uint8_t populated_fields = (uint8_t)AP_LocationDB::DBItem::DataField::POS |
+        (uint8_t)AP_LocationDB::DBItem::DataField::VEL |
+        (uint8_t)AP_LocationDB::DBItem::DataField::HEADING;
+
+    AP_LocationDB::DBItem item(key, AP_HAL::millis(), pos, vel, Vector3f(0, 0, 0), packet.hdg, 0, populated_fields);
+    db->add_item(item);
+}
+
 #endif // HAL_HIGH_LATENCY2_ENABLED
