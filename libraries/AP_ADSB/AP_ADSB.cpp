@@ -30,6 +30,7 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Logger/AP_Logger.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
+#include <AP_LocationDB/AP_LocationDB.h>
 
 
 #define VEHICLE_TIMEOUT_MS              5000   // if no updates in this time, drop it from the list
@@ -468,10 +469,19 @@ bool AP_ADSB::find_index(const adsb_vehicle_t &vehicle, uint16_t *index) const
 }
 
 /*
+ * handle a adsb_vehicle_t from an external source
+ */
+void AP_ADSB::handle_adsb_vehicle(const adsb_vehicle_t &vehicle)
+{
+    update_vehicle_list(vehicle);
+    add_to_locationdb(vehicle);
+}
+
+/*
  * Update the vehicle list. If the vehicle is already in the
  * list then it will update it, otherwise it will be added.
  */
-void AP_ADSB::handle_adsb_vehicle(const adsb_vehicle_t &vehicle)
+void AP_ADSB::update_vehicle_list(const adsb_vehicle_t &vehicle)
 {
     if (!check_startup()) {
         return;
@@ -549,6 +559,46 @@ void AP_ADSB::handle_adsb_vehicle(const adsb_vehicle_t &vehicle)
 
     if (vehicle.info.flags & required_flags_avoidance) {
         push_sample(vehicle); // note that set_vehicle modifies vehicle
+    }
+}
+
+/*
+ * Add vehicle to location database
+ */
+void AP_ADSB::add_to_locationdb(const adsb_vehicle_t &vehicle) {
+    AP_LocationDB *db = AP::locationdb();
+
+    if (db == nullptr) {
+        return;
+    }
+
+    const Location loc (
+        vehicle.info.lat,
+        vehicle.info.lon,
+        vehicle.info.altitude * 0.1, // in cm
+        Location::AltFrame::ABSOLUTE
+    );
+
+    Vector3f pos;
+    Vector3f vel(vehicle.info.hor_velocity * cosf(radians(vehicle.info.heading * 0.01)), vehicle.info.hor_velocity * sinf(radians(vehicle.info.heading * 0.01)), vehicle.info.ver_velocity);
+    if (!loc.get_vector_from_origin_NEU(pos)) {
+        return;
+    }
+
+    const uint32_t key = AP_LocationDB::construct_key_adsb(vehicle.info.ICAO_address);
+
+    const uint8_t populated_fields = (uint8_t)AP_LocationDB::DBItem::DataField::POS |
+        (uint8_t)AP_LocationDB::DBItem::DataField::VEL |
+        (uint8_t)AP_LocationDB::DBItem::DataField::HEADING;
+
+    AP_LocationDB::DBItem item(key, vehicle.last_update_ms ,pos, vel, Vector3f(0, 0, 0), vehicle.info.heading, 0, populated_fields);
+    AP_LocationDB::DBItem existing_item;
+
+    if (db->get_item(key, existing_item)) {
+        item.copy_flags(existing_item.get_flags());
+        db->update_item(key, item);
+    } else {
+        db->add_item(item);
     }
 }
 
