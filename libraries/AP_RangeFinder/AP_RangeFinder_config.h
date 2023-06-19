@@ -1,7 +1,6 @@
 #pragma once
 
 #include <AP_HAL/AP_HAL_Boards.h>
-#include <AP_Scripting/AP_Scripting_config.h>
 
 #ifndef AP_RANGEFINDER_ENABLED
 #define AP_RANGEFINDER_ENABLED 1
