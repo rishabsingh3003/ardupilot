@@ -398,8 +398,6 @@ bool GCS_MAVLINK_Rover::try_send_message(enum ap_message id)
 
 void GCS_MAVLINK_Rover::packetReceived(const mavlink_status_t &status, const mavlink_message_t &msg)
 {
-    // pass message to follow library
-    rover.g2.follow.handle_msg(msg);
     GCS_MAVLINK::packetReceived(status, msg);
 }
 
