@@ -553,6 +553,7 @@ protected:
 
     void handle_adsb_message(const mavlink_message_t &msg);
     void handle_global_position_int(const mavlink_message_t &msg);
+    void handle_follow_target(const mavlink_message_t &msg);
 
     void handle_osd_param_config(const mavlink_message_t &msg) const;
 
