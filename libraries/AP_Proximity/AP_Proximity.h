@@ -56,6 +56,9 @@ public:
         AirSimSITL = 12,
 #endif
         CYGBOT_D1 = 13,
+#if AP_PROXIMITY_SCRIPTING_ENABLED
+        Scripting = 15,
+#endif
     };
 
     enum class Status {
@@ -151,6 +154,9 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
 
     static AP_Proximity *get_singleton(void) { return _singleton; };
+
+    // return backend object for Lua scripting
+    AP_Proximity_Backend *get_backend(uint8_t id) const;
 
     // 3D boundary
     AP_Proximity_Boundary_3D boundary;

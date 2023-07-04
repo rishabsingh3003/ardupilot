@@ -26,6 +26,7 @@
 #include "AP_Proximity_SITL.h"
 #include "AP_Proximity_AirSimSITL.h"
 #include "AP_Proximity_Cygbot_D1.h"
+#include "AP_Proximity_Scripting.h"
 
 #include <AP_Logger/AP_Logger.h>
 
@@ -173,7 +174,12 @@ void AP_Proximity::init()
         }
 # endif
         break;
-
+#if AP_PROXIMITY_SCRIPTING_ENABLED
+        case Type::Scripting:
+            state[instance].instance = instance;
+            drivers[instance] = new AP_Proximity_Scripting(*this, state[instance], params[instance]);
+        break;
+#endif
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
         case Type::SITL:
             state[instance].instance = instance;
@@ -245,6 +251,15 @@ AP_Proximity::Status AP_Proximity::get_status() const
     }
     // All valid sensors seem to be working
     return Status::Good;
+}
+
+// return proximity backend for Lua scripting
+AP_Proximity_Backend *AP_Proximity::get_backend(uint8_t id) const
+{
+    if (!valid_instance(id)) {
+        return nullptr;
+    }
+    return drivers[id];
 }
 
 // prearm checks
