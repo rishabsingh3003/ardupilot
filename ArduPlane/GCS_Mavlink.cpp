@@ -961,9 +961,23 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_in
 
     case MAV_CMD_DO_FOLLOW:
 #if AP_SCRIPTING_ENABLED
-        // param1: sysid of target to follow
-        if ((packet.param1 > 0) && (packet.param1 <= 255)) {
-            plane.g2.follow.set_target_sysid((uint8_t)packet.param1);
+        if (isnan(packet.param2) || is_zero(packet.param2)) {
+            if ((packet.param1 > 0) && (packet.param1 <= 255)) {
+                plane.g2.follow.set_target_sysid((uint8_t)packet.param1);
+                return MAV_RESULT_ACCEPTED;
+            }
+        } else {
+            switch (int(packet.param2)) {
+            case 1:
+                plane.g2.follow.set_target_source(AP_Follow::TargetSource::MAVLINK_ONLY);
+                plane.g2.follow.set_target_sysid(packet.y);
+                break;
+            case 2:
+                plane.g2.follow.set_target_source(AP_Follow::TargetSource::LOCATIONDB);
+                plane.g2.follow.set_target_locationdb_key(packet.y);
+                break;
+            }
+
             return MAV_RESULT_ACCEPTED;
         }
 #endif
@@ -1100,12 +1114,8 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_l
 
 #if AP_SCRIPTING_ENABLED
     case MAV_CMD_DO_FOLLOW:
-        // param1: sysid of target to follow
-        if ((packet.param1 > 0) && (packet.param1 <= 255)) {
-            plane.g2.follow.set_target_sysid((uint8_t)packet.param1);
-            return MAV_RESULT_ACCEPTED;
-        }
-        return MAV_RESULT_FAILED;
+        // only support int command
+        return MAV_RESULT_UNSUPPORTED;
 #endif
         
     default:
