@@ -348,6 +348,24 @@ AP_LocationDB::DBItem::DBItem(uint32_t key, uint32_t timestamp_ms, Vector3f pos,
 #endif
 }
 
+void AP_LocationDB::DBItem::init(uint32_t key, uint32_t timestamp_ms, Vector3f pos, Vector3f vel, Vector3f acc, float heading, float radius, uint8_t populated_fields) {
+    _key = key;
+    _timestamp_ms = timestamp_ms;
+    _pos = pos;
+    _vel = vel;
+    _acc = acc;
+    _heading = heading;
+    _radius = radius;
+    _populated_fields = populated_fields;
+
+#if APM_BUILD_TYPE(APM_BUILD_UNKNOWN)
+    _flags = AP_LOCATIONDB_FLAGS_DEFAULT; // avoid only
+# else
+    _flags = uint8_t(AP::locationdb()->_default_flags.get());
+#endif
+}
+
+
 bool AP_LocationDB::DBItem::get_pos_NEU(Vector3f &ret) const {
     if (!is_field_populated(DataField::POS)) {
         return false;

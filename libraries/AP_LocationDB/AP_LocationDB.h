@@ -37,6 +37,8 @@ public:
         DBItem() {};
         DBItem(uint32_t key, uint32_t timestamp_ms, Vector3f pos, Vector3f vel, Vector3f acc, float heading, float radius, uint8_t populated_fields);
 
+        void init(uint32_t key, uint32_t timestamp_ms, Vector3f pos, Vector3f vel, Vector3f acc, float heading, float radius, uint8_t populated_fields);
+
         uint32_t get_timestamp_ms() { return _timestamp_ms; }
         uint32_t get_key() { return _key; }
         bool get_pos_NEU(Vector3f &ret) const;
@@ -63,6 +65,7 @@ public:
         void copy_flags(uint8_t flags);
         uint8_t get_flags();
 
+    private:
         uint32_t _key;
         uint32_t _timestamp_ms;
         Vector3f _pos;              // position of item in NEU
@@ -72,7 +75,6 @@ public:
         float _radius;
         uint8_t _flags;
 
-    private:
         uint8_t _populated_fields = 0;
 
         bool is_field_populated(DataField option) const {
