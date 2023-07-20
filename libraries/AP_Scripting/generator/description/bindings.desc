@@ -732,7 +732,14 @@ singleton mavlink manual send_chan lua_mavlink_send_chan 3
 singleton mavlink manual receive_chan lua_mavlink_receive_chan 0
 
 include AP_LocationDB/AP_LocationDB.h
-userdata AP_LocationDB::DBItem method DBItem void uint32_t'skip_check uint32_t'skip_check Vector3f Vector3f Vector3f float'skip_check float'skip_check uint8_t'skip_check
+userdata AP_LocationDB::DBItem field _key uint32_t'skip_check read write
+userdata AP_LocationDB::DBItem field _timestamp_ms uint32_t'skip_check read write
+userdata AP_LocationDB::DBItem field _pos Vector3f read write
+userdata AP_LocationDB::DBItem field _vel Vector3f read write
+userdata AP_LocationDB::DBItem field _acc Vector3f read write
+userdata AP_LocationDB::DBItem field _heading float'skip_check read write
+userdata AP_LocationDB::DBItem field _radius float'skip_check read write
+userdata AP_LocationDB::DBItem field _flags uint8_t'skip_check read write
 
 singleton AP_LocationDB rename locdb
 singleton AP_LocationDB method healthy boolean

@@ -63,7 +63,6 @@ public:
         void copy_flags(uint8_t flags);
         uint8_t get_flags();
 
-    private:
         uint32_t _key;
         uint32_t _timestamp_ms;
         Vector3f _pos;              // position of item in NEU
@@ -73,6 +72,7 @@ public:
         float _radius;
         uint8_t _flags;
 
+    private:
         uint8_t _populated_fields = 0;
 
         bool is_field_populated(DataField option) const {
