@@ -117,7 +117,7 @@ bool AP_Proximity_MR72_CAN::parse_distance_message(AP_HAL::CANFrame &frame)
     Vector2f obstacle_fr;
     obstacle_fr.x = ((frame.data[2] & 0x07U) * 256 + frame.data[3]) * 0.2 - 204.6;
     obstacle_fr.y = (frame.data[1] * 32 + (frame.data[2] >> 3)) * 0.2 - 500;
-    const float yaw = correct_angle_for_orientation(wrap_360(degrees(atan2f(-obstacle_fr.x, obstacle_fr.y))));
+    const float yaw = correct_angle_for_orientation(wrap_360(degrees(atan2f(obstacle_fr.x, obstacle_fr.y))));
 
     const float objects_dist = obstacle_fr.length();
 
