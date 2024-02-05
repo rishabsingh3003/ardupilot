@@ -90,6 +90,9 @@ public:
 #if AP_PROXIMITY_MR72_ENABLED
         MR72 = 17,
 #endif
+#if AP_PROXIMITY_LIGHTWARE_SF45B_I2C_ENABLED
+        SF45B_I2C = 18,
+#endif
     };
 
     enum class Status {
