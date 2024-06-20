@@ -269,7 +269,7 @@ private:
         uint16_t last_udp_connect_port;
         bool have_received;
         bool close_on_recv_error;
-
+        uint32_t last_udp_srv_recv_time_ms;
         HAL_Semaphore sem;
     };
 
