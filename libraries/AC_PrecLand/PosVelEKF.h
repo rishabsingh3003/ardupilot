@@ -28,6 +28,10 @@ public:
     // get the normalized innovation squared
     float getPosNIS(float pos, float posVar);
 
+    void fuseVel(float vel, float velVar);
+
+    float getVelNIS(float vel, float velVar);
+
 private:
     // stored covariance and state matrix
 

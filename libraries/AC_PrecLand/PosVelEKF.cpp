@@ -115,3 +115,66 @@ float PosVelEKF::getPosNIS(float pos, float posVar)
     const float NIS = (innovation_residual*innovation_residual)/(innovation_covariance);
     return NIS;
 }
+
+// fuse the new velocity measurement into the EKF calculations
+// This is called whenever we have a new measurement available
+void PosVelEKF::fuseVel(float vel, float velVar)
+{
+    float newState[2];
+    float newCov[3];
+
+    // innovation_residual = new_sensor_readings - OldState
+    const float innovation_residual = vel - _state[1];
+
+    /*
+    Measurement matrix H = [0 1] since we are directly measuring velocity only
+    Innovation Covariance = S = H * P * H.Transpose + R
+    Since this is a 1-D measurement, R = velVar, which is expected variance in velocity sensor reading
+    Post multiplication this becomes:
+    */
+    const float innovation_covariance = _cov[2] + velVar;
+
+    /*
+    Next step involves calculating the kalman gain "K"
+    K = P * H.transpose * S.inverse
+    After solving, this comes out to be:
+    K = | cov[1]/innovation_covariance |
+        | cov[2]/innovation_covariance |
+
+    Updated state estimate = OldState + K * innovation residual
+    This is calculated and simplified below
+    */
+
+    newState[0] = _cov[1] * (innovation_residual) / (innovation_covariance) + _state[0];
+    newState[1] = _cov[2] * (innovation_residual) / (innovation_covariance) + _state[1];
+
+    /*
+    Updated covariance matrix = (I-K*H)*P
+    This is calculated and simplified below. Again, this is converted to upper triangular matrix (because of symmetry)
+    */
+
+    // Calculate the new covariance after velocity update
+    newCov[0] = _cov[0] +
+                ((_cov[1] * _cov[1]) * velVar / ((_cov[2] + velVar) * (_cov[2] + velVar))) -
+                ((_cov[1] * _cov[1]) / (_cov[2] + velVar)) -
+                _cov[1] * (-_cov[1] * _cov[2] / (_cov[2] + velVar) + _cov[1]) / (_cov[2] + velVar);
+    newCov[1] = _cov[1] * _cov[2] * velVar / ((_cov[2] + velVar) * (_cov[2] + velVar)) +
+                (-_cov[2] / (_cov[2] + velVar) + 1) * (-_cov[1] * _cov[2] / (_cov[2] + velVar) + _cov[1]);
+    newCov[2] = ((_cov[2] * _cov[2]) * velVar / ((_cov[2] + velVar) * (_cov[2] + velVar))) +
+                _cov[2] * ((-_cov[2] / (_cov[2] + velVar) + 1) * (-_cov[2] / (_cov[2] + velVar) + 1));
+
+    memcpy(_state, newState, sizeof(_state));
+    memcpy(_cov, newCov, sizeof(_cov));
+}
+
+// Returns normalized innovation squared for velocity
+float PosVelEKF::getVelNIS(float vel, float velVar)
+{
+    // NIS = innovation_residual.Transpose * Innovation_Covariance.Inverse * innovation_residual
+    const float innovation_residual = vel - _state[1];
+    const float innovation_covariance = _cov[2] + velVar;
+
+    const float NIS = (innovation_residual * innovation_residual) / (innovation_covariance);
+    return NIS;
+}
+

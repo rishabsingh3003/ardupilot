@@ -14,6 +14,7 @@
  */
 
 #include "AP_RangeFinder.h"
+#include <GCS_MAVLink/GCS.h>
 
 #if AP_RANGEFINDER_ENABLED
 
@@ -323,6 +324,7 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
                                                              instance);
 #else
             FOREACH_I2C(i) {
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "RF PRobing %d", i);
                 if (_add_backend(AP_RangeFinder_LightWareI2C::detect(state[instance], params[instance],
                                                                      hal.i2c_mgr->get_device(i, params[instance].address)),
                                  instance)) {

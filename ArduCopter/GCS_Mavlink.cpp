@@ -1279,11 +1279,7 @@ void GCS_MAVLINK_Copter::handle_message_set_position_target_local_ned(const mavl
         mavlink_set_position_target_local_ned_t packet;
         mavlink_msg_set_position_target_local_ned_decode(&msg, &packet);
 
-        // exit if vehicle is not in Guided mode or Auto-Guided mode
-        if (!copter.flightmode->in_guided_mode()) {
-            return;
-        }
-
+        
         // check for supported coordinate frames
         if (packet.coordinate_frame != MAV_FRAME_LOCAL_NED &&
             packet.coordinate_frame != MAV_FRAME_LOCAL_OFFSET_NED &&
@@ -1363,6 +1359,16 @@ void GCS_MAVLINK_Copter::handle_message_set_position_target_local_ned(const mavl
         if (!yaw_rate_ignore) {
             yaw_rate_cds = ToDeg(packet.yaw_rate) * 100.0f;
         }
+
+        Vector3f prec_land_vector = pos_vector;
+        prec_land_vector -= copter.inertial_nav.get_position_neu_cm();
+        copter.precland.send_posvel(prec_land_vector*0.01f, vel_vector);
+
+        // exit if vehicle is not in Guided mode or Auto-Guided mode
+        if (!copter.flightmode->in_guided_mode()) {
+            return;
+        }
+
 
         // send request
         if (!pos_ignore && !vel_ignore) {

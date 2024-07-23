@@ -13,6 +13,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "AP_RangeFinder_LightWareI2C.h"
+#include <GCS_MAVLink/GCS.h>
 
 #if AP_RANGEFINDER_LWI2C_ENABLED
 
@@ -76,6 +77,7 @@ AP_RangeFinder_Backend *AP_RangeFinder_LightWareI2C::detect(RangeFinder::RangeFi
         AP_RangeFinder_Params &_params,
         AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev)
 {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "1");
     if (!dev) {
         return nullptr;
     }
@@ -83,9 +85,12 @@ AP_RangeFinder_Backend *AP_RangeFinder_LightWareI2C::detect(RangeFinder::RangeFi
     AP_RangeFinder_LightWareI2C *sensor
         = NEW_NOTHROW AP_RangeFinder_LightWareI2C(_state, _params, std::move(dev));
 
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "2");
     if (!sensor) {
         return nullptr;
     }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "3");
 
     WITH_SEMAPHORE(sensor->_dev->get_semaphore());
     if (!sensor->init()) {
@@ -191,14 +196,14 @@ void AP_RangeFinder_LightWareI2C::sf20_get_version(const char* send_msg, const c
 bool AP_RangeFinder_LightWareI2C::init()
 {
     if (sf20_init()) {
-        DEV_PRINTF("Found SF20 native Lidar\n");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Found SF20 native Lidar\n");
         return true;
     }
     if (legacy_init()) {
-        DEV_PRINTF("Found SF20 legacy Lidar\n");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Found SF20 legacy Lidar\n");
         return true;
     }
-    DEV_PRINTF("SF20 not found\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SF20 not found\n");
     return false;
 }
 
@@ -390,7 +395,6 @@ bool AP_RangeFinder_LightWareI2C::sf20_get_reading(float &reading_m)
         currentStreamSequenceIndex = 0;
     }
     i = streamSequence[currentStreamSequenceIndex];
-
     // Request the next stream in the sequence from the SF20
     write_bytes((uint8_t*)init_stream_id[i], strlen(init_stream_id[i]));
 
@@ -466,6 +470,7 @@ void AP_RangeFinder_LightWareI2C::update(void)
 void AP_RangeFinder_LightWareI2C::legacy_timer(void)
 {
     if (legacy_get_reading(state.distance_m)) {
+        state.last_reading_ms = AP_HAL::millis();
         // update range_valid state based on distance measured
         update_status();
     } else {
@@ -476,6 +481,7 @@ void AP_RangeFinder_LightWareI2C::legacy_timer(void)
 void AP_RangeFinder_LightWareI2C::sf20_timer(void)
 {
     if (sf20_get_reading(state.distance_m)) {
+        state.last_reading_ms = AP_HAL::millis();
         // update range_valid state based on distance measured
         update_status();
     } else {

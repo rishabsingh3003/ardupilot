@@ -151,39 +151,7 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @Increment: 1
     // @User: Advanced
     // @Calibration: 1
-
-    // @Param: MOT_Y
-    // @DisplayName: Motor interference compensation for body frame Y axis
-    // @Description: Multiplied by the current throttle and added to the compass's y-axis values to compensate for motor interference (Offset per Amp or at Full Throttle)
-    // @Range: -1000 1000
-    // @Units: mGauss/A
-    // @Increment: 1
-    // @User: Advanced
-    // @Calibration: 1
-
-    // @Param: MOT_Z
-    // @DisplayName: Motor interference compensation for body frame Z axis
-    // @Description: Multiplied by the current throttle and added to the compass's z-axis values to compensate for motor interference (Offset per Amp or at Full Throttle)
-    // @Range: -1000 1000
-    // @Units: mGauss/A
-    // @Increment: 1
-    // @User: Advanced
-    AP_GROUPINFO("MOT",    7, Compass, _state._priv_instance[0].motor_compensation, 0),
-#endif
-
-#ifndef HAL_BUILD_AP_PERIPH
-    // @Param: ORIENT
-    // @DisplayName: Compass orientation
-    // @Description: The orientation of the first external compass relative to the vehicle frame. This value will be ignored unless this compass is set as an external compass. When set correctly in the northern hemisphere, pointing the nose and right side down should increase the MagX and MagY values respectively. Rolling the vehicle upside down should decrease the MagZ value. For southern hemisphere, switch increase and decrease. NOTE: For internal compasses, AHRS_ORIENT is used. The label for each option is specified in the order of rotations for that orientation. Firmware versions 4.2 and prior can use a CUSTOM (100) rotation to set the COMPASS_CUS_ROLL/PIT/YAW angles for Compass orientation. Later versions provide two general custom rotations which can be used, Custom 1 and Custom 2, with CUST_1_ROLL/PIT/YAW or CUST_2_ROLL/PIT/YAW angles.
-    // @Values: 0:None,1:Yaw45,2:Yaw90,3:Yaw135,4:Yaw180,5:Yaw225,6:Yaw270,7:Yaw315,8:Roll180,9:Yaw45Roll180,10:Yaw90Roll180,11:Yaw135Roll180,12:Pitch180,13:Yaw225Roll180,14:Yaw270Roll180,15:Yaw315Roll180,16:Roll90,17:Yaw45Roll90,18:Yaw90Roll90,19:Yaw135Roll90,20:Roll270,21:Yaw45Roll270,22:Yaw90Roll270,23:Yaw135Roll270,24:Pitch90,25:Pitch270,26:Yaw90Pitch180,27:Yaw270Pitch180,28:Pitch90Roll90,29:Pitch90Roll180,30:Pitch90Roll270,31:Pitch180Roll90,32:Pitch180Roll270,33:Pitch270Roll90,34:Pitch270Roll180,35:Pitch270Roll270,36:Yaw90Pitch180Roll90,37:Yaw270Roll90,38:Yaw293Pitch68Roll180,39:Pitch315,40:Pitch315Roll90,42:Roll45,43:Roll315,100:Custom 4.1 and older,101:Custom 1,102:Custom 2
-    // @User: Advanced
-    AP_GROUPINFO("ORIENT", 8, Compass, _state._priv_instance[0].orientation, ROTATION_NONE),
-
-    // @Param: EXTERNAL
-    // @DisplayName: Compass is attached via an external cable
-    // @Description: Configure compass so it is attached externally. This is auto-detected on most boards. Set to 1 if the compass is externally connected. When externally connected the COMPASS_ORIENT option operates independently of the AHRS_ORIENTATION board orientation option. If set to 0 or 1 then auto-detection by bus connection can override the value. If set to 2 then auto-detection will be disabled.
-    // @Values: 0:Internal,1:External,2:ForcedExternal
-    // @User: Advanced
+AP_PERIPH_PROBE_CONTINUOUS
     AP_GROUPINFO("EXTERNAL", 9, Compass, _state._priv_instance[0].external, 0),
 #endif
 
@@ -1237,11 +1205,13 @@ void Compass::_probe_external_i2c_compasses(void)
 
         for (uint8_t a=0; a<ARRAY_SIZE(ist8310_addr); a++) {
             FOREACH_I2C_EXTERNAL(i) {
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MAG EXT PRobing %d", i);
                 ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(GET_I2C_DEVICE(i, ist8310_addr[a]),
                             true, default_rotation));
             }
 #if !defined(HAL_COMPASS_DISABLE_IST8310_INTERNAL_PROBE) && !defined(HAL_SKIP_AUTO_INTERNAL_I2C_PROBE)
             FOREACH_I2C_INTERNAL(i) {
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MAG INT PRobing %d", i);
                 ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(GET_I2C_DEVICE(i, ist8310_addr[a]),
                             all_external, default_rotation));
             }

@@ -175,13 +175,13 @@ void SIM_Precland::update(const Location &loc)
     // this is the perpendicular distance of vehicle from the axis of cone/cylinder
     const float lateral_distance = safe_sqrt(MAX(0, position_wrt_device.length_squared() - longitudinal_dist*longitudinal_dist));
 
-    // sign of projection's dot product with axis tells if vehicle is in front of beacon
-    // return false if vehicle if vehicle is  longitudinally too far away from precland device
-    // for PITCH_90 orientation, longitudinal distance = alt of vehicle - device_height (in m)
-    if (projection_on_axis.dot(axis) <= 0 || longitudinal_dist > _alt_limit) {
-        _healthy = false;
-        return;
-    }
+    // // sign of projection's dot product with axis tells if vehicle is in front of beacon
+    // // return false if vehicle if vehicle is  longitudinally too far away from precland device
+    // // for PITCH_90 orientation, longitudinal distance = alt of vehicle - device_height (in m)
+    // if (projection_on_axis.dot(axis) <= 0 || longitudinal_dist > _alt_limit) {
+    //     _healthy = false;
+    //     return;
+    // }
 
     const uint32_t now = AP_HAL::millis();
     if (now - _last_update_ms < 1000.0f * (1.0f / _rate)) {

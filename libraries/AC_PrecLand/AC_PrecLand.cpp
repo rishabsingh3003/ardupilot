@@ -15,6 +15,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
+#include <AP_Follow/AP_Follow.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -26,7 +27,7 @@ extern const AP_HAL::HAL& hal;
 
 static const uint32_t EKF_INIT_TIME_MS = 2000; // EKF initialisation requires this many milliseconds of good sensor data
 static const uint32_t EKF_INIT_SENSOR_MIN_UPDATE_MS = 500; // Sensor must update within this many ms during EKF init, else init will fail
-static const uint32_t LANDING_TARGET_TIMEOUT_MS = 2000; // Sensor must update within this many ms, else prec landing will be switched off
+static const uint32_t LANDING_TARGET_TIMEOUT_MS = 10000; // Sensor must update within this many ms, else prec landing will be switched off
 static const uint32_t LANDING_TARGET_LOST_TIMEOUT_MS = 180000; // Target will be considered as "lost" if the last known location of the target is more than this many ms ago
 static const float    LANDING_TARGET_LOST_DIST_THRESH_M  = 30; // If the last known location of the landing target is beyond this many meters, then we will consider it lost
 
@@ -75,7 +76,7 @@ const AP_Param::GroupInfo AC_PrecLand::var_info[] = {
     // @Param: EST_TYPE
     // @DisplayName: Precision Land Estimator Type
     // @Description: Specifies the estimation method to be used
-    // @Values: 0:RawSensor, 1:KalmanFilter
+    // @Values: 0:RawSensor, 1:KalmanFilter, 2:KalmanFilterWithFollow
     // @User: Advanced
     AP_GROUPINFO("EST_TYPE",    5, AC_PrecLand, _estimator_type, 1),
 
@@ -178,7 +179,7 @@ const AP_Param::GroupInfo AC_PrecLand::var_info[] = {
     // @Param: OPTIONS
     // @DisplayName: Precision Landing Extra Options
     // @Description: Precision Landing Extra Options
-    // @Bitmask: 0: Moving Landing Target, 1: Allow Precision Landing after manual reposition, 2: Maintain high speed in final descent
+    // @Bitmask: 0: Moving Landing Target, 1: Allow Precision Landing after manual reposition, 2: Maintain high speed in final descent, 3: High rate logging
     // @User: Advanced
     AP_GROUPINFO("OPTIONS", 17, AC_PrecLand, _options, 0),
 
@@ -312,7 +313,7 @@ void AC_PrecLand::update(float rangefinder_alt_cm, bool rangefinder_alt_valid)
 
 #if HAL_LOGGING_ENABLED
     const uint32_t now = AP_HAL::millis();
-    if (now - _last_log_ms > 40) {  // 25Hz
+    if (now - _last_log_ms > 40 || (_options & PLND_OPTION_HIGH_RATE_LOGGING)) {
         _last_log_ms = now;
         Write_Precland();
     }
@@ -485,97 +486,165 @@ void AC_PrecLand::handle_msg(const mavlink_landing_target_t &packet, uint32_t ti
     }
 }
 
-//
-// Private methods
-//
+void AC_PrecLand::fuse_follow_target()
+{
+    // AP_Follow &_follow = AP::follow();
+
+    // get the target's estimated location and velocity
+    Vector3f pos_ned;
+    // Vector3f pos_ned_ofs;
+    Vector3f vel_ned;
+    // if (!_follow.get_target_dist_and_vel_ned(pos_ned, pos_ned_ofs, vel_ned)) {
+    //     return;
+    // }
+
+    pos_ned = follow_target_NED;
+    vel_ned = follow_target_vel_NED;
+
+    // get system time of last position update
+    uint32_t last_follow_update_ms = follow_target_time_ms;
+    Vector3f veh_vel;
+    const AP_AHRS &_ahrs = AP::ahrs();
+    UNUSED_RESULT(_ahrs.get_velocity_NED(veh_vel));
+    if (last_follow_update_ms != _last_follow_target_fuse_ms) {
+        if (!_estimator_initialized) {
+            _estimator_initialized = true;
+        }
+        
+        float xy_pos_var = sq(10*_target_pos_rel_meas_NED.z*(0.01f + 0.01f*AP::ahrs().get_gyro().length()) + 0.02f);
+
+        // new data available
+        _ekf_vel_x.fusePos_bias(pos_ned.x, xy_pos_var);
+        _ekf_vel_y.fusePos_bias(pos_ned.y, xy_pos_var);
+        raw_follow_pos = pos_ned;
+        // _ekf_vel_x.fuseVel(vel_ned.x - veh_vel.x, xy_pos_var);
+        // _ekf_vel_y.fuseVel(vel_ned.y - veh_vel.y, xy_pos_var);
+        raw_follow_vel = vel_ned - veh_vel;
+        _last_follow_target_fuse_ms = last_follow_update_ms;
+        _last_update_ms = AP_HAL::millis();
+        _target_acquired = true;
+    }
+}
+
+void AC_PrecLand::run_raw_sensor_estimator(float rangefinder_alt_m, bool rangefinder_alt_valid)
+{
+    _inertial_data_delayed = (*_inertial_history)[0];
+    // Return if there's any invalid velocity data
+    for (uint8_t i=0; i<_inertial_history->available(); i++) {
+        const struct inertial_data_frame_s *inertial_data = (*_inertial_history)[i];
+        if (!inertial_data->inertialNavVelocityValid) {
+            _target_acquired = false;
+            return;
+        }
+    }
+
+    // Predict
+    if (target_acquired()) {
+        _target_pos_rel_est_NE.x -= _inertial_data_delayed->inertialNavVelocity.x * _inertial_data_delayed->dt;
+        _target_pos_rel_est_NE.y -= _inertial_data_delayed->inertialNavVelocity.y * _inertial_data_delayed->dt;
+        _target_vel_rel_est_NE.x = -_inertial_data_delayed->inertialNavVelocity.x;
+        _target_vel_rel_est_NE.y = -_inertial_data_delayed->inertialNavVelocity.y;
+    }
+
+    // Update if a new Line-Of-Sight measurement is available
+    if (construct_pos_meas_using_rangefinder(rangefinder_alt_m, rangefinder_alt_valid)) {
+        if (!_estimator_initialized) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "PrecLand: Target Found");
+            _estimator_initialized = true;
+        }
+        _target_pos_rel_est_NE.x = _target_pos_rel_meas_NED.x;
+        _target_pos_rel_est_NE.y = _target_pos_rel_meas_NED.y;
+        _target_vel_rel_est_NE.x = -_inertial_data_delayed->inertialNavVelocity.x;
+        _target_vel_rel_est_NE.y = -_inertial_data_delayed->inertialNavVelocity.y;
+
+        _last_update_ms = AP_HAL::millis();
+        _target_acquired = true;
+    }
+
+    // Output prediction
+    if (target_acquired()) {
+        run_output_prediction();
+    }
+}
+
+void AC_PrecLand::run_kalman_filter_estimator(float rangefinder_alt_m, bool rangefinder_alt_valid)
+{
+
+    // Predict
+    const float& dt = _inertial_data_delayed->dt;
+    const Vector3f& vehicleDelVel = _inertial_data_delayed->correctedVehicleDeltaVelocityNED;
+    if (target_acquired() || _estimator_initialized) {
+        _ekf_x.predict(dt, -vehicleDelVel.x, _accel_noise*dt);
+        _ekf_y.predict(dt, -vehicleDelVel.y, _accel_noise*dt);
+    }
+
+    if (target_acquired() || _estimator_initialized || AP_HAL::millis() - _last_follow_target_fuse_ms < 5000) {
+        _ekf_vel_x.predict(dt, -vehicleDelVel.x, _accel_noise*dt);
+        _ekf_vel_y.predict(dt, -vehicleDelVel.y, _accel_noise*dt);
+    }
+
+    // Update if a new Line-Of-Sight measurement is available
+    if (construct_pos_meas_using_rangefinder(rangefinder_alt_m, rangefinder_alt_valid)) {
+        float xy_pos_var = sq(_target_pos_rel_meas_NED.z*(0.01f + 0.01f*AP::ahrs().get_gyro().length()) + 0.02f);
+        if (!_estimator_initialized) {
+            // Inform the user landing target has been found
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "PrecLand: Target Found");
+            // start init of EKF. We will let the filter consume the data for a while before it available for consumption
+            // reset filter state
+            if (_inertial_data_delayed->inertialNavVelocityValid) {
+                _ekf_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, -_inertial_data_delayed->inertialNavVelocity.x, sq(2.0f));
+                _ekf_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, -_inertial_data_delayed->inertialNavVelocity.y, sq(2.0f));
+
+                _ekf_vel_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, -_inertial_data_delayed->inertialNavVelocity.x, sq(2.0f));
+                _ekf_vel_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, -_inertial_data_delayed->inertialNavVelocity.y, sq(2.0f));
+            } else {
+                _ekf_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, 0.0f, sq(10.0f));
+                _ekf_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, 0.0f, sq(10.0f));
+
+                _ekf_vel_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, 0.0f, sq(10.0f));
+                _ekf_vel_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, 0.0f, sq(10.0f));
+
+            }
+            _last_update_ms = AP_HAL::millis();
+            _estimator_init_ms = AP_HAL::millis();
+            // we have initialized the estimator but will not use the values for sometime so that EKF settles down
+            _estimator_initialized = true;
+        } else {
+            float NIS_x = _ekf_x.getPosNIS(_target_pos_rel_meas_NED.x, xy_pos_var);
+            float NIS_y = _ekf_y.getPosNIS(_target_pos_rel_meas_NED.y, xy_pos_var);
+            if (MAX(NIS_x, NIS_y) < 3.0f || _outlier_reject_count >= 3) {
+                _outlier_reject_count = 0;
+                _ekf_x.fusePos(_target_pos_rel_meas_NED.x, xy_pos_var);
+                _ekf_y.fusePos(_target_pos_rel_meas_NED.y, xy_pos_var);
+
+                _ekf_vel_x.fusePos(_target_pos_rel_meas_NED.x, xy_pos_var);
+                _ekf_vel_y.fusePos(_target_pos_rel_meas_NED.y, xy_pos_var);
+                raw_pl_pos = _target_pos_rel_meas_NED;
+
+
+                _last_update_ms = AP_HAL::millis();
+            } else {
+                _outlier_reject_count++;
+            }
+        }
+    }
+
+}
+
+void AC_PrecLand::run_kalman_filter_with_follow_estimator(float rangefinder_alt_m, bool rangefinder_alt_valid)
+{
+    run_kalman_filter_estimator(rangefinder_alt_m, rangefinder_alt_valid);
+    fuse_follow_target();
+}
+
 
 void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_valid)
 {
     _inertial_data_delayed = (*_inertial_history)[0];
 
     switch ((EstimatorType)_estimator_type.get()) {
-        case EstimatorType::RAW_SENSOR: {
-            // Return if there's any invalid velocity data
-            for (uint8_t i=0; i<_inertial_history->available(); i++) {
-                const struct inertial_data_frame_s *inertial_data = (*_inertial_history)[i];
-                if (!inertial_data->inertialNavVelocityValid) {
-                    _target_acquired = false;
-                    return;
-                }
-            }
-
-            // Predict
-            if (target_acquired()) {
-                _target_pos_rel_est_NE.x -= _inertial_data_delayed->inertialNavVelocity.x * _inertial_data_delayed->dt;
-                _target_pos_rel_est_NE.y -= _inertial_data_delayed->inertialNavVelocity.y * _inertial_data_delayed->dt;
-                _target_vel_rel_est_NE.x = -_inertial_data_delayed->inertialNavVelocity.x;
-                _target_vel_rel_est_NE.y = -_inertial_data_delayed->inertialNavVelocity.y;
-            }
-
-            // Update if a new Line-Of-Sight measurement is available
-            if (construct_pos_meas_using_rangefinder(rangefinder_alt_m, rangefinder_alt_valid)) {
-                if (!_estimator_initialized) {
-                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "PrecLand: Target Found");
-                    _estimator_initialized = true;
-                }
-                _target_pos_rel_est_NE.x = _target_pos_rel_meas_NED.x;
-                _target_pos_rel_est_NE.y = _target_pos_rel_meas_NED.y;
-                _target_vel_rel_est_NE.x = -_inertial_data_delayed->inertialNavVelocity.x;
-                _target_vel_rel_est_NE.y = -_inertial_data_delayed->inertialNavVelocity.y;
-
-                _last_update_ms = AP_HAL::millis();
-                _target_acquired = true;
-            }
-
-            // Output prediction
-            if (target_acquired()) {
-                run_output_prediction();
-            }
-            break;
-        }
         case EstimatorType::KALMAN_FILTER: {
-            // Predict
-            if (target_acquired() || _estimator_initialized) {
-                const float& dt = _inertial_data_delayed->dt;
-                const Vector3f& vehicleDelVel = _inertial_data_delayed->correctedVehicleDeltaVelocityNED;
-
-                _ekf_x.predict(dt, -vehicleDelVel.x, _accel_noise*dt);
-                _ekf_y.predict(dt, -vehicleDelVel.y, _accel_noise*dt);
-            }
-
-            // Update if a new Line-Of-Sight measurement is available
-            if (construct_pos_meas_using_rangefinder(rangefinder_alt_m, rangefinder_alt_valid)) {
-                float xy_pos_var = sq(_target_pos_rel_meas_NED.z*(0.01f + 0.01f*AP::ahrs().get_gyro().length()) + 0.02f);
-                if (!_estimator_initialized) {
-                    // Inform the user landing target has been found
-                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "PrecLand: Target Found");
-                    // start init of EKF. We will let the filter consume the data for a while before it available for consumption
-                    // reset filter state
-                    if (_inertial_data_delayed->inertialNavVelocityValid) {
-                        _ekf_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, -_inertial_data_delayed->inertialNavVelocity.x, sq(2.0f));
-                        _ekf_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, -_inertial_data_delayed->inertialNavVelocity.y, sq(2.0f));
-                    } else {
-                        _ekf_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, 0.0f, sq(10.0f));
-                        _ekf_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, 0.0f, sq(10.0f));
-                    }
-                    _last_update_ms = AP_HAL::millis();
-                    _estimator_init_ms = AP_HAL::millis();
-                    // we have initialized the estimator but will not use the values for sometime so that EKF settles down
-                    _estimator_initialized = true;
-                } else {
-                    float NIS_x = _ekf_x.getPosNIS(_target_pos_rel_meas_NED.x, xy_pos_var);
-                    float NIS_y = _ekf_y.getPosNIS(_target_pos_rel_meas_NED.y, xy_pos_var);
-                    if (MAX(NIS_x, NIS_y) < 3.0f || _outlier_reject_count >= 3) {
-                        _outlier_reject_count = 0;
-                        _ekf_x.fusePos(_target_pos_rel_meas_NED.x, xy_pos_var);
-                        _ekf_y.fusePos(_target_pos_rel_meas_NED.y, xy_pos_var);
-                        _last_update_ms = AP_HAL::millis();
-                    } else {
-                        _outlier_reject_count++;
-                    }
-                }
-            }
-
+            run_kalman_filter_estimator(rangefinder_alt_m, rangefinder_alt_valid);
             // check EKF was properly initialized when the sensor detected a landing target
             check_ekf_init_timeout();
 
@@ -589,6 +658,28 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                 run_output_prediction();
             }
             break;
+        }
+
+        case EstimatorType::KALMAN_FILTER_WITH_FOLLOW: {
+            run_kalman_filter_with_follow_estimator(rangefinder_alt_m, rangefinder_alt_valid);
+            check_ekf_init_timeout();
+            // Output prediction
+            if (target_acquired()) {
+                _target_pos_rel_est_NE.x = _ekf_vel_x.getPos();
+                _target_pos_rel_est_NE.y = _ekf_vel_y.getPos();
+                _target_vel_rel_est_NE.x = _ekf_vel_x.getVel();
+                _target_vel_rel_est_NE.y = _ekf_vel_y.getVel();
+
+                run_output_prediction();
+            }
+            break;
+        }
+
+        case EstimatorType::RAW_SENSOR:
+        default: {
+            // default to raw sensor
+            run_raw_sensor_estimator(rangefinder_alt_m, rangefinder_alt_valid);
+        break;
         }
     }
 }
@@ -816,6 +907,32 @@ void AC_PrecLand::Write_Precland()
         estimator       : (uint8_t)_estimator_type
     };
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
+
+    gcs().send_text(MAV_SEVERITY_CRITICAL, "diff: %f %f, bias %f", _ekf_x.getPos() - _ekf_vel_x.getPos(), _ekf_vel_x.getPos() - raw_follow_pos.x, _ekf_vel_x.getBias());
+
+    AP::logger().Write("PLO", "TimeUS,PX,PY,VX,VY,PXR,PYR", "Qffffff",
+                                    AP_HAL::micros64(),
+                                    _ekf_x.getPos(),
+                                    _ekf_y.getPos(),
+                                    _ekf_x.getVel(),
+                                    _ekf_y.getVel(),
+                                    raw_pl_pos.x,
+                                    raw_pl_pos.y
+                                    );
+
+    AP::logger().Write("PLM", "TimeUS,PX,PY,VX,VY,PXR,PYR,VXR,VYR,BX,BY", "Qffffffffff",
+                            AP_HAL::micros64(),
+                            _ekf_vel_x.getPos(),
+                            _ekf_vel_y.getPos(),
+                            _ekf_vel_x.getVel(),
+                            _ekf_vel_y.getVel(),
+                            raw_follow_pos.x,
+                            raw_follow_pos.y,
+                            raw_follow_vel.x,
+                            raw_follow_vel.y,
+                            _ekf_vel_x.getBias(),
+                            _ekf_vel_y.getBias()
+                            );
 }
 #endif
 

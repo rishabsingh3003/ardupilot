@@ -10,6 +10,7 @@
 #include "PosVelEKF.h"
 #include <AP_HAL/utility/RingBuffer.h>
 #include <AC_PrecLand/AC_PrecLand_StateMachine.h>
+#include "PosVelKF2.h"
 
 // declare backend classes
 class AC_PrecLand_Backend;
@@ -129,6 +130,8 @@ public:
     */
     bool get_target_velocity(Vector2f& ret);
 
+    void send_posvel(const Vector3f &pos, const Vector3f &vel) { follow_target_NED = pos; follow_target_vel_NED = vel; follow_target_time_ms = AP_HAL::millis(); }
+
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -136,6 +139,7 @@ private:
     enum class EstimatorType : uint8_t {
         RAW_SENSOR = 0,
         KALMAN_FILTER = 1,
+        KALMAN_FILTER_WITH_FOLLOW = 2,
     };
 
     // types of precision landing (used for PRECLAND_TYPE parameter)
@@ -160,6 +164,7 @@ private:
         PLND_OPTION_MOVING_TARGET = (1 << 0),
         PLND_OPTION_PRECLAND_AFTER_REPOSITION = (1 << 1),
         PLND_OPTION_FAST_DESCEND = (1 << 2),
+        PLND_OPTION_HIGH_RATE_LOGGING = (1 << 3),
     };
 
     // check the status of the target
@@ -186,6 +191,12 @@ private:
     // calculate target's position and velocity relative to the vehicle (used as input to position controller)
     // results are stored in_target_pos_rel_out_NE, _target_vel_rel_out_NE
     void run_output_prediction();
+
+    void fuse_follow_target();
+
+    void run_raw_sensor_estimator(float rangefinder_alt_m, bool rangefinder_alt_valid);
+    void run_kalman_filter_estimator(float rangefinder_alt_m, bool rangefinder_alt_valid);
+    void run_kalman_filter_with_follow_estimator(float rangefinder_alt_m, bool rangefinder_alt_valid);
 
     // parameters
     AP_Int8                     _enabled;           // enabled/disabled
@@ -216,6 +227,8 @@ private:
     uint32_t                    _last_valid_target_ms;      // last time PrecLand library had a output of the landing target position
 
     PosVelEKF                   _ekf_x, _ekf_y;     // Kalman Filter for x and y axis
+    PosVelKF3D                  _ekf_vel_x, _ekf_vel_y; // New Kalman Filter
+
     uint32_t                    _outlier_reject_count;  // mini-EKF's outlier counter (3 consecutive outliers lead to EKF accepting updates)
 
     Vector3f                    _target_pos_rel_meas_NED; // target's relative position as 3D vector
@@ -231,6 +244,8 @@ private:
     Vector3f                    _last_veh_velocity_NED_ms; // AHRS velocity at last estimate
 
     TargetState                 _current_target_state;  // Current status of the landing target
+
+    uint32_t                    _last_follow_target_fuse_ms; // last time we fused follow target
 
     // structure and buffer to hold a history of vehicle velocity
     struct inertial_data_frame_s {
@@ -255,6 +270,15 @@ private:
     uint32_t _last_log_ms;  // last time we logged
 
     static AC_PrecLand *_singleton; //singleton
+
+    Vector3f raw_follow_pos;
+    Vector3f raw_follow_vel;
+    Vector3f raw_pl_pos;
+
+    Vector3f follow_target_NED;
+    Vector3f follow_target_vel_NED;
+    uint32_t follow_target_time_ms;
+
 };
 
 namespace AP {
