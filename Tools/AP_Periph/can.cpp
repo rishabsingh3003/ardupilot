@@ -1709,10 +1709,28 @@ void AP_Periph_FW::esc_telem_update()
         } else {
             pkt.temperature = nan;
         }
-        float rpm;
-        if (esc_telem.get_raw_rpm(i, rpm)) {
-            pkt.rpm = rpm;
-        }
+        float rpm = 0.0;
+        if (!isnan(pkt.voltage) && !isnan(pkt.current)) {
+            const float power = pkt.voltage * pkt.current;
+                float coefficients[] = {
+                419.194279f,
+                143.991017f,
+                -2.76022057f,
+                0.0295018325f,
+                -0.000174745361f,
+                5.94975988e-07f,
+                -1.15873124e-09f,
+                1.19870396e-12f,
+                -5.10488550e-16f
+            };
+            // Initialize the power term (starting with power^0, which is 1)
+            float power_term = 1.0f;
+            // Calculate the RPM using the polynomial formula
+            for (uint8_t j = 0; j <= 8; ++j) {
+                rpm += coefficients[j] * power_term;
+                power_term *= power;  // Update the power term for the next iteration (equivalent to power^i)
+            }      }
+        pkt.rpm = rpm;
 
 #if AP_EXTENDED_ESC_TELEM_ENABLED
         uint8_t power_rating_pct;
