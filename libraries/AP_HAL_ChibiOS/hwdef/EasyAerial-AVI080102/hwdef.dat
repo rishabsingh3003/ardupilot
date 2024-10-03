@@ -1,0 +1,168 @@
+# hw definition file for EasyAerial Sparrow PDB
+define CAN_APP_NODE_NAME "EasyAerial.AVI080102-REVB"
+
+# MCU class and specific type
+MCU STM32F4xx STM32F405xx
+
+# bootloader starts firmware at 64k
+FLASH_RESERVE_START_KB 64
+FLASH_SIZE_KB 1024
+
+# store parameters in pages 2 and 3
+STORAGE_FLASH_PAGE 2
+define HAL_STORAGE_SIZE 15360
+
+# board ID for firmware load
+APJ_BOARD_ID 6902
+
+env AP_PERIPH 1
+
+define STM32_ST_USE_TIMER 5
+define CH_CFG_ST_RESOLUTION 32
+
+# enable watchdog
+
+# crystal frequency
+OSCILLATOR_HZ 8000000
+
+STDOUT_SERIAL SD1
+STDOUT_BAUDRATE 57600
+
+# blue LED0 marked as ACT
+#PA14 LED OUTPUT HIGH
+#define HAL_LED_ON 1
+
+define HAL_NO_GPIO_IRQ
+define SERIAL_BUFFERS_SIZE 512
+define PORT_INT_REQUIRED_STACK 64
+
+# debug (disabled to allow for PA14 LED above), to enable debugging disable the use of PA14 above
+PA13 JTMS-SWDIO SWD
+PA14 JTCK-SWCLK SWD
+
+# avoid timer and RCIN threads to save memory
+#define HAL_NO_RCIN_THREAD
+
+define HAL_USE_RTC FALSE
+define DISABLE_SERIAL_ESC_COMM TRUE
+
+define DMA_RESERVE_SIZE 0
+
+define HAL_DISABLE_LOOP_DELAY
+
+define HAL_NO_MONITOR_THREAD
+
+define HAL_DEVICE_THREAD_STACK 768
+
+# we setup a small defaults.parm
+define AP_PARAM_MAX_EMBEDDED_PARAM 256
+
+
+# keep ROMFS uncompressed as we don't have enough RAM
+# to uncompress the bootloader at runtime
+env ROMFS_UNCOMPRESSED True
+
+# ---------------------- I2C bus ------------------------
+I2C_ORDER I2C1
+
+# only one I2C bus in normal config
+PB6 I2C1_SCL I2C1
+PB7 I2C1_SDA I2C1
+
+define HAL_I2C_CLEAR_ON_TIMEOUT 0
+define HAL_I2C_INTERNAL_MASK 1
+
+define HAL_USE_I2C TRUE
+define STM32_I2C_USE_I2C1 TRUE
+
+# ---------------------- CAN bus -------------------------
+PB8 CAN1_RX CAN1
+PB9 CAN1_TX CAN1
+#PC13 GPIO_CAN1_SILENT OUTPUT PUSHPULL SPEED_LOW LOW
+
+# ---------------------- UARTs ---------------------------
+#           | sr0  | sr1  | sr2  | GPS | MSP |
+SERIAL_ORDER USART1 EMPTY EMPTY EMPTY EMPTY
+
+# USART1, for debug
+PA9  USART1_TX USART1 SPEED_HIGH NODMA
+PA10 USART1_RX USART1 SPEED_HIGH NODMA
+
+
+# ---------------------- COMPASS ---------------------------
+define HAL_PERIPH_ENABLE_MAG
+
+COMPASS IST8310 I2C:0:0x0E false ROTATION_NONE
+
+define HAL_COMPASS_MAX_SENSORS 1
+
+# -------------------- LEDs --------------------
+
+define HAL_PERIPH_ENABLE_NOTIFY
+
+PB13 LED0 OUTPUT LOW GPIO(34)
+define AP_NOTIFY_GPIO_LED_1_PIN 34
+
+define AP_NOTIFY_GPIO_LED_1_ENABLED 1
+
+
+
+# --------------------- ADC ---------------------------
+define HAL_USE_ADC TRUE
+define STM32_ADC_USE_ADC1 TRUE
+
+# --------------------- BATTERY ---------------------------
+define HAL_PERIPH_ENABLE_BATTERY
+define AP_BATT_MONITOR_MAX_INSTANCES 4
+define HAL_PERIPH_ENABLE_RC_OUT 1
+
+
+define HAL_BATT1_VOLT_PIN 1
+PA1 BATT1_VOLTAGE_SENS ADC1 SCALE(1)
+
+define HAL_BATT1_CURR_PIN 0
+PA0 BATT1_CURRENT_SENS ADC1 SCALE(1)
+
+define HAL_BATT2_VOLT_PIN 2
+PA2 BATT2_VOLTAGE_SENS ADC1 SCALE(1)
+
+define HAL_BATT3_VOLT_PIN 12
+PC2 BATT3_VOLTAGE_SENS ADC1 SCALE(1)
+
+define HAL_BATT3_CURR_PIN 11
+PC1 BATT3_CURRENT_SENS ADC1 SCALE(1)
+
+define HAL_BATT4_VOLT_PIN 6
+PA6 BATT4_VOLTAGE_SENS ADC1 SCALE(1)
+
+define HAL_BATT4_CURR_PIN 7
+PA7 BATT5_CURRENT_SENS ADC1 SCALE(1)
+
+
+# --------------------- TEMPERATURE ---------------------------
+define AP_TEMPERATURE_SENSOR_ENABLED 1
+define AP_TEMPERATURE_SENSOR_ANALOG_ENABLED 1
+define AP_TEMPERATURE_SENSOR_MAX_INSTANCES 3
+define HAL_PERIPH_ENABLE_DEVICE_TEMPERATURE 1
+
+
+PC3 SCALED1_V3V3 ADC1 SCALE(1)
+PA5 SCALED2_V3V3 ADC1 SCALE(1)
+PA4 SCALED3_V3V3 ADC1 SCALE(1)
+
+define TEMP1_PIN 13
+define TEMP2_PIN 5
+define TEMP3_PIN 4
+
+
+# --------------------- RANGEFINDER ---------------------------
+
+# support all rangefinder types
+define HAL_PERIPH_ENABLE_RANGEFINDER
+define RANGEFINDER_MAX_INSTANCES 1
+
+# some lidars take a long time to init, keep probing till we find it
+define AP_PERIPH_PROBE_CONTINUOUS 1
+
+
+#define AP_DRONECAN_HOBBYWING_ESC_SUPPORT 0
