@@ -242,43 +242,43 @@ void NavEKF3_core::setAidingMode()
     // Check that the gyro bias variance has converged
     checkGyroCalStatus();
 
-    // Handle the special case where we are on ground and disarmed without a yaw measurement
-    // and navigating. This can occur if not using a magnetometer and yaw was aligned using GPS
-    // during the previous flight.
-    if (yaw_source_last == AP_NavEKF_Source::SourceYaw::NONE &&
-        !motorsArmed &&
-        onGround &&
-        PV_AidingMode != AID_NONE)
-    {
-        PV_AidingMode = AID_NONE;
-        yawAlignComplete = false;
-        yawAlignGpsValidCount = 0;
-        finalInflightYawInit = false;
-        ResetVelocity(resetDataSource::DEFAULT);
-        ResetPosition(resetDataSource::DEFAULT);
-        ResetHeight();
-        // preserve quaternion 4x4 covariances, but zero the other rows and columns
-        for (uint8_t row=0; row<4; row++) {
-            for (uint8_t col=4; col<24; col++) {
-                P[row][col] = 0.0f;
-            }
-        }
-        for (uint8_t col=0; col<4; col++) {
-            for (uint8_t row=4; row<24; row++) {
-                P[row][col] = 0.0f;
-            }
-        }
-        // keep the IMU bias state variances, but zero the covariances
-        ftype oldBiasVariance[6];
-        for (uint8_t row=0; row<6; row++) {
-            oldBiasVariance[row] = P[row+10][row+10];
-        }
-        zeroCols(P,10,15);
-        zeroRows(P,10,15);
-        for (uint8_t row=0; row<6; row++) {
-            P[row+10][row+10] = oldBiasVariance[row];
-        }
-    }
+    // // Handle the special case where we are on ground and disarmed without a yaw measurement
+    // // and navigating. This can occur if not using a magnetometer and yaw was aligned using GPS
+    // // during the previous flight.
+    // if (yaw_source_last == AP_NavEKF_Source::SourceYaw::NONE &&
+    //     !motorsArmed &&
+    //     onGround &&
+    //     PV_AidingMode != AID_NONE)
+    // {
+    //     PV_AidingMode = AID_NONE;
+    //     yawAlignComplete = false;
+    //     yawAlignGpsValidCount = 0;
+    //     finalInflightYawInit = false;
+    //     ResetVelocity(resetDataSource::DEFAULT);
+    //     ResetPosition(resetDataSource::DEFAULT);
+    //     ResetHeight();
+    //     // preserve quaternion 4x4 covariances, but zero the other rows and columns
+    //     for (uint8_t row=0; row<4; row++) {
+    //         for (uint8_t col=4; col<24; col++) {
+    //             P[row][col] = 0.0f;
+    //         }
+    //     }
+    //     for (uint8_t col=0; col<4; col++) {
+    //         for (uint8_t row=4; row<24; row++) {
+    //             P[row][col] = 0.0f;
+    //         }
+    //     }
+    //     // keep the IMU bias state variances, but zero the covariances
+    //     ftype oldBiasVariance[6];
+    //     for (uint8_t row=0; row<6; row++) {
+    //         oldBiasVariance[row] = P[row+10][row+10];
+    //     }
+    //     zeroCols(P,10,15);
+    //     zeroRows(P,10,15);
+    //     for (uint8_t row=0; row<6; row++) {
+    //         P[row+10][row+10] = oldBiasVariance[row];
+    //     }
+    // }
 
     // Determine if we should change aiding mode
     switch (PV_AidingMode) {
