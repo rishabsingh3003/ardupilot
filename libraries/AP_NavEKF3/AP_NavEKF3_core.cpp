@@ -723,6 +723,10 @@ void NavEKF3_core::UpdateFilter(bool predict)
         statesInitialised = false;
         InitialiseFilterBootstrap();
     }
+
+    Vector3F bodyVelPred = (prevTnb * stateStruct.velocity);
+    bodyVelPred += (imuDataDelayed.delAng * (1.0f / imuDataDelayed.delAngDT)) % (accelPosOffset*-1);
+    // gcs().send_named_float("EKvelN", bodyVelPred.x);
 }
 
 void NavEKF3_core::correctDeltaAngle(Vector3F &delAng, ftype delAngDT, uint8_t gyro_index)

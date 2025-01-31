@@ -5,6 +5,8 @@
 #include <GCS_MAVLink/GCS.h>
 
 #include "AP_DAL/AP_DAL.h"
+// #pragma GCC optimize("O0")
+
 
 // Control filter mode transitions
 void NavEKF3_core::controlFilterModes()
@@ -291,7 +293,7 @@ void NavEKF3_core::setAidingMode()
                 PV_AidingMode = AID_ABSOLUTE;
             } else if (
 #if EK3_FEATURE_OPTFLOW_FUSION
-                readyToUseOptFlow() ||
+                readyToUseOptFlow() || readyToUseExtNavVel() ||
 #endif
                 readyToUseBodyOdm()) {
                 PV_AidingMode = AID_RELATIVE;
@@ -303,11 +305,13 @@ void NavEKF3_core::setAidingMode()
             bool flowFusionTimeout = ((imuSampleTime_ms - prevFlowFuseTime_ms) > 5000);
             // Check if the fusion has timed out (body odometry measurements have been rejected for too long)
             bool bodyOdmFusionTimeout = ((imuSampleTime_ms - prevBodyVelFuseTime_ms) > 5000);
+
+            bool ExtNavVelFuseTimeout = ((imuSampleTime_ms - prevExtNavVelFuseTime_ms) > 5000);
             // Enable switch to absolute position mode if GPS or range beacon data is available
             // If GPS or range beacons data is not available and flow fusion has timed out, then fall-back to no-aiding
             if (readyToUseGPS() || readyToUseRangeBeacon() || readyToUseExtNav()) {
                 PV_AidingMode = AID_ABSOLUTE;
-            } else if (flowFusionTimeout && bodyOdmFusionTimeout) {
+            } else if (flowFusionTimeout && bodyOdmFusionTimeout && ExtNavVelFuseTimeout) {
                 PV_AidingMode = AID_NONE;
             }
             break;
@@ -337,18 +341,19 @@ void NavEKF3_core::setAidingMode()
 
             // Check if GPS or external nav is being used
             bool posUsed = (imuSampleTime_ms - lastGpsPosPassTime_ms <= minTestTime_ms);
-            bool gpsVelUsed = (imuSampleTime_ms - lastVelPassTime_ms <= minTestTime_ms);
-
+            bool gpsVelUsed = (imuSampleTime_ms - lastVelPassTime_ms <= minTestTime_ms) && gpsIsInUse;
+            bool extVelUsed = (imuSampleTime_ms - prevExtNavVelFuseTime_ms <= minTestTime_ms);
+            
             // Check if attitude drift has been constrained by a measurement source
-            bool attAiding = posUsed || gpsVelUsed || optFlowUsed || airSpdUsed || dragUsed || rngBcnUsed || bodyOdmUsed;
+            bool attAiding = posUsed || gpsVelUsed || optFlowUsed || airSpdUsed || dragUsed || rngBcnUsed || bodyOdmUsed || extVelUsed;
 
             // Check if velocity drift has been constrained by a measurement source
             // Currently these are all the same source as will stabilise attitude because we do not currently have
             // a sensor that only observes attitude
-            velAiding = posUsed || gpsVelUsed || optFlowUsed || airSpdUsed || dragUsed || rngBcnUsed || bodyOdmUsed;
+            velAiding = posUsed || gpsVelUsed || optFlowUsed || airSpdUsed || dragUsed || rngBcnUsed || bodyOdmUsed || extVelUsed;
 
             // Store the last valid airspeed estimate
-            windStateIsObservable = !inhibitWindStates && (posUsed || gpsVelUsed || optFlowUsed || rngBcnUsed || bodyOdmUsed);
+            windStateIsObservable = !inhibitWindStates && (posUsed || gpsVelUsed || optFlowUsed || rngBcnUsed || bodyOdmUsed || extVelUsed);
             if (windStateIsObservable) {
                 lastAirspeedEstimate = (stateStruct.velocity - Vector3F(stateStruct.wind_vel.x, stateStruct.wind_vel.y, 0.0F)).length();
                 lastAspdEstIsValid = true;
@@ -366,7 +371,8 @@ void NavEKF3_core::setAidingMode()
                         (imuSampleTime_ms - rngBcn.lastPassTime_ms > frontend->tiltDriftTimeMax_ms) &&
 #endif
                         (imuSampleTime_ms - lastGpsPosPassTime_ms > frontend->tiltDriftTimeMax_ms) &&
-                        (imuSampleTime_ms - lastVelPassTime_ms > frontend->tiltDriftTimeMax_ms);
+                        // (imuSampleTime_ms - lastVelPassTime_ms > frontend->tiltDriftTimeMax_ms) &&
+                        (imuSampleTime_ms - prevExtNavVelFuseTime_ms > frontend->tiltDriftTimeMax_ms);
             }
 
             // Check if the loss of position accuracy has become critical
@@ -396,7 +402,7 @@ void NavEKF3_core::setAidingMode()
              } else if (posAidLossCritical) {
                 // if the loss of position is critical, declare all sources of position aiding as being timed out
                 posTimeout = true;
-                velTimeout = !optFlowUsed && !gpsVelUsed && !bodyOdmUsed;
+                velTimeout = !optFlowUsed && !gpsVelUsed && !bodyOdmUsed && !extVelUsed;
                 gpsIsInUse = false;
 
             }
@@ -441,7 +447,11 @@ void NavEKF3_core::setAidingMode()
                 // Reset time stamps
                 flowValidMeaTime_ms = imuSampleTime_ms;
                 prevFlowFuseTime_ms = imuSampleTime_ms;
-            } else
+            } else if (readyToUseExtNavVel()) {
+                // Reset time stamps
+                prevExtNavVelFuseTime_ms = imuSampleTime_ms;
+            }
+            else
 #endif
                 if (readyToUseBodyOdm()) {
                  // Reset time stamps
@@ -614,6 +624,20 @@ bool NavEKF3_core::readyToUseExtNav(void) const
     }
 
     return tiltAlignComplete && extNavDataToFuse;
+#else
+    return false;
+#endif // EK3_FEATURE_EXTERNAL_NAV
+}
+
+// return true if the filter is ready to use external nav velocity data
+bool NavEKF3_core::readyToUseExtNavVel(void) const
+{
+#if EK3_FEATURE_EXTERNAL_NAV
+    if (frontend->sources.getVelXYSource() != AP_NavEKF_Source::SourceXY::EXTNAV) {
+        return false;
+    }
+
+    return tiltAlignComplete && extNavVelToFuse;
 #else
     return false;
 #endif // EK3_FEATURE_EXTERNAL_NAV

@@ -879,6 +879,9 @@ private:
     // return true if the filter to be ready to use external nav data
     bool readyToUseExtNav(void) const;
 
+    // return true if the filter to be ready to use external nav velocity data
+    bool readyToUseExtNavVel(void) const;
+
     // return true if we should use the range finder sensor
     bool useRngFinder(void) const;
 
@@ -1155,6 +1158,7 @@ private:
     uint32_t lastGpsAidBadTime_ms;  // time in msec gps aiding was last detected to be bad
     ftype posDownAtTakeoff;         // flight vehicle vertical position sampled at transition from on-ground to in-air and used as a reference (m)
     bool useGpsVertVel;             // true if GPS vertical velocity should be used
+    bool useExtNavVertVel;          // true if external navigation vertical velocity should be used 
     ftype yawResetAngle;            // Change in yaw angle due to last in-flight yaw reset in radians. A positive value means the yaw angle has increased.
     uint32_t lastYawReset_ms;       // System time at which the last yaw reset occurred. Returned by getLastYawResetAngle
     bool tiltAlignComplete;         // true when tilt alignment is complete
@@ -1335,6 +1339,7 @@ private:
     Vector3 varInnovBodyVel;            // Body velocity XYZ innovation variances (m/sec)^2
     Vector3 innovBodyVel;               // Body velocity XYZ innovations (m/sec)
     uint32_t prevBodyVelFuseTime_ms;    // previous time all body velocity measurement components passed their innovation consistency checks (msec)
+    uint32_t prevExtNavVelFuseTime_ms;  // previous time all external navigation velocity measurement components passed their innovation consistency checks (msec)  
     uint32_t bodyOdmMeasTime_ms;        // time body velocity measurements were accepted for input to the data buffer (msec)
     bool bodyVelFusionDelayed;          // true when body frame velocity fusion has been delayed
     bool bodyVelFusionActive;           // true when body frame velocity fusion is active

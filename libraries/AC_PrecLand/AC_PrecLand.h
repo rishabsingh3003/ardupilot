@@ -10,6 +10,8 @@
 #include "PosVelEKF.h"
 #include <AP_HAL/utility/RingBuffer.h>
 #include <AC_PrecLand/AC_PrecLand_StateMachine.h>
+#include <Filter/LowPassFilter.h>
+#include <Filter/FilterWithBuffer.h>
 
 // declare backend classes
 class AC_PrecLand_Backend;
@@ -85,6 +87,8 @@ public:
     // returns true when the landing target has been detected
     bool target_acquired();
 
+    void get_target_position_measurement_m(Vector3f& ret, uint32_t& timestamp_ms) { ret = _target_pos_rel_meas_FRD; timestamp_ms = _target_post_rel_meas_NED_ms; }
+
     // process a LANDING_TARGET mavlink message
     void handle_msg(const mavlink_landing_target_t &packet, uint32_t timestamp_ms);
 
@@ -133,6 +137,59 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
+
+    class MedianLowPassFilter3dFloat {
+        public:
+            MedianLowPassFilter3dFloat() {}
+
+            Vector3f apply(const Vector3f& sample)
+            {
+                // Apply the median and low-pass filter to each axis
+                Vector3f result;
+                for (uint8_t i = 0; i < XYZ_AXIS_COUNT; i++) {
+                    _median_filter[i].apply(sample[i]);
+                    const float a = _median_filter[i].get_sample(0);
+                    const float b = _median_filter[i].get_sample(1);
+                    const float c = _median_filter[i].get_sample(2);
+                    float median = MAX(MIN(a, b), MIN(MAX(a, b), c));
+                    result[i] = _lowpass_filter[i].apply(median);
+                }
+                return result;
+            }
+
+            Vector3f get() const
+            {
+                // Get the filtered value for each axis
+                Vector3f result;
+                for (uint8_t i = 0; i < XYZ_AXIS_COUNT; i++) {
+                    result[i] = _lowpass_filter[i].get();
+                }
+                return result;
+            }
+
+            void reset(const Vector3f& sample)
+            {
+                // Reset each axis
+                for (uint8_t i = 0; i < XYZ_AXIS_COUNT; i++) {
+                    _median_filter[i].reset();
+                    _lowpass_filter[i].reset(sample[i]);
+                }
+            }
+
+            void set_cutoff_frequency(float sample_freq, float cutoff_freq)
+            {
+                // Set cutoff frequency for each axis
+                for (uint8_t i = 0; i < XYZ_AXIS_COUNT; i++) {
+                    _lowpass_filter[i].set_cutoff_frequency(sample_freq, cutoff_freq);
+                }
+            }
+
+        private:
+            LowPassFilterConstDtFloat _lowpass_filter[XYZ_AXIS_COUNT];
+            FilterWithBuffer<float, 3> _median_filter[XYZ_AXIS_COUNT];
+        };
+
+
     enum class EstimatorType : uint8_t {
         RAW_SENSOR = 0,
         KALMAN_FILTER = 1,
@@ -180,6 +237,8 @@ private:
     // If a new measurement was retrieved, sets _target_pos_rel_meas_NED and returns true
     bool construct_pos_meas_using_rangefinder(float rangefinder_alt_m, bool rangefinder_alt_valid);
 
+    Vector3f compute_target_velocity(const Vector3f& current_pos_NED, uint32_t ms, Matrix3f& Tbn);
+
     // get vehicle body frame 3D vector from vehicle to target.  returns true on success, false on failure
     bool retrieve_los_meas(Vector3f& target_vec_unit_body);
 
@@ -219,6 +278,12 @@ private:
     uint32_t                    _outlier_reject_count;  // mini-EKF's outlier counter (3 consecutive outliers lead to EKF accepting updates)
 
     Vector3f                    _target_pos_rel_meas_NED; // target's relative position as 3D vector
+    Vector3f                    _target_post_rel_meas_NED_prev; // previous target's relative position as 3D vector
+    uint32_t                    _target_post_rel_meas_NED_prev_ms; // last time target was detected
+    
+    Vector3f                    _target_pos_rel_meas_FRD; // target's relative position as 3D vector in FRD frame
+    uint32_t                    _target_post_rel_meas_NED_ms; // last time target was detected
+    
     Vector3f                    _approach_vector_body;   // unit vector in landing approach direction (in body frame)
 
     Vector3f                    _last_target_pos_rel_origin_NED;  // stores the last known location of the target horizontally, and the height of the vehicle where it detected this target in meters NED
@@ -231,6 +296,9 @@ private:
     Vector3f                    _last_veh_velocity_NED_ms; // AHRS velocity at last estimate
 
     TargetState                 _current_target_state;  // Current status of the landing target
+
+    // low pass and median filters for target position
+    MedianLowPassFilter3dFloat _target_pos_filter;
 
     // structure and buffer to hold a history of vehicle velocity
     struct inertial_data_frame_s {

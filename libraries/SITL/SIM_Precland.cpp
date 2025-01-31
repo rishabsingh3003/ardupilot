@@ -21,6 +21,7 @@
 #include "AP_Common/Location.h"
 #include "SITL.h"
 #include <stdio.h>
+#include "AP_AHRS/AP_AHRS.h"
 
 using namespace SITL;
 
@@ -142,6 +143,11 @@ void SIM_Precland::update(const Location &loc)
                            static_cast<int32_t>(_device_lon * 1.0e7f),
                            static_cast<int32_t>(_device_height*100),
                            Location::AltFrame::ABOVE_ORIGIN);
+
+    if (!AP::ahrs().home_is_set()) {
+        return;
+    }
+    device_center = AP::ahrs().get_home();
 
 #if AP_SIM_SHIP_ENABLED
     if (_ship == 1) {

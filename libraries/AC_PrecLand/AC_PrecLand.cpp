@@ -212,6 +212,7 @@ void AC_PrecLand::init(uint16_t update_rate_hz)
     if (_backend != nullptr) {
         return;
     }
+    _target_pos_filter.set_cutoff_frequency(80, 10);
 
     // init as target TARGET_NEVER_SEEN, we will update this later
     _current_target_state = TargetState::TARGET_NEVER_SEEN;
@@ -641,6 +642,76 @@ bool AC_PrecLand::retrieve_los_meas(Vector3f& target_vec_unit_body)
     return false;
 }
 
+Vector3f AC_PrecLand::compute_target_velocity(const Vector3f& current_pos_NED, uint32_t ms, Matrix3f& Tbn)
+{
+    float dt = (ms - _target_post_rel_meas_NED_prev_ms) * 0.001f;
+
+    // Ensure dt is positive and within a valid range to avoid division by zero or large time gaps
+    if (dt <= 0.0f || dt > 0.3f) {
+        _target_post_rel_meas_NED_prev = current_pos_NED;
+        _target_post_rel_meas_NED_prev_ms = ms;
+        _target_pos_filter.reset(current_pos_NED);
+        return Vector3f(0.0f, 0.0f, 0.0f); // Return zero velocity in case of invalid dt
+    }
+
+    // Compute delta position before updating the previous position
+    Vector3f delta_pos_NED = _target_post_rel_meas_NED_prev-current_pos_NED;
+
+    _target_pos_filter.apply(delta_pos_NED);
+
+    // Compute velocity in NED
+    Vector3f velocity_NED = _target_pos_filter.get() / dt;
+
+    // Update the previous position and timestamp
+    _target_post_rel_meas_NED_prev = current_pos_NED;
+    _target_post_rel_meas_NED_prev_ms = ms;
+
+    // Convert velocity from NED to FRD (body frame)
+    Vector3f velocity_FRD = Tbn.transposed() * velocity_NED;
+
+    #if AP_AHRS_ENABLED
+    // AP::ahrs().writeBodyFrameOdom(60,
+    //                               velocity_FRD*dt,
+    //                               Vector3f{},
+    //                               dt,
+    //                               AP_HAL::millis(),
+    //                               10,
+    //                               Vector3f{});
+
+
+    Quaternion q(0,0,0,0);
+    AP::ahrs().writeExtNavData(current_pos_NED*-1, q, 0.3, NAN,AP_HAL::millis(), 10, 0); 
+    Vector2f vel_ne_out;
+    get_target_velocity_relative_cms(vel_ne_out);
+    Vector3f vel_ned_out = Vector3f{-vel_ne_out.x*0.01, -vel_ne_out.y*0.01, 0.0f};
+    // gcs().send_named_float("VELX", vel_ned_out.x);
+    // gcs().send_named_float("POSX", current_pos_NED.x);
+    
+    AP::ahrs().writeExtNavVelData(vel_ned_out, 0.3, AP_HAL::millis(),10);
+    #endif
+
+
+    // // Log the velocity calculation for debugging purposes
+    // AP::logger().WriteStreaming(
+    //     "TargetVelocity",
+    //     "TimeUS,VelNEDX,VelNEDY,VelNEDZ,VelFRDX,VelFRDY,VelFRDZ,DeltaX,DeltaY,DeltaZ,DT",
+    //     "Qffffffffff",
+    //     AP_HAL::micros64(),  // TimeUS
+    //     (double)velocity_NED.x,  // Velocity NED X
+    //     (double)velocity_NED.y,  // Velocity NED Y
+    //     (double)velocity_NED.z,  // Velocity NED Z
+    //     (double)velocity_FRD.x,  // Velocity FRD X
+    //     (double)velocity_FRD.y,  // Velocity FRD Y
+    //     (double)velocity_FRD.z,  // Velocity FRD Z
+    //     (double)delta_pos_NED.x, // Delta position X
+    //     (double)delta_pos_NED.y, // Delta position Y
+    //     (double)delta_pos_NED.z, // Delta position Z
+    //     (double)dt               // Time delta
+    // );
+
+    return velocity_FRD;
+}
+
 bool AC_PrecLand::construct_pos_meas_using_rangefinder(float rangefinder_alt_m, bool rangefinder_alt_valid)
 {
     Vector3f target_vec_unit_body;
@@ -677,6 +748,9 @@ bool AC_PrecLand::construct_pos_meas_using_rangefinder(float rangefinder_alt_m, 
 
             // Compute target position relative to IMU
             _target_pos_rel_meas_NED = (target_vec_unit_ned * dist_to_target) + cam_pos_ned_rel_imu;
+            _target_post_rel_meas_NED_ms = AP_HAL::millis();
+            // Transform the target position from NED to FRD
+            _target_pos_rel_meas_FRD = target_vec_unit_body*rangefinder_alt_m;
 
             // store the current relative down position so that if we need to retry landing, we know at this height landing target can be found
             const AP_AHRS &_ahrs = AP::ahrs();
@@ -685,6 +759,39 @@ bool AC_PrecLand::construct_pos_meas_using_rangefinder(float rangefinder_alt_m, 
                 _last_target_pos_rel_origin_NED.z = pos_NED.z;
                 _last_vehicle_pos_NED = pos_NED;
             }
+
+            compute_target_velocity(_target_pos_rel_meas_NED, _target_post_rel_meas_NED_ms, _inertial_data_delayed->Tbn);
+
+            struct inertial_data_frame_s data = *_inertial_data_delayed;
+            AP::logger().WriteStreaming(
+            "PLR1",  // Unique identifier for the first part
+            "TimeUS,Tbn11,Tbn12,Tbn13,Tbn21,Tbn22,Tbn23,Tbn31,Tbn32,Tbn33",
+            "Qfffffffff",
+            AP_HAL::micros64(),  // TimeUS
+            (double)data.Tbn.a.x, (double)data.Tbn.a.y, (double)data.Tbn.a.z,  // Tbn row 1
+            (double)data.Tbn.b.x, (double)data.Tbn.b.y, (double)data.Tbn.b.z,  // Tbn row 2
+            (double)data.Tbn.c.x, (double)data.Tbn.c.y, (double)data.Tbn.c.z   // Tbn row 3
+            );
+
+            AP::logger().WriteStreaming(
+            "PLR2",  // Unique identifier for the second part
+            "TimeUS,PRelX,PRelY,PRelZ,VelX,VelY,VelZ,Dt,TPRelX,TPRelY,TPRelZ",
+            "Qffffffffff",
+            AP_HAL::micros64(),  // TimeUS
+            (double)_target_pos_rel_meas_FRD.x,  // DeltaVX
+            (double)_target_pos_rel_meas_FRD.y,  // DeltaVY
+            (double)_target_pos_rel_meas_FRD.z,  // DeltaVZ
+            (double)data.inertialNavVelocity.x,               // VelX
+            (double)data.inertialNavVelocity.y,               // VelY
+            (double)-data.inertialNavVelocity.z,              // VelZ
+            (double)data.dt,                                  // dt
+            (double)_target_pos_rel_meas_NED.x,               // TPRelX
+            (double)_target_pos_rel_meas_NED.y,               // TPRelY
+            (double)_target_pos_rel_meas_NED.z                // TPRelZ
+        );
+
+
+
             return true;
         }
     }

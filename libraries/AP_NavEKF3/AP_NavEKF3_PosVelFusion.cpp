@@ -4,6 +4,8 @@
 #include "AP_NavEKF3_core.h"
 #include <GCS_MAVLink/GCS.h>
 #include <AP_DAL/AP_DAL.h>
+#pragma GCC optimize("O1")
+
 
 /********************************************************
 *                   RESET FUNCTIONS                     *
@@ -593,6 +595,8 @@ void NavEKF3_core::SelectVelPosFusion()
         velPosObs[0] = extNavVelDelayed.vel.x;
         velPosObs[1] = extNavVelDelayed.vel.y;
         velPosObs[2] = extNavVelDelayed.vel.z;
+        // record time
+        prevExtNavVelFuseTime_ms = imuSampleTime_ms;
     }
 #endif
 
@@ -679,6 +683,8 @@ void NavEKF3_core::SelectVelPosFusion()
     }
 }
 
+// #pragma GCC push_options
+// #pragma GCC optimize("O0")
 // fuse selected position, velocity and height measurements
 void NavEKF3_core::FuseVelPosNED()
 {
@@ -876,6 +882,10 @@ void NavEKF3_core::FuseVelPosNED()
                 imax = 1;
             }
 
+            if (!frontend->sources.haveVelZSource()) {
+                imax = 1;
+            }
+
             // Apply an innovation consistency threshold test
             ftype innovVelSumSq = 0; // sum of squares of velocity innovations
             ftype varVelSum = 0; // sum of velocity innovation variances
@@ -981,7 +991,7 @@ void NavEKF3_core::FuseVelPosNED()
         if (fuseVelData) {
             fuseData[0] = true;
             fuseData[1] = true;
-            if (useGpsVertVel || useExtNavVel) {
+            if ((frontend->sources.useVelZSource(AP_NavEKF_Source::SourceZ::GPS) && useGpsVertVel) || (frontend->sources.useVelZSource(AP_NavEKF_Source::SourceZ::EXTNAV) && useExtNavVertVel)) {
                 fuseData[2] = true;
             }
         }
@@ -1160,6 +1170,8 @@ void NavEKF3_core::FuseVelPosNED()
         }
     }
 }
+// #pragma GCC pop_options
+
 
 /********************************************************
 *                   MISC FUNCTIONS                      *
@@ -1972,6 +1984,10 @@ void NavEKF3_core::FuseBodyVel()
         } else {
             return;
         }
+
+        // gcs().send_named_float("IX", innovBodyVel[0]);
+        // gcs().send_named_float("IY", innovBodyVel[1]);
+        // gcs().send_named_float("IZ", innovBodyVel[2]);  
 
         // calculate the innovation consistency test ratio
         // TODO add tuning parameter for gate

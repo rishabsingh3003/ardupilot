@@ -1122,6 +1122,14 @@ void NavEKF3_core::writeExtNavVelData(const Vector3f &vel, float err, uint32_t t
 
     extNavVelMeasTime_ms = timeStamp_ms;
     useExtNavVel = true;
+    
+    if (frontend->sources.useVelZSource(AP_NavEKF_Source::SourceZ::EXTNAV)) {
+        useExtNavVertVel = true;
+    } else {
+        useExtNavVertVel = false;
+    }
+
+    
     // calculate timestamp
     timeStamp_ms = timeStamp_ms - delay_ms;
     // Correct for the average intersampling delay due to the filter updaterate

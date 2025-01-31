@@ -2387,9 +2387,9 @@ bool AP_AHRS::get_filter_status(nav_filter_status &status) const
 // write optical flow data to EKF
 void  AP_AHRS::writeOptFlowMeas(const uint8_t rawFlowQuality, const Vector2f &rawFlowRates, const Vector2f &rawGyroRates, const uint32_t msecFlowMeas, const Vector3f &posOffset, float heightOverride)
 {
-#if HAL_NAVEKF2_AVAILABLE
-    EKF2.writeOptFlowMeas(rawFlowQuality, rawFlowRates, rawGyroRates, msecFlowMeas, posOffset, heightOverride);
-#endif
+// #if HAL_NAVEKF2_AVAILABLE
+//     EKF2.writeOptFlowMeas(rawFlowQuality, rawFlowRates, rawGyroRates, msecFlowMeas, posOffset, heightOverride);
+// #endif
 #if EK3_FEATURE_OPTFLOW_FUSION
     EKF3.writeOptFlowMeas(rawFlowQuality, rawFlowRates, rawGyroRates, msecFlowMeas, posOffset, heightOverride);
 #endif
@@ -2415,9 +2415,9 @@ void  AP_AHRS::writeBodyFrameOdom(float quality, const Vector3f &delPos, const V
 // Write position and quaternion data from an external navigation system
 void AP_AHRS::writeExtNavData(const Vector3f &pos, const Quaternion &quat, float posErr, float angErr, uint32_t timeStamp_ms, uint16_t delay_ms, uint32_t resetTime_ms)
 {
-#if HAL_NAVEKF2_AVAILABLE
-    EKF2.writeExtNavData(pos, quat, posErr, angErr, timeStamp_ms, delay_ms, resetTime_ms);
-#endif
+// #if HAL_NAVEKF2_AVAILABLE
+//     EKF2.writeExtNavData(pos, quat, posErr, angErr, timeStamp_ms, delay_ms, resetTime_ms);
+// #endif
 #if HAL_NAVEKF3_AVAILABLE
     EKF3.writeExtNavData(pos, quat, posErr, angErr, timeStamp_ms, delay_ms, resetTime_ms);
 #endif
@@ -2437,9 +2437,9 @@ void AP_AHRS::writeDefaultAirSpeed(float airspeed, float uncertainty)
 // Write velocity data from an external navigation system
 void AP_AHRS::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms)
 {
-#if HAL_NAVEKF2_AVAILABLE
-    EKF2.writeExtNavVelData(vel, err, timeStamp_ms, delay_ms);
-#endif
+// #if HAL_NAVEKF2_AVAILABLE
+//     EKF2.writeExtNavVelData(vel, err, timeStamp_ms, delay_ms);
+// #endif
 #if HAL_NAVEKF3_AVAILABLE
     EKF3.writeExtNavVelData(vel, err, timeStamp_ms, delay_ms);
 #endif

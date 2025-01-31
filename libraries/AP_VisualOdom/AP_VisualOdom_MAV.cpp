@@ -48,6 +48,8 @@ void AP_VisualOdom_MAV::handle_pose_estimate(uint64_t remote_time_us, uint32_t t
     float yaw;
     attitude.to_euler(roll, pitch, yaw);
 
+    // gcs().send_named_float("VPX", pos.x);
+
 #if HAL_LOGGING_ENABLED
     // log sensor data
     Write_VisualPosition(remote_time_us, time_ms, pos.x, pos.y, pos.z, degrees(roll), degrees(pitch), degrees(yaw), posErr, angErr, reset_counter, !consume, _quality);
@@ -69,6 +71,7 @@ void AP_VisualOdom_MAV::handle_vision_speed_estimate(uint64_t remote_time_us, ui
     if (consume) {
         AP::ahrs().writeExtNavVelData(vel, _frontend.get_vel_noise(), time_ms, _frontend.get_delay_ms());
     }
+    // gcs().send_named_float("VVELX", vel.x);
 
     // record time for health monitoring
     _last_update_ms = AP_HAL::millis();
