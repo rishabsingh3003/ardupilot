@@ -1730,6 +1730,10 @@ void AP_Periph_FW::esc_telem_update()
                 rpm += coefficients[j] * power_term;
                 power_term *= power;  // Update the power term for the next iteration (equivalent to power^i)
             }      }
+
+        if (rpm < g.esc_telem_rpm_cut_low) {
+            rpm  = 0;
+        }
         pkt.rpm = rpm;
 
 #if AP_EXTENDED_ESC_TELEM_ENABLED

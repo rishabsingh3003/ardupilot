@@ -723,6 +723,16 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GSCALAR(esc_extended_telem_rate, "ESC_EXT_TLM_RATE", AP_PERIPH_ESC_TELEM_RATE_DEFAULT / 10),
 #endif
 
+    // @Param: RPM_CUT_LOW
+    // @DisplayName: Minimum RPM to consider valid
+    // @Description: This is the minimum RPM to consider valid
+    // @Units: RPM
+    // @Range: 0 1000
+    // @Increment: 1
+    // @User: Advanced
+    GSCALAR(esc_telem_rpm_cut_low, "RPM_CUT_LOW", 400),
+
+
     AP_VAREND
 };
 

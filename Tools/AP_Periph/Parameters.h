@@ -97,6 +97,7 @@ public:
         k_param_rpm_msg_rate,
         k_param_esc_rate,
         k_param_esc_extended_telem_rate,
+        k_param_esc_telem_rpm_cut_low,
     };
 
     AP_Int16 format_version;
@@ -189,6 +190,7 @@ public:
 #endif
 #endif
 #endif
+    AP_Int16 esc_telem_rpm_cut_low;
 
     AP_Int8 debug;
 
