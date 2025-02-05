@@ -1,5 +1,7 @@
-# hw definition file for EasyAerial Sparrow PDB
-define CAN_APP_NODE_NAME "EasyAerial.AVI080102-REVB"
+# hw definition file for EasyAerial AVI080102 PDB
+define CAN_APP_NODE_NAME "EasyAerial.AVI080102-REVB-V1.0"
+
+#REMOVE ESC STUFF
 
 # MCU class and specific type
 MCU STM32F4xx STM32F405xx

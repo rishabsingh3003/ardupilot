@@ -1,5 +1,4 @@
-# hw definition file f405 Matek CAN GPS
-define CAN_APP_NODE_NAME "EasyAerial.AVI080102"
+define CAN_APP_NODE_NAME "EasyAerial.AVI080102-V1.0"
 
 # MCU class and specific type
 MCU STM32F4xx STM32F405xx
