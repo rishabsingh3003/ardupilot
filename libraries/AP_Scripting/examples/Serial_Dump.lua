@@ -4,9 +4,9 @@
 ---@diagnostic disable: need-check-nil
 ---@diagnostic disable: cast-local-type
 
-local file_name = 'raw serial dump.txt'
-local file_name_plain = 'serial dump.txt'
-local baud_rate = 9600
+local file_name = 'rawserialdump.txt'
+local file_name_plain = 'serialdump.txt'
+local baud_rate = 100000
 
 -- find the serial first (0) scripting serial port instance
 -- SERIALx_PROTOCOL 28

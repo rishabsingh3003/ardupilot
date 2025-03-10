@@ -33,6 +33,10 @@ public:
     void init();
     void update();
 
+    uint32_t get_valid_sbus_packets();
+    uint32_t get_invalid_sbus_packets();
+    uint32_t get_lost_frame_counter();
+
 private:
 
 #if HAL_PERIPH_NETWORK_NUM_PASSTHRU > 0
@@ -51,10 +55,26 @@ private:
 
         static const struct AP_Param::GroupInfo var_info[];
 
+        // Getters for outer class to read stats
+        uint32_t get_valid_sbus_packets() const { return valid_sbus_packets; }
+        uint32_t get_invalid_sbus_packets() const { return invalid_sbus_packets; }
+        uint32_t get_total_sbus_bytes() const { return total_sbus_bytes; }
+        uint32_t get_lost_frame_counter() const { return lost_frames; }
+
     private:
         // configure a serial port for passthru
         void configure_serial_port(AP_HAL::UARTDriver *port, uint32_t baud, uint32_t options, int8_t parity, int8_t stop_bits);
+        void process_sbus_buffer(const uint8_t *buf, uint32_t nbytes);
 
+        uint8_t carry_buffer[50];  // Carry buffer for partial SBUS frames
+        uint32_t carry_buffer_len = 0;
+
+        uint32_t valid_sbus_packets = 0;
+        uint32_t invalid_sbus_packets = 0;
+        uint32_t total_sbus_bytes = 0;
+        uint32_t last_sbus_timestamp = 0;
+        uint32_t lost_frames = 0;  // Count frames lost due to timing
+        
         AP_Int8 enabled;
         AP_Int8 ep1;
         AP_Int8 ep2;
@@ -71,6 +91,7 @@ private:
 
         AP_HAL::UARTDriver *port1;
         AP_HAL::UARTDriver *port2;
+
     } passthru[HAL_PERIPH_NETWORK_NUM_PASSTHRU];
 #endif // HAL_PERIPH_NETWORK_NUM_PASSTHRU
 
@@ -81,6 +102,8 @@ private:
     AP_Int8 ppp_port;
     AP_Int32 ppp_baud;
 #endif
+    Passthru *selected_passthru_sbus = nullptr;
+
 };
 
 #endif // AP_PERIPH_NETWORKING_ENABLED

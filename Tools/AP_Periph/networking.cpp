@@ -179,6 +179,12 @@ void Networking_Periph::update(void)
 #if HAL_PERIPH_NETWORK_NUM_PASSTHRU > 0
     for (auto &p : passthru) {
         p.update();
+        if (selected_passthru_sbus == nullptr) {
+            if (p.get_valid_sbus_packets() > 0) {
+                // we have received some good bytes, lock on to it
+                selected_passthru_sbus = &p;
+            }
+        }
     }
 #endif
 
@@ -196,6 +202,30 @@ void Networking_Periph::update(void)
     }
 #endif // HAL_RAM_RESERVE_START
 }
+
+uint32_t Networking_Periph::get_valid_sbus_packets()
+{
+    if (selected_passthru_sbus == nullptr) {
+        return 0;
+    }
+    return selected_passthru_sbus->get_valid_sbus_packets();
+}
+uint32_t Networking_Periph::get_invalid_sbus_packets()
+{
+    if (selected_passthru_sbus == nullptr) {
+        return 0;
+    }
+    return selected_passthru_sbus->get_invalid_sbus_packets();
+}
+
+uint32_t Networking_Periph::get_lost_frame_counter()
+{
+    if (selected_passthru_sbus == nullptr) {
+        return 0;
+    }
+    return selected_passthru_sbus->get_lost_frame_counter();
+}
+
 
 #endif  // AP_PERIPH_NETWORKING_ENABLED
 

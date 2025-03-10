@@ -14,6 +14,7 @@
  */
 
 #include "AP_Periph.h"
+#include <AP_HAL/AP_HAL.h>
 
 #if AP_PERIPH_NETWORKING_ENABLED && HAL_PERIPH_NETWORK_NUM_PASSTHRU > 0
 
@@ -95,6 +96,7 @@ const AP_Param::GroupInfo Networking_Periph::Passthru::var_info[] = {
     AP_GROUPEND
 };
 
+
 void Networking_Periph::Passthru::init()
 {
     if (enabled == 0) {
@@ -116,8 +118,8 @@ void Networking_Periph::Passthru::init()
     port2 = AP::serialmanager().get_serial_by_id(ep2);
 
 #if HAL_PERIPH_NETWORK_PASSTHRU_ENABLE_PARITY_STOP_BITS
-    configure_serial_port(port1, baud1, options1, parity1, stop_bits1);
-    configure_serial_port(port2, baud2, options2, parity2, stop_bits2);
+    configure_serial_port(port1, baud1, options1, 2, 2);
+    configure_serial_port(port2, baud2, options2, 2, 2);
 #else
     configure_serial_port(port1, baud1, options1, -1, -1);
     configure_serial_port(port2, baud2, options2, -1, -1);
@@ -159,8 +161,10 @@ void Networking_Periph::Passthru::update()
     if (avail > 0) {
         auto space = port2->txspace();
         const uint32_t n = MIN(space, sizeof(buf));
+        // can_printf("P1->P2: %f bytes\n", (double)n);
         const auto nbytes = port1->read(buf, n);
         if (nbytes > 0) {
+            process_sbus_buffer(buf, nbytes);
             port2->write(buf, nbytes);
         }
     }
@@ -170,12 +174,72 @@ void Networking_Periph::Passthru::update()
     if (avail > 0) {
         auto space = port1->txspace();
         const uint32_t n = MIN(space, sizeof(buf));
+        // can_printf("P2->P1: %f bytes\n", (double)n);
         const auto nbytes = port2->read(buf, n);
         if (nbytes > 0) {
             port1->write(buf, nbytes);
         }
     }
 }
+
+void Networking_Periph::Passthru::process_sbus_buffer(const uint8_t *buf, uint32_t nbytes)
+{
+    const uint32_t SBUS_FRAME_SIZE = 25;
+
+    // Append new data to carry buffer
+    uint32_t total_len = carry_buffer_len + nbytes;
+    if (total_len > sizeof(carry_buffer)) {
+        total_len = sizeof(carry_buffer);  // prevent overflow
+    }
+
+    // Copy new data to carry buffer
+    memcpy(&carry_buffer[carry_buffer_len], buf, total_len - carry_buffer_len);
+    carry_buffer_len = total_len;
+
+    uint32_t offset = 0;
+
+    // Parse complete SBUS frames
+    while (carry_buffer_len - offset >= SBUS_FRAME_SIZE) {
+        const uint8_t *packet = &carry_buffer[offset];
+
+        // Look for SBUS header
+        if (packet[0] == 0x0F) {
+            // Found header, check footer
+            bool is_valid = (packet[24] == 0x00 || packet[24] == 0x04);
+
+            if (is_valid) {
+                // Valid SBUS packet
+                valid_sbus_packets++;
+                total_sbus_bytes += SBUS_FRAME_SIZE;
+
+                // Check for timing/jitter
+                uint32_t now = AP_HAL::millis();
+                uint32_t frame_interval = now - last_sbus_timestamp;
+                if (last_sbus_timestamp != 0 && (frame_interval > 30)) {
+                    uint32_t missed_frames = (frame_interval / 20) - 1; // compute how many were missed
+                    lost_frames += missed_frames;
+                }
+                last_sbus_timestamp = now;
+            } else {
+                // Invalid SBUS packet (bad footer)
+                invalid_sbus_packets++;
+            }
+
+            // Move forward by one full frame
+            offset += SBUS_FRAME_SIZE;
+        } else {
+            // Not a valid SBUS header, move forward 1 byte to search again
+            offset += 1;
+        }
+    }
+
+    // Keep leftover bytes for next round
+    carry_buffer_len -= offset;
+    if (carry_buffer_len > 0 && offset > 0) {
+        memmove(carry_buffer, &carry_buffer[offset], carry_buffer_len);
+    }
+}
+
 
 #endif  // AP_PERIPH_NETWORKING_ENABLED && HAL_PERIPH_NETWORK_NUM_PASSTHRU > 0
 

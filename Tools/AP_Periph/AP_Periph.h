@@ -414,6 +414,9 @@ public:
     // create dummy methods for the case when the user doesn't want to use the notify object
     float get_yaw_earth() { return 0.0; }
     uint32_t get_vehicle_state() { return 0.0; }
+    uint32_t get_sbus_good_packets() { return networking_periph.get_valid_sbus_packets(); }
+    uint32_t get_sbus_bad_packets() { return networking_periph.get_invalid_sbus_packets(); }
+    uint32_t get_sbus_lost_frame_counter() { return networking_periph.get_lost_frame_counter(); }
 #endif
 
 #if AP_SCRIPTING_ENABLED
