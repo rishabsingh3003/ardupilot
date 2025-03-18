@@ -41,3 +41,6 @@ define AP_NETWORKING_TESTS_ENABLED 1
 define HAL_PERIPH_SHOW_SERIAL_MANAGER_PARAMS 1
 
 define HAL_PERIPH_NETWORK_PASSTHRU_ENABLE_PARITY_STOP_BITS 1
+
+# set Brownout Reset level to highest voltage rising:2.7V, falling:2.61V
+define HAL_FLASH_SET_BOR_LEVEL 2
