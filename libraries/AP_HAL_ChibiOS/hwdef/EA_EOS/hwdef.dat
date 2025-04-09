@@ -61,7 +61,18 @@ define HAL_STORAGE_SIZE 32768
 STORAGE_FLASH_PAGE 14
 ###########################
 
-include ../include/network_PPPGW.inc
+#include ../include/network_PPPGW.inc
+
+// add scripting for web interface
+define AP_SCRIPTING_ENABLED 1
+
+// ROMFS filesystem only
+define AP_FILESYSTEM_ROMFS_ENABLED 1
+
+// allow scripts to add parameters
+define AP_PARAM_DYNAMIC_ENABLED 1
+
+ROMFS_DIRECTORY Tools/AP_Periph/Web
 
 
 # Ethernet
