@@ -62,6 +62,7 @@
 #include "AP_RangeFinder_JRE_Serial.h"
 #include "AP_RangeFinder_Ainstein_LR_D1.h"
 #include "AP_RangeFinder_RDS02UF.h"
+#include "AP_RangeFinder_LightWare_GRF.h"
 
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_Logger/AP_Logger.h>
@@ -616,6 +617,13 @@ __INITFUNC__ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial
         serial_create_fn = AP_RangeFinder_RDS02UF::create;
         break;
 #endif
+
+#if AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED
+    case Type::LightWare_GRF:
+        serial_create_fn = AP_RangeFinder_LightWareGRF::create;
+        break;
+#endif
+
     case Type::NONE:
         break;
     }
