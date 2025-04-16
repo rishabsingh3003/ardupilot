@@ -15,6 +15,29 @@
 
 #include "AP_Periph.h"
 #include <AP_HAL/AP_HAL.h>
+#include <AP_RCProtocol/AP_RCProtocol.h>
+
+#include <dronecan_msgs.h>
+    
+#define SBUS_FLAGS_BYTE		23
+#define SBUS_FAILSAFE_BIT	3
+#define SBUS_FRAMELOST_BIT	2
+
+/* define range mapping here, -+100% -> 1000..2000 */
+#define SBUS_RANGE_MIN 200
+#define SBUS_RANGE_MAX 1800
+#define SBUS_RANGE_RANGE (SBUS_RANGE_MAX - SBUS_RANGE_MIN)
+
+#define SBUS_TARGET_MIN 1000
+#define SBUS_TARGET_MAX 2000
+#define SBUS_TARGET_RANGE (SBUS_TARGET_MAX - SBUS_TARGET_MIN)
+
+// this is 875
+#define SBUS_SCALE_OFFSET (SBUS_TARGET_MIN - ((SBUS_TARGET_RANGE * SBUS_RANGE_MIN / SBUS_RANGE_RANGE)))
+
+#ifndef HAL_SBUS_FRAME_GAP
+#define HAL_SBUS_FRAME_GAP 2000U
+#endif
 
 #if AP_PERIPH_NETWORKING_ENABLED && HAL_PERIPH_NETWORK_NUM_PASSTHRU > 0
 
@@ -93,6 +116,19 @@ const AP_Param::GroupInfo Networking_Periph::Passthru::var_info[] = {
     AP_GROUPINFO("ST_BT2", 11, Networking_Periph::Passthru, stop_bits2, -1),
 #endif
 
+    // @Param: CHK_CRC
+    // @DisplayName: Check CRC
+    // @Description: Check CRC for SBUS frames. This is a simple checksum to verify the integrity of the data.
+    // @Values: 0:Disabled, 1:Enabled
+    AP_GROUPINFO("CRC", 12, Networking_Periph::Passthru, check_crc, 1),
+
+    // @Param: RC_MODE
+    // @DisplayName: Send RC over CAN or UART
+    // @Discription: Send RC over CAN or UART. This is used to send RC data over the selected endpoint.
+    // @Values: 1:UART, 2:CAN, 3:Both
+    AP_GROUPINFO("RC", 13, Networking_Periph::Passthru, rc_mode, 1),
+
+
     AP_GROUPEND
 };
 
@@ -165,7 +201,27 @@ void Networking_Periph::Passthru::update()
         const auto nbytes = port1->read(buf, n);
         if (nbytes > 0) {
             process_sbus_buffer(buf, nbytes);
-            port2->write(buf, nbytes);
+            if (new_sbus_frame) {
+                // Send the latest SBUS frame to port2
+                if (rc_mode == 1 || rc_mode == 3) {
+                    port2->write(latest_sbus_frame, sizeof(latest_sbus_frame));
+                }
+                new_sbus_frame = false;  // Reset the flag after sending
+                if (sbus_decode(latest_sbus_frame, decoded_rc_values, &rc_num_values,
+                                _sbus_failsafe, SBUS_INPUT_CHANNELS) &&
+                    rc_num_values >= MIN_RCIN_CHANNELS) {
+                    if(rc_mode == 2 || rc_mode == 3) {
+                        // Send the decoded RC values over CAN
+                        new_sbus_can_frame = true;
+                    } else {
+                        new_sbus_can_frame = false;
+                    }
+
+                    // can_send_RCInput(
+                    //     0, decoded_rc_values, rc_num_values,
+                    //     sbus_failsafe, false);
+                }
+            }
         }
     }
 
@@ -180,6 +236,22 @@ void Networking_Periph::Passthru::update()
             port1->write(buf, nbytes);
         }
     }
+}
+
+// CRC-8-Dallas/Maxim, polynomial 0x31
+uint8_t Networking_Periph::Passthru::sbus_crc8(const uint8_t *data, size_t len) {
+    uint8_t crc = 0x00;
+    for (size_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (uint8_t j = 0; j < 8; j++) {
+            if (crc & 0x80) {
+                crc = (crc << 1) ^ 0x31;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+    return crc;
 }
 
 void Networking_Periph::Passthru::process_sbus_buffer(const uint8_t *buf, uint32_t nbytes)
@@ -206,8 +278,14 @@ void Networking_Periph::Passthru::process_sbus_buffer(const uint8_t *buf, uint32
         if (packet[0] == 0x0F) {
             // Found header, check footer
             bool is_valid = (packet[24] == 0x00 || packet[24] == 0x04);
-
-            if (is_valid) {
+            // Check CRC over bytes 0–22
+            uint8_t computed_crc = sbus_crc8(packet, 23);  // Exclude byte 23 (CRC) and 24 (footer)
+            // can_printf("CRC: %02X %02X\n", computed_crc, packet[23]);
+            bool crc_valid = true;
+            if (check_crc) {
+                crc_valid = computed_crc == packet[23];
+            }
+            if (is_valid && crc_valid) {
                 // Valid SBUS packet
                 valid_sbus_packets++;
                 total_sbus_bytes += SBUS_FRAME_SIZE;
@@ -220,6 +298,11 @@ void Networking_Periph::Passthru::process_sbus_buffer(const uint8_t *buf, uint32
                     lost_frames += missed_frames;
                 }
                 last_sbus_timestamp = now;
+                // Copy the valid SBUS frame to latest_sbus_frame
+                memcpy(latest_sbus_frame, packet, SBUS_FRAME_SIZE);
+                latest_sbus_frame[23] = 0x00;  // Set the footer to 0x00
+                // Set the flag to indicate a new SBUS frame is available
+                new_sbus_frame = true;
             } else {
                 // Invalid SBUS packet (bad footer)
                 invalid_sbus_packets++;
@@ -239,6 +322,131 @@ void Networking_Periph::Passthru::process_sbus_buffer(const uint8_t *buf, uint32
         memmove(carry_buffer, &carry_buffer[offset], carry_buffer_len);
     }
 }
+
+// decode a full SBUS frame
+bool Networking_Periph::Passthru::sbus_decode(const uint8_t frame[25], uint16_t *values, uint16_t *num_values,
+                                     bool &sbus_failsafe, uint16_t max_values)
+{
+    /* check frame boundary markers to avoid out-of-sync cases */
+    if ((frame[0] != 0x0f)) {
+        return false;
+    }
+
+    uint16_t chancount = SBUS_INPUT_CHANNELS;
+
+    decode_11bit_channels((const uint8_t*)(&frame[1]), max_values, values,
+        SBUS_TARGET_RANGE, SBUS_RANGE_RANGE, SBUS_SCALE_OFFSET);
+
+    /* decode switch channels if data fields are wide enough */
+    if (max_values > 17 && SBUS_INPUT_CHANNELS > 15) {
+        chancount = 18;
+
+        /* channel 17 (index 16) */
+        values[16] = (frame[SBUS_FLAGS_BYTE] & (1 << 0))?1998:998;
+        /* channel 18 (index 17) */
+        values[17] = (frame[SBUS_FLAGS_BYTE] & (1 << 1))?1998:998;
+    }
+
+    /* note the number of channels decoded */
+    *num_values = chancount;
+
+    /*
+      as SBUS is such a weak protocol we additionally check if any of
+      the first 4 channels are at or below the minimum value of
+      875. We consider the frame as a failsafe in that case, which
+      means we log the data but won't use it
+     */
+    bool invalid_data = false;
+    for (uint8_t i=0; i<4; i++) {
+        if (values[i] <= SBUS_SCALE_OFFSET) {
+            invalid_data = true;
+        }
+    }
+
+    if (invalid_data) {
+        sbus_failsafe = true;
+    }
+
+    /* decode and handle failsafe and frame-lost flags */
+    // if (frame[SBUS_FLAGS_BYTE] & (1 << SBUS_FAILSAFE_BIT)) { /* failsafe */
+    //     /* report that we failed to read anything valid off the receiver */
+    //     sbus_failsafe = true;
+    // } else if (invalid_data) {
+    //     sbus_failsafe = true;
+    // } else if (frame[SBUS_FLAGS_BYTE] & (1 << SBUS_FRAMELOST_BIT)) { /* a frame was lost */
+    //     /* set a special warning flag
+    //      *
+    //      * Attention! This flag indicates a skipped frame only, not a total link loss! Handling this
+    //      * condition as fail-safe greatly reduces the reliability and range of the radio link,
+    //      * e.g. by prematurely issuing return-to-launch!!! */
+
+    //     sbus_failsafe = false;
+    // } else {
+    //     sbus_failsafe = false;
+    // }
+
+    return true;
+}
+
+/*
+  decode channels from the standard 11bit format (used by CRSF, SBUS, FPort and FPort2)
+  must be used on multiples of 8 channels
+*/
+void Networking_Periph::Passthru::decode_11bit_channels(const uint8_t* data, uint8_t nchannels, uint16_t *values, uint16_t mult, uint16_t div, uint16_t offset)
+{
+#define CHANNEL_SCALE(x) ((int32_t(x) * mult) / div + offset)
+    while (nchannels >= 8) {
+        const Channels11Bit_8Chan* channels = (const Channels11Bit_8Chan*)data;
+        values[0] = CHANNEL_SCALE(channels->ch0);
+        values[1] = CHANNEL_SCALE(channels->ch1);
+        values[2] = CHANNEL_SCALE(channels->ch2);
+        values[3] = CHANNEL_SCALE(channels->ch3);
+        values[4] = CHANNEL_SCALE(channels->ch4);
+        values[5] = CHANNEL_SCALE(channels->ch5);
+        values[6] = CHANNEL_SCALE(channels->ch6);
+        values[7] = CHANNEL_SCALE(channels->ch7);
+
+        nchannels -= 8;
+        data += sizeof(*channels);
+        values += 8;
+    }
+}
+
+
+/*
+//   send an RCInput CAN message
+//  */
+// void Networking_Periph::Passthru::can_send_RCInput(uint8_t quality, uint16_t *values, uint8_t nvalues, bool in_failsafe, bool quality_valid)
+// {
+//     uint16_t status = 0;
+//     if (quality_valid) {
+//         status |= DRONECAN_SENSORS_RC_RCINPUT_STATUS_QUALITY_VALID;
+//     }
+//     if (in_failsafe) {
+//         status |= DRONECAN_SENSORS_RC_RCINPUT_STATUS_FAILSAFE;
+//     }
+
+//     // assemble packet
+//     dronecan_sensors_rc_RCInput pkt {};
+//     pkt.quality = quality;
+//     pkt.status = status;
+//     pkt.rcin.len = nvalues;
+//     for (uint8_t i=0; i<nvalues; i++) {
+//         pkt.rcin.data[i] = values[i];
+//     }
+
+//     // encode and send message:
+//     uint8_t buffer[DRONECAN_SENSORS_RC_RCINPUT_MAX_SIZE];
+
+//     uint16_t total_size = dronecan_sensors_rc_RCInput_encode(&pkt, buffer, !periph.canfdout());
+
+//     canard_broadcast(DRONECAN_SENSORS_RC_RCINPUT_SIGNATURE,
+//                      DRONECAN_SENSORS_RC_RCINPUT_ID,
+//                      CANARD_TRANSFER_PRIORITY_HIGH,
+//                      buffer,
+//                      total_size);
+// }
+
 
 
 #endif  // AP_PERIPH_NETWORKING_ENABLED && HAL_PERIPH_NETWORK_NUM_PASSTHRU > 0

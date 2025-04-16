@@ -7,7 +7,7 @@
 #include <AP_Networking/AP_Networking.h>
 
 #ifndef HAL_PERIPH_NETWORK_NUM_PASSTHRU
-#define HAL_PERIPH_NETWORK_NUM_PASSTHRU 2
+#define HAL_PERIPH_NETWORK_NUM_PASSTHRU 1
 #endif
 
 #ifndef AP_PERIPH_NET_PPP_PORT_DEFAULT
@@ -21,6 +21,8 @@
 #ifndef HAL_PERIPH_NETWORK_PASSTHRU_ENABLE_PARITY_STOP_BITS
 #define HAL_PERIPH_NETWORK_PASSTHRU_ENABLE_PARITY_STOP_BITS 0
 #endif
+
+#define SBUS_INPUT_CHANNELS	16
 
 class Networking_Periph {
 public:
@@ -36,6 +38,8 @@ public:
     uint32_t get_valid_sbus_packets();
     uint32_t get_invalid_sbus_packets();
     uint32_t get_lost_frame_counter();
+
+    bool get_latest_sbus_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &sbus_failsafe);
 
 private:
 
@@ -60,11 +64,46 @@ private:
         uint32_t get_invalid_sbus_packets() const { return invalid_sbus_packets; }
         uint32_t get_total_sbus_bytes() const { return total_sbus_bytes; }
         uint32_t get_lost_frame_counter() const { return lost_frames; }
+        bool get_latest_rc_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &failsafe) {
+            if (new_sbus_can_frame) {
+                memcpy(decoded_rc, decoded_rc_values, sizeof(decoded_rc_values));
+                num_values = rc_num_values;
+                failsafe = _sbus_failsafe;
+                new_sbus_can_frame = false;
+                return true;
+            }
+            return false;
+        }
 
     private:
         // configure a serial port for passthru
         void configure_serial_port(AP_HAL::UARTDriver *port, uint32_t baud, uint32_t options, int8_t parity, int8_t stop_bits);
         void process_sbus_buffer(const uint8_t *buf, uint32_t nbytes);
+        uint8_t sbus_crc8(const uint8_t *data, size_t len);
+        bool sbus_decode(const uint8_t frame[25], uint16_t *values, uint16_t *num_values,
+                                     bool &sbus_failsafe, uint16_t max_values);
+        void can_send_RCInput(uint8_t quality, uint16_t *values, uint8_t nvalues, bool in_failsafe, bool quality_valid);
+        void decode_11bit_channels(const uint8_t* data, uint8_t nchannels, uint16_t *values, uint16_t mult, uint16_t div, uint16_t offset);
+
+
+        struct Channels11Bit_8Chan {
+        uint32_t ch0 : 11;
+        uint32_t ch1 : 11;
+        uint32_t ch2 : 11;
+        uint32_t ch3 : 11;
+        uint32_t ch4 : 11;
+        uint32_t ch5 : 11;
+        uint32_t ch6 : 11;
+        uint32_t ch7 : 11;
+    } PACKED;
+
+        uint8_t latest_sbus_frame[25];  // Latest SBUS frame
+        bool new_sbus_frame = false;  // Flag to indicate if a new SBUS frame is available
+        bool new_sbus_can_frame = false;
+
+        uint16_t decoded_rc_values[SBUS_INPUT_CHANNELS];
+        uint16_t rc_num_values=0;
+        bool _sbus_failsafe = false;
 
         uint8_t carry_buffer[50];  // Carry buffer for partial SBUS frames
         uint32_t carry_buffer_len = 0;
@@ -74,7 +113,7 @@ private:
         uint32_t total_sbus_bytes = 0;
         uint32_t last_sbus_timestamp = 0;
         uint32_t lost_frames = 0;  // Count frames lost due to timing
-        
+
         AP_Int8 enabled;
         AP_Int8 ep1;
         AP_Int8 ep2;
@@ -91,6 +130,8 @@ private:
 
         AP_HAL::UARTDriver *port1;
         AP_HAL::UARTDriver *port2;
+        AP_Int8 check_crc;
+        AP_Int8 rc_mode;
 
     } passthru[HAL_PERIPH_NETWORK_NUM_PASSTHRU];
 #endif // HAL_PERIPH_NETWORK_NUM_PASSTHRU

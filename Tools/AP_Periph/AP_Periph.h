@@ -373,6 +373,7 @@ public:
     void rcin_init();
     void rcin_update();
     void can_send_RCInput(uint8_t quality, uint16_t *values, uint8_t nvalues, bool in_failsafe, bool quality_valid);
+    void networking_rcin_update();
     bool rcin_initialised;
     uint32_t rcin_last_sent_RCInput_ms;
     const char *rcin_rc_protocol;  // protocol currently being decoded

@@ -226,6 +226,43 @@ uint32_t Networking_Periph::get_lost_frame_counter()
     return selected_passthru_sbus->get_lost_frame_counter();
 }
 
+bool Networking_Periph::get_latest_sbus_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &sbus_failsafe)
+{
+    if (selected_passthru_sbus == nullptr) {
+        return false;
+    }
+    return selected_passthru_sbus->get_latest_rc_can_frame(decoded_rc, num_values, sbus_failsafe);
+}
+
+void AP_Periph_FW::networking_rcin_update()
+{
+    // decimate the input to a parameterized rate
+    const uint8_t rate_hz = g_rcin.rcin_rate_hz;
+    if (rate_hz == 0) {
+        return;
+    }
+
+    const auto now_ms = AP_HAL::millis();
+    const auto interval_ms = 1000U / rate_hz;
+    if (now_ms - rcin_last_sent_RCInput_ms < interval_ms) {
+        return;
+    }
+    rcin_last_sent_RCInput_ms = now_ms;
+    
+    uint16_t decoded_rc_values[SBUS_INPUT_CHANNELS];
+    uint16_t num_values = 0;
+    bool sbus_failsafe = false;
+    if (networking_periph.get_latest_sbus_can_frame(decoded_rc_values, num_values, sbus_failsafe)) {
+        // log the decoded RC values
+        // for (uint8_t i = 0; i < num_values; i++) {
+        //     can_printf("RC[%d]: %d\n", i, decoded_rc_values[i]);
+        // }
+        // send the decoded RC values to the CAN bus
+        can_send_RCInput(0, decoded_rc_values, num_values, sbus_failsafe, false);
+
+    }
+}
+
 
 #endif  // AP_PERIPH_NETWORKING_ENABLED
 

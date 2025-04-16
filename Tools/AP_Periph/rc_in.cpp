@@ -104,6 +104,8 @@ void AP_Periph_FW::rcin_init()
 
 void AP_Periph_FW::rcin_update()
 {
+    networking_rcin_update();
+
     if (!rcin_initialised) {
         return;
     }
