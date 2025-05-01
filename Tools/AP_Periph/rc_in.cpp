@@ -147,7 +147,7 @@ void AP_Periph_FW::rcin_update()
 /*
   send an RCInput CAN message
  */
-void AP_Periph_FW::can_send_RCInput(uint8_t quality, uint16_t *values, uint8_t nvalues, bool in_failsafe, bool quality_valid)
+void AP_Periph_FW::can_send_RCInput(uint8_t quality, uint16_t *values, uint8_t nvalues, bool in_failsafe, bool quality_valid, uint8_t id)
 {
     uint16_t status = 0;
     if (quality_valid) {
@@ -165,6 +165,7 @@ void AP_Periph_FW::can_send_RCInput(uint8_t quality, uint16_t *values, uint8_t n
     for (uint8_t i=0; i<nvalues; i++) {
         pkt.rcin.data[i] = values[i];
     }
+    pkt.id = id;
 
     // encode and send message:
     uint8_t buffer[DRONECAN_SENSORS_RC_RCINPUT_MAX_SIZE];

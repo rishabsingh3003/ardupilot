@@ -39,6 +39,11 @@
 #define HAL_SBUS_FRAME_GAP 2000U
 #endif
 
+#define SBUS_SIGNAL_TIMEOUT_MS 200  // Timeout for resetting filters
+#define NUM_CHANNELS 4
+#define MAX_RATE_CHANGE 10  // Max allowed change per loop (units per frame)
+#define SBUS_RESET_THRESHOLD 1000  // If change > this, treat as signal reset
+
 #if AP_PERIPH_NETWORKING_ENABLED && HAL_PERIPH_NETWORK_NUM_PASSTHRU > 0
 
 #include <AP_SerialManager/AP_SerialManager.h>
@@ -128,6 +133,19 @@ const AP_Param::GroupInfo Networking_Periph::Passthru::var_info[] = {
     // @Values: 1:UART, 2:CAN, 3:Both
     AP_GROUPINFO("RC", 13, Networking_Periph::Passthru, rc_mode, 1),
 
+    // @Param: RATE_MAX
+    // @DisplayName: Max Rate Change for first 4 channels
+    // @Discription:  Max Rate Change for first 4 channels. This is used to limit the rate of change for the first 4 channels.
+    // @Range: 0 100
+    AP_GROUPINFO("RATE", 14, Networking_Periph::Passthru, max_rate, 10),
+
+    // @Param: RC_ID
+    // @DisplayName: Primary RC ID
+    // @Description: The ID of the primary RC. This is used to identify the primary RC in the system.
+    // @Values: -1:ALL, 0:RC1, 1:RC2, 2:RC3, 3:RC4, 4:RC5, 5:RC6, 6:RC7, 7:RC8
+    // @RebootRequired: No
+    AP_GROUPINFO("RC_ID", 15, Networking_Periph::Passthru, rc_id, 1),
+
 
     AP_GROUPEND
 };
@@ -210,6 +228,8 @@ void Networking_Periph::Passthru::update()
                 if (sbus_decode(latest_sbus_frame, decoded_rc_values, &rc_num_values,
                                 _sbus_failsafe, SBUS_INPUT_CHANNELS) &&
                     rc_num_values >= MIN_RCIN_CHANNELS) {
+                        memmove(filtered_rc_values, decoded_rc_values, sizeof(decoded_rc_values));
+                        rate_limit_sbus_channels(decoded_rc_values, filtered_rc_values, AP_HAL::millis());
                     if(rc_mode == 2 || rc_mode == 3) {
                         // Send the decoded RC values over CAN
                         new_sbus_can_frame = true;
@@ -412,6 +432,52 @@ void Networking_Periph::Passthru::decode_11bit_channels(const uint8_t* data, uin
     }
 }
 
+
+void Networking_Periph::Passthru::rate_limit_sbus_channels(const uint16_t *input, uint16_t *output, uint32_t now_ms)
+{
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+        uint16_t in = input[i];
+        uint16_t prev = filter_rc_hist[i];
+        uint32_t dt = now_ms - last_update_filter_time_ms[i];
+
+        // Reset if signal times out (optional)
+        if (dt > SBUS_SIGNAL_TIMEOUT_MS || dt <= 0 || last_update_filter_time_ms[i] == 0) {
+            filter_rc_hist[i] = in;
+            output[i] = in;
+            last_update_filter_time_ms[i] = now_ms;
+            continue;
+        }
+
+        // Handle sudden jump (e.g., failsafe reset or disarm)
+        if (abs((int32_t)in - (int32_t)prev) > SBUS_RESET_THRESHOLD) {
+            filter_rc_hist[i] = in;
+            output[i] = in;
+            last_update_filter_time_ms[i] = now_ms;
+            continue;
+        }
+
+        // Rate limiting based on time delta
+        int32_t delta = (int32_t)in - (int32_t)prev;
+        // can_printf("RC[%d]: %d -> %d, delta: %d\n", i, prev, in, int(delta));
+        int32_t max_delta = (int32_t)(max_rate * dt / 1000);  // scale to ms
+
+        if (max_delta < 1) {
+            max_delta = 1;
+        } else if (max_delta > 500) {
+            max_delta = 500;  // optional clamp to prevent huge jumps
+        }
+
+        if (delta > max_delta) {
+            delta = max_delta;
+        } else if (delta < -max_delta) {
+            delta = -max_delta;
+        }
+
+        filter_rc_hist[i] = prev + delta;
+        output[i] = filter_rc_hist[i];
+        last_update_filter_time_ms[i] = now_ms;
+    }
+}
 
 /*
 //   send an RCInput CAN message

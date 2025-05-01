@@ -226,12 +226,12 @@ uint32_t Networking_Periph::get_lost_frame_counter()
     return selected_passthru_sbus->get_lost_frame_counter();
 }
 
-bool Networking_Periph::get_latest_sbus_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &sbus_failsafe)
+bool Networking_Periph::get_latest_sbus_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t decoded_rc_filtered[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &sbus_failsafe, int8_t &primary_id)
 {
     if (selected_passthru_sbus == nullptr) {
         return false;
     }
-    return selected_passthru_sbus->get_latest_rc_can_frame(decoded_rc, num_values, sbus_failsafe);
+    return selected_passthru_sbus->get_latest_rc_can_frame(decoded_rc, decoded_rc_filtered, num_values, sbus_failsafe, primary_id);
 }
 
 void AP_Periph_FW::networking_rcin_update()
@@ -250,16 +250,33 @@ void AP_Periph_FW::networking_rcin_update()
     rcin_last_sent_RCInput_ms = now_ms;
     
     uint16_t decoded_rc_values[SBUS_INPUT_CHANNELS];
+    uint16_t filtered_rc_values[SBUS_INPUT_CHANNELS];
     uint16_t num_values = 0;
+    int8_t primary_id = 0;
     bool sbus_failsafe = false;
-    if (networking_periph.get_latest_sbus_can_frame(decoded_rc_values, num_values, sbus_failsafe)) {
+    if (networking_periph.get_latest_sbus_can_frame(decoded_rc_values, filtered_rc_values, num_values, sbus_failsafe, primary_id)) {
         // log the decoded RC values
         // for (uint8_t i = 0; i < num_values; i++) {
         //     can_printf("RC[%d]: %d\n", i, decoded_rc_values[i]);
         // }
         // send the decoded RC values to the CAN bus
-        can_send_RCInput(0, decoded_rc_values, num_values, sbus_failsafe, false);
+        switch (primary_id)
+        {
+        case -1:
+            /* code */
+            can_send_RCInput(0, decoded_rc_values, num_values, sbus_failsafe, false, 0);
+            can_send_RCInput(0, filtered_rc_values, num_values, sbus_failsafe, false, 1);
+            break;
+        case 0:
+            can_send_RCInput(0, decoded_rc_values, num_values, sbus_failsafe, false, 1);
+            break;
+        case 1:
+            can_send_RCInput(0, filtered_rc_values, num_values, sbus_failsafe, false, 1);
 
+            break;
+        default:
+            break;
+        }
     }
 }
 

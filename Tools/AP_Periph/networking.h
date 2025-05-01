@@ -39,7 +39,7 @@ public:
     uint32_t get_invalid_sbus_packets();
     uint32_t get_lost_frame_counter();
 
-    bool get_latest_sbus_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &sbus_failsafe);
+    bool get_latest_sbus_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t decoded_rc_filtered[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &sbus_failsafe, int8_t &primary_id);
 
 private:
 
@@ -64,12 +64,15 @@ private:
         uint32_t get_invalid_sbus_packets() const { return invalid_sbus_packets; }
         uint32_t get_total_sbus_bytes() const { return total_sbus_bytes; }
         uint32_t get_lost_frame_counter() const { return lost_frames; }
-        bool get_latest_rc_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &failsafe) {
+        bool get_latest_rc_can_frame(uint16_t decoded_rc[SBUS_INPUT_CHANNELS], uint16_t decoded_rc_filtered[SBUS_INPUT_CHANNELS], uint16_t &num_values, bool &failsafe
+        , int8_t &primary_id) {
             if (new_sbus_can_frame) {
                 memcpy(decoded_rc, decoded_rc_values, sizeof(decoded_rc_values));
+                memcpy(decoded_rc_filtered, filtered_rc_values, sizeof(filtered_rc_values));
                 num_values = rc_num_values;
                 failsafe = _sbus_failsafe;
                 new_sbus_can_frame = false;
+                primary_id = rc_id;
                 return true;
             }
             return false;
@@ -82,9 +85,9 @@ private:
         uint8_t sbus_crc8(const uint8_t *data, size_t len);
         bool sbus_decode(const uint8_t frame[25], uint16_t *values, uint16_t *num_values,
                                      bool &sbus_failsafe, uint16_t max_values);
-        void can_send_RCInput(uint8_t quality, uint16_t *values, uint8_t nvalues, bool in_failsafe, bool quality_valid);
         void decode_11bit_channels(const uint8_t* data, uint8_t nchannels, uint16_t *values, uint16_t mult, uint16_t div, uint16_t offset);
 
+        void rate_limit_sbus_channels(const uint16_t *input, uint16_t *output, uint32_t now_ms);
 
         struct Channels11Bit_8Chan {
         uint32_t ch0 : 11;
@@ -132,6 +135,13 @@ private:
         AP_HAL::UARTDriver *port2;
         AP_Int8 check_crc;
         AP_Int8 rc_mode;
+        AP_Float max_rate;
+        AP_Int8 rc_id;
+
+        // Persistent filter state
+        uint16_t filtered_rc_values[16];
+        uint16_t filter_rc_hist[4];
+        uint32_t last_update_filter_time_ms[4];
 
     } passthru[HAL_PERIPH_NETWORK_NUM_PASSTHRU];
 #endif // HAL_PERIPH_NETWORK_NUM_PASSTHRU
