@@ -21,7 +21,7 @@ const AP_Param::GroupInfo AP_RangeFinder_LightWareGRF::var_info[] = {
     // @Values: 0:FirstRaw,1:FirstFiltered,2:LastRaw,3:LastFiltered
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GRF_RET", 1, AP_RangeFinder_LightWareGRF, return_selection, (uint8_t)GRF_ReturnSelection::FIRST_FILTERED),
+    AP_GROUPINFO("GRF_RET", 12, AP_RangeFinder_LightWareGRF, return_selection, (uint8_t)GRF_ReturnSelection::FIRST_FILTERED),
 
     // @Param: GRF_ST
     // @DisplayName: LightWare GRF Minimum Return Strength
@@ -29,7 +29,7 @@ const AP_Param::GroupInfo AP_RangeFinder_LightWareGRF::var_info[] = {
     // @Range: 0 255
     // @User: Advanced
     // @RebootRequired: True
-    AP_GROUPINFO("GRF_ST", 2, AP_RangeFinder_LightWareGRF, minimum_return_strength, 0),
+    AP_GROUPINFO("GRF_ST", 13, AP_RangeFinder_LightWareGRF, minimum_return_strength, 0),
 
     // @Param: GRF_RATE
     // @DisplayName: LightWare GRF Update Rate
@@ -37,7 +37,7 @@ const AP_Param::GroupInfo AP_RangeFinder_LightWareGRF::var_info[] = {
     // @Range: 1 50
     // @User: Advanced
     // @RebootRequired: True
-    AP_GROUPINFO("GRF_RATE", 3, AP_RangeFinder_LightWareGRF, update_rate, GRF_UPDATE_RATE),
+    AP_GROUPINFO("GRF_RATE", 14, AP_RangeFinder_LightWareGRF, update_rate, GRF_UPDATE_RATE),
 
     AP_GROUPEND
 };
@@ -161,7 +161,7 @@ void AP_RangeFinder_LightWareGRF::check_config()
     case ConfigStep::HANDSHAKE:
         valid = (resp_cmd_id == MessageID::PRODUCT_NAME && matches_product_name(response_buf, response_len));
         if (valid) {
-            gcs().send_text(MAV_SEVERITY_INFO, "LightWare %s detected", (const char*)response_buf);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LightWare %s detected", (const char*)response_buf);
         }
         break;
 
