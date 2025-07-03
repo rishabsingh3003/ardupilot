@@ -97,6 +97,7 @@ bool AP_RangeFinder_LightWareGRF::try_parse_stream_packet(float &reading_m)
     }
 
     if (cmd_id != MessageID::DISTANCE_DATA_CM || payload_len < 8) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Wrong packet type or length: %d", (int)cmd_id);
         return false;
     }
 
@@ -110,6 +111,9 @@ bool AP_RangeFinder_LightWareGRF::try_parse_stream_packet(float &reading_m)
             reading_m = distance_cm * 0.01f;
             return true;
         }
+    } else {
+        // Distance exceeds maximum range, ignore this reading
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GRF: distance %dcm exceeds max %dcm", (int)distance_cm, (int)GRF_DIST_MAX * 100);
     }
 
     return false;
@@ -265,8 +269,12 @@ bool AP_RangeFinder_LightWareGRF::read_and_parse_response(MessageID& cmd_id_out,
     // Step 1: Read from UART into buffer
     const uint16_t bytes_available = MIN(uart->available(), 8192U);
     const uint16_t space = GRF_BUFFER_SIZE - grf.buffer_len;
+    if (space == 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GRF buffer overflow, resetting");
+    }
     if (bytes_available > 0 && space > 0) {
         const uint16_t to_read = MIN(bytes_available, space);
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "GRF: reading %d bytes", to_read);
         grf.buffer_len += uart->read(&grf.parse_buffer[grf.buffer_len], to_read);
     }
 
@@ -297,6 +305,7 @@ bool AP_RangeFinder_LightWareGRF::read_and_parse_response(MessageID& cmd_id_out,
         const uint16_t calc_crc = crc16_lightware(&buf[i], expected_len - 2);
 
         if (received_crc != calc_crc) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "CRC failed");
             // Skip to next possible packet
             for (uint16_t j = i + 1; j < len; ++j) {
                 if (buf[j] == GRF_START_BYTE) {
@@ -338,12 +347,12 @@ bool AP_RangeFinder_LightWareGRF::get_reading(float &reading_m)
         return false;
     }
 
-    const uint32_t now = AP_HAL::millis();
-    if ((now - state.last_reading_ms > REINITIALIZE_GRF_TIME_MS) &&
-        (now - grf.last_init_ms > REINITIALIZE_GRF_TIME_MS)) {
-        reset_state_variables();
-        return false;
-    }
+    // const uint32_t now = AP_HAL::millis();
+    // if ((now - state.last_reading_ms > REINITIALIZE_GRF_TIME_MS) &&
+    //     (now - grf.last_init_ms > REINITIALIZE_GRF_TIME_MS)) {
+    //     reset_state_variables();
+    //     return false;
+    // }
 
     return try_parse_stream_packet(reading_m);
 }
