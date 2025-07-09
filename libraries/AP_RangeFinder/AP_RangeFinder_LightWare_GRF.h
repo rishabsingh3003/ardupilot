@@ -24,8 +24,8 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
 
 protected:
-    uint16_t rx_bufsize() const override { return 528; }
-    uint16_t tx_bufsize() const override { return 528; }
+    // uint16_t rx_bufsize() const override { return 1528; }
+    // uint16_t tx_bufsize() const override { return 1528; }
 
     // Returns the MAVLink distance sensor type
     MAV_DISTANCE_SENSOR _get_mav_distance_sensor_type() const override { return MAV_DISTANCE_SENSOR_LASER; }
@@ -106,6 +106,8 @@ private:
     AP_Int8 minimum_return_strength;
     AP_Int8 update_rate;
 
+    void move_header_in_buffer(uint16_t start_offset);
+    
     // Initializes the state variables for the GRF rangefinder
     void reset_state_variables();
 
