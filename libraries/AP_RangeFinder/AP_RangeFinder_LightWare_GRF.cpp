@@ -8,7 +8,7 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Math/crc.h>
 
-#define GRF_UPDATE_RATE 10 // Hz
+#define GRF_UPDATE_RATE 20 // Hz
 #define GRF_STREAM_CM_DISTANCES 5
 #define REINITIALIZE_GRF_TIME_MS 2000 // reinitialize if no response for this long
 
@@ -21,7 +21,7 @@ const AP_Param::GroupInfo AP_RangeFinder_LightWareGRF::var_info[] = {
     // @Values: 0:FirstRaw,1:FirstFiltered,2:LastRaw,3:LastFiltered
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GRF_RET", 12, AP_RangeFinder_LightWareGRF, return_selection, (uint8_t)GRF_ReturnSelection::FIRST_FILTERED),
+    AP_GROUPINFO("GRF_RET", 12, AP_RangeFinder_LightWareGRF, return_selection, (uint8_t)GRF_ReturnSelection::FIRST_RAW),
 
     // @Param: GRF_ST
     // @DisplayName: LightWare GRF Minimum Return Strength
@@ -78,7 +78,7 @@ uint16_t AP_RangeFinder_LightWareGRF::build_packet(MessageID cmd_id, bool is_wri
         out_buf[idx++] = payload[i];
     }
 
-    uint16_t crc = crc16_lightware(out_buf, idx);
+    uint16_t crc = crc_xmodem(out_buf, idx);
     out_buf[idx++] = crc & 0xFF;
     out_buf[idx++] = (crc >> 8) & 0xFF;
 
@@ -194,7 +194,7 @@ void AP_RangeFinder_LightWareGRF::check_config()
             valid = (resp_cmd_id == MessageID::STREAM);
             break;
 
-        default:
+        case ConfigStep::DONE:
             break;
         }
 
@@ -206,8 +206,8 @@ void AP_RangeFinder_LightWareGRF::check_config()
 }
 
 
-    // Configure the rangefinder
-    void AP_RangeFinder_LightWareGRF::configure_rangefinder()
+// Configure the rangefinder
+void AP_RangeFinder_LightWareGRF::configure_rangefinder()
 {
     if (grf.config_step == ConfigStep::DONE) {
         return;
