@@ -547,6 +547,12 @@ void NavEKF3_core::readGpsData()
     // check for new GPS data
     const auto &gps = dal.gps();
 
+    const Location &gps_loc = gps.location(selected_gps);
+    if (gps_loc.alt > 250*100) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EKF3 GPS disabled at %f m", (double)gps_loc.alt);
+        return;
+    }
+
     // limit update rate to avoid overflowing the FIFO buffer
     if (gps.last_message_time_ms(selected_gps) - lastTimeGpsReceived_ms <= frontend->sensorIntervalMin_ms) {
         return;
@@ -842,6 +848,7 @@ void NavEKF3_core::correctEkfOriginHeight()
 // check for new airspeed data and update stored measurements if available
 void NavEKF3_core::readAirSpdData()
 {
+    // return;
     const float EAS2TAS = dal.get_EAS2TAS();
     // if airspeed reading is valid and is set by the user to be used and has been updated then
     // we take a new reading, convert from EAS to TAS and set the flag letting other functions

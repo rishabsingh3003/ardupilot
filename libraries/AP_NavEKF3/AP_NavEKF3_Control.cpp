@@ -11,7 +11,7 @@ void NavEKF3_core::controlFilterModes()
 {
     // Determine motor arm status
     prevMotorsArmed = motorsArmed;
-    motorsArmed = dal.get_armed();
+    motorsArmed = true;
     if (motorsArmed && !prevMotorsArmed) {
         // set the time at which we arm to assist with checks
         timeAtArming_ms =  imuSampleTime_ms;
