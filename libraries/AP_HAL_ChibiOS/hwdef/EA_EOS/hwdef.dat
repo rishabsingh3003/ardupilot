@@ -62,7 +62,7 @@ define HAL_STORAGE_SIZE 32768
 STORAGE_FLASH_PAGE 14
 ###########################
 
-#include ../include/network_PPPGW.inc
+include ../include/network_PPPGW.inc
 
 define AP_PERIPH_RTC_ENABLED 1
 
