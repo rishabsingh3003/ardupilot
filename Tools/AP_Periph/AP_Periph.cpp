@@ -315,6 +315,9 @@ void AP_Periph_FW::init()
 #if AP_SCRIPTING_ENABLED
     scripting.init();
 #endif
+
+    airboss_joystick.init();
+    
     start_ms = AP_HAL::millis();
 }
 
@@ -556,6 +559,29 @@ void AP_Periph_FW::update()
 #if AP_PERIPH_BATTERY_TAG_ENABLED
     battery_tag.update();
 #endif
+
+    airboss_joystick_update();
+
+}
+
+void AP_Periph_FW::airboss_joystick_update()
+{
+    AirBoss_Joystick::JoystickState state = airboss_joystick.get_state();
+    // gcs print joystick vals every 1 second
+    static uint32_t last_print_ms1;
+    uint32_t now = AP_HAL::millis();
+    if (now - last_print_ms1 > 10) {
+        last_print_ms1 = now;
+#if HAL_GCS_ENABLED
+gcs().send_text(MAV_SEVERITY_INFO,
+    "AirBoss Joystick: LF(%u,%u) RF(%u,%u) LR(%u,%u) RR(%u,%u)",
+    (unsigned)state.left_front.x.raw, (unsigned)state.left_front.y.raw,
+    (unsigned)state.right_front.x.raw, (unsigned)state.right_front.y.raw,
+    (unsigned)state.left_rear.x.raw, (unsigned)state.left_rear.y.raw,
+    (unsigned)state.right_rear.x.raw, (unsigned)state.right_rear.y.raw);
+        gcs().send_text(MAV_SEVERITY_INFO, "AirBoss health =%u last update=%.3f sec ago", state.healthy ? 1 : 0, (double)(AP_HAL::micros() - state.last_update_us)/1e6);
+#endif
+    }
 }
 
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT

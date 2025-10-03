@@ -48,6 +48,7 @@
 #endif
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_DAC/AP_DAC.h>
+#include "airboss_joystick.h"
 
 #if AP_PERIPH_RELAY_ENABLED
 #if AP_PERIPH_PWM_HARDPOINT_ENABLED
@@ -452,6 +453,10 @@ public:
 #if AP_PERIPH_RELAY_ENABLED
     AP_Relay relay;
 #endif
+
+    AirBoss_Joystick airboss_joystick;
+    void airboss_joystick_update();
+
 
     // setup the var_info table
     AP_Param param_loader{var_info};

@@ -729,7 +729,7 @@ class ChibiOSHWDef(hwdef.HWDef):
 
         if self.mcu_series.startswith("STM32H7") and not self.is_bootloader_fw():
             # set maximum supported canfd bit rate in MBits/sec
-            canfd_supported = int(self.get_config('CANFD_SUPPORTED', 0, default=4, required=False))
+            canfd_supported = int(self.get_config('CANFD_SUPPORTED', 0, default=0, required=False))
             f.write('#define HAL_CANFD_SUPPORTED %d\n' % canfd_supported)
             self.env_vars['HAL_CANFD_SUPPORTED'] = canfd_supported
         else:
