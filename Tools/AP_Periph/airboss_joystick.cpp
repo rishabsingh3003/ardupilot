@@ -59,7 +59,7 @@ void AirBoss_Joystick::init()
         hal.console->println("AirBoss_Joystick: failed to get SPI device");
         return;
     }
-    dev->set_read_flag(0);
+    // dev->set_read_flag(0);
 
     // Run periodic reads at 100Hz
     dev->register_periodic_callback(
@@ -73,7 +73,7 @@ bool AirBoss_Joystick::read_channel(uint16_t cmd, uint16_t &val)
     uint8_t tx[2] = { uint8_t(cmd >> 8), uint8_t(cmd & 0xFF) };
     uint8_t rx[2] = {0};
 
-    if (!dev->transfer(tx, 2, rx, 2)) {
+    if (!dev->transfer_fullduplex(tx, rx, 2)) {
         return false;
     }
 
@@ -127,17 +127,17 @@ void AirBoss_Joystick::adc_timer()
     }
 
     // Map channels to sticks (keep your chosen wiring order)
-    _state.left_front.x   = { raw_values[0], norm_values[0] };
-    _state.left_front.y   = { raw_values[1], norm_values[1] };
+    _state.left_thumb.x   = { raw_values[0], norm_values[0] };
+    _state.left_thumb.y   = { raw_values[1], norm_values[1] };
 
-    _state.right_front.x  = { raw_values[2], norm_values[2] };
-    _state.right_front.y  = { raw_values[3], norm_values[3] };
+    _state.right_thumb.x  = { raw_values[4], norm_values[4] };
+    _state.right_thumb.y  = { raw_values[5], norm_values[5] };
 
-    _state.left_rear.x    = { raw_values[4], norm_values[4] };
-    _state.left_rear.y    = { raw_values[5], norm_values[5] };
+    _state.left_index.x    = { raw_values[2], norm_values[2] };
+    _state.left_index.y    = { raw_values[3], norm_values[3] };
 
-    _state.right_rear.x   = { raw_values[6], norm_values[6] };
-    _state.right_rear.y   = { raw_values[7], norm_values[7] };
+    _state.right_index.x   = { raw_values[6], norm_values[6] };
+    _state.right_index.y   = { raw_values[7], norm_values[7] };
 
     _state.healthy = true;
     _state.last_update_us = AP_HAL::micros();

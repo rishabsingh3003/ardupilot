@@ -575,10 +575,10 @@ void AP_Periph_FW::airboss_joystick_update()
 #if HAL_GCS_ENABLED
 gcs().send_text(MAV_SEVERITY_INFO,
     "AirBoss Joystick: LF(%u,%u) RF(%u,%u) LR(%u,%u) RR(%u,%u)",
-    (unsigned)state.left_front.x.raw, (unsigned)state.left_front.y.raw,
-    (unsigned)state.right_front.x.raw, (unsigned)state.right_front.y.raw,
-    (unsigned)state.left_rear.x.raw, (unsigned)state.left_rear.y.raw,
-    (unsigned)state.right_rear.x.raw, (unsigned)state.right_rear.y.raw);
+    (unsigned)state.left_thumb.x.raw, (unsigned)state.left_thumb.y.raw,
+    (unsigned)state.right_thumb.x.raw, (unsigned)state.right_thumb.y.raw,
+    (unsigned)state.left_index.x.raw, (unsigned)state.left_index.y.raw,
+    (unsigned)state.right_index.x.raw, (unsigned)state.right_index.y.raw);
         gcs().send_text(MAV_SEVERITY_INFO, "AirBoss health =%u last update=%.3f sec ago", state.healthy ? 1 : 0, (double)(AP_HAL::micros() - state.last_update_us)/1e6);
 #endif
     }

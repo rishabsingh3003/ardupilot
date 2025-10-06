@@ -35,10 +35,10 @@ public:
     };
 
     struct JoystickState {
-        JoystickStick left_front;
-        JoystickStick right_front;
-        JoystickStick left_rear;
-        JoystickStick right_rear;
+        JoystickStick left_thumb;
+        JoystickStick right_thumb;
+        JoystickStick left_index;
+        JoystickStick right_index;
 
         bool healthy;
         uint32_t last_update_us;
@@ -50,7 +50,6 @@ private:
     bool read_channel(uint16_t cmd, uint16_t &val);
     AP_HAL::OwnPtr<AP_HAL::SPIDevice> dev;
     bool _configured;
-
 
     JoystickState _state;
 
