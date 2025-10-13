@@ -49,6 +49,9 @@
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_DAC/AP_DAC.h>
 #include "airboss_joystick.h"
+#include "airboss_networking.h"
+#include "airboss_switches.h"
+#include "airboss_utils.h"
 
 #if AP_PERIPH_RELAY_ENABLED
 #if AP_PERIPH_PWM_HARDPOINT_ENABLED
@@ -455,7 +458,19 @@ public:
 #endif
 
     AirBoss_Joystick airboss_joystick;
+    AirBoss_Networking airboss_networking;
+    AirBoss_Switches airboss_switches;
+    AirBoss_Utils airboss_utils;
+    
     void airboss_joystick_update();
+    
+    // void rc_send_mavlink();
+
+    // struct {
+    //     mavlink_message_t msg;
+    //     mavlink_status_t status;
+    //     uint32_t last_heartbeat_ms;
+    // } rc_channels;
 
 
     // setup the var_info table

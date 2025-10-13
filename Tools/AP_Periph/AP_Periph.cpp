@@ -317,6 +317,10 @@ void AP_Periph_FW::init()
 #endif
 
     airboss_joystick.init();
+
+    airboss_switches.init();
+
+    airboss_networking.init();
     
     start_ms = AP_HAL::millis();
 }
@@ -560,9 +564,78 @@ void AP_Periph_FW::update()
     battery_tag.update();
 #endif
 
-    airboss_joystick_update();
+    // airboss_joystick_update();
+    const AirBoss_Joystick::JoystickState js_state = airboss_joystick.get_state();
+    
+    static uint32_t last_status_ms;
+    if (now - last_status_ms > 20) {
+        last_status_ms = now;
+        airboss_networking.send_airboss_state(js_state);
+    //     bool temp_switches[NUM_SWITCHES];
+    //     for (uint8_t i = 0; i < NUM_SWITCHES; i++) {
+    //         // airboss_networking.send_airboss_switch_state(i, airboss_switches.get_state(i));
+    //         temp_switches[i] = airboss_switches.get_state(i);
+    //     }
+    //     hal.console->printf("AirBoss Switches: %u%u%u%u%u%u%u%u%u%u%u%u\n",
+    //         (unsigned)temp_switches[0], (unsigned)temp_switches[1], (unsigned)temp_switches[2], (unsigned)temp_switches[3],
+    //         (unsigned)temp_switches[4], (unsigned)temp_switches[5], (unsigned)temp_switches[6], (unsigned)temp_switches[7],
+    //         (unsigned)temp_switches[8], (unsigned)temp_switches[9], (unsigned)temp_switches[10], (unsigned)temp_switches[11]);
+        // airboss_switches.print_states();
+    }
 
+    static uint32_t rc_mav_last_ms;
+    if (now - rc_mav_last_ms > 250) {
+        rc_mav_last_ms = now;
+        // send RC_CHANNELS message at 1Hz
+        airboss_utils.send_rc_channels_mavlink(js_state, airboss_switches);
+    }
 }
+
+// void AP_Periph_FW::rc_send_mavlink()
+// {
+//     auto *uart = hal.serial(0);   // usually USB == 0
+//     if (uart == nullptr) {
+//         return;
+//     }
+
+//     const AirBoss_Joystick::JoystickState js_state = airboss_joystick.get_state();
+//     mavlink_rc_channels_t rc{};
+//     rc.time_boot_ms = AP_HAL::millis();
+//     rc.chancount    = 4;   // number of channels you want to send
+//     rc.rssi         = 255; // optional: 0–254 valid, 255 = unknown
+
+
+//     rc.chan1_raw = linear_interpolate(1000, 2000, js_state.right_thumb.x.norm, -1, 1);
+//     rc.chan2_raw = linear_interpolate(1000, 2000, js_state.right_thumb.y.norm, -1, 1);
+//     rc.chan3_raw = linear_interpolate(1000, 2000, js_state.left_thumb.y.norm, -1, 1);
+//     rc.chan4_raw = linear_interpolate(1000, 2000, js_state.left_thumb.x.norm, -1, 1);
+
+//     // fill in channel values (example: midpoint)
+//     rc.chan5_raw = 1500;
+//     rc.chan6_raw = 1500;
+//     rc.chan7_raw = 1500;
+//     rc.chan8_raw = 1500;
+//     rc.chan9_raw = 0;
+//     rc.chan10_raw = 0;
+//     rc.chan11_raw = 0;
+//     rc.chan12_raw = 0;
+//     rc.chan13_raw = 0;
+//     rc.chan14_raw = 0;
+//     rc.chan15_raw = 0;
+//     rc.chan16_raw = 0;
+//     rc.chan17_raw = 0;
+//     rc.chan18_raw = 0;
+
+//     mavlink_message_t msg;
+//     // encode using your generated header
+//     uint16_t len = mavlink_msg_rc_channels_encode_status(
+//         1,                        // system_id
+//         1,   // component_id
+//         &rc_channels.status, &msg, &rc);
+
+//     // send raw bytes over USB serial
+//     uart->write((uint8_t*)&msg.magic, len);
+// }
 
 void AP_Periph_FW::airboss_joystick_update()
 {

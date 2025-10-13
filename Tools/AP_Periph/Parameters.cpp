@@ -758,6 +758,10 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GSCALAR(servo_command_timeout_ms, "SRV_CMD_TIME_OUT", 200),
 #endif
 
+    // @Group: AirBoss_Utils
+    // @Path: airboss_utils.cpp
+    GOBJECT(airboss_utils, "RC",  AirBoss_Utils),
+
     AP_VAREND
 };
 

@@ -52,8 +52,6 @@ private:
     bool _configured;
 
     JoystickState _state;
-
-
 };
 
 #endif // AP_PERIPH_AIRBOSS_JOYSTICK_ENABLED

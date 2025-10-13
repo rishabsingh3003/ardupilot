@@ -121,7 +121,7 @@ void AirBoss_Joystick::adc_timer()
     if (!read_channel(joystick_cmds[0], tmp)) { _state.healthy = false; return; }
     raw_values[7] = tmp;
 
-    // Normalize to [-1, +1] (you’ll likely add per-axis calibration later)
+    // Normalize to [-1, +1] (we'll likely add per-axis calibration later)
     for (uint8_t i = 0; i < 8; i++) {
         norm_values[i] = (raw_values[i] / 4095.0f) * 2.0f - 1.0f;
     }

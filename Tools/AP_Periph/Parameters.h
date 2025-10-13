@@ -103,6 +103,7 @@ public:
         k_param__gcs,
         k_param_battery_tag,
         k_param_servo_command_timeout_ms,
+        k_param_airboss_utils,
     };
 
     AP_Int16 format_version;
