@@ -622,7 +622,7 @@ __INITFUNC__ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial
     case Type::LightWare_GRF:
         serial_create_fn = AP_RangeFinder_LightWareGRF::create;
         break;
-#endif
+#endif // AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED
 
     case Type::NONE:
         break;

@@ -187,7 +187,7 @@ public:
 #endif
 #if AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED
         LightWare_GRF = 45,
-#endif
+#endif // AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED 
 
 #if AP_RANGEFINDER_SIM_ENABLED
         SIM = 100,

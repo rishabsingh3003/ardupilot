@@ -8,9 +8,8 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Math/crc.h>
 
-#define GRF_UPDATE_RATE 20 // Hz
+#define GRF_UPDATE_RATE 50 // Hz
 #define GRF_STREAM_CM_DISTANCES 5
-#define REINITIALIZE_GRF_TIME_MS 2000 // reinitialize if no response for this long
 
 extern const AP_HAL::HAL& hal;
 
@@ -43,78 +42,38 @@ const AP_Param::GroupInfo AP_RangeFinder_LightWareGRF::var_info[] = {
 };
 
 AP_RangeFinder_LightWareGRF::AP_RangeFinder_LightWareGRF(RangeFinder::RangeFinder_State &_state, AP_RangeFinder_Params &_params)
-    : AP_RangeFinder_Backend_Serial(_state, _params)
+    : AP_RangeFinder_Backend_Serial(_state, _params),
+    AP_LightWareSerial(AP_RangeFinder_Backend_Serial::uart)
 {
     AP_Param::setup_object_defaults(this, var_info);
-
     state.var_info = var_info;
-    reset_state_variables();
-}
-
-// Initializes the state variables for the GRF rangefinder
-void AP_RangeFinder_LightWareGRF::reset_state_variables()
-{
-    grf.config_step = ConfigStep::HANDSHAKE;
-    grf.last_init_ms = 0;
-    grf.buffer_len = 0;
-}
-
-
-// Builds a UART packet with CRC from components
-uint16_t AP_RangeFinder_LightWareGRF::build_packet(MessageID cmd_id, bool is_write, const uint8_t *payload, uint16_t payload_len, uint8_t *out_buf)
-{
-    uint16_t flags = (payload_len + 1) << 6;
-    if (is_write) {
-        flags |= 0x01;
-    }
-
-    uint16_t idx = 0;
-    out_buf[idx++] = GRF_START_BYTE;
-    out_buf[idx++] = flags & 0xFF;
-    out_buf[idx++] = (flags >> 8) & 0xFF;
-    out_buf[idx++] = (uint8_t)cmd_id;
-
-    for (uint16_t i = 0; i < payload_len; i++) {
-        out_buf[idx++] = payload[i];
-    }
-
-    uint16_t crc = crc_xmodem(out_buf, idx);
-    out_buf[idx++] = crc & 0xFF;
-    out_buf[idx++] = (crc >> 8) & 0xFF;
-
-    return idx;
 }
 
 // Attempts to parse a single streaming measurement
 bool AP_RangeFinder_LightWareGRF::try_parse_stream_packet(float &reading_m)
 {
     MessageID cmd_id;
-    uint8_t payload[GRF_MAX_PAYLOAD];
+    uint8_t payload[LIGHTWARE_PAYLOAD_LEN_MAX];
     uint16_t payload_len = 0;
 
     float sum_m = 0.0f;
     uint16_t count = 0;
 
     // Loop through all packets in the buffer
-    while (read_and_parse_response(cmd_id, payload, payload_len)) {
+    if (read_and_parse_response(cmd_id, payload, payload_len)) {
         // Check for correct message type and length
         if (cmd_id != MessageID::DISTANCE_DATA_CM || payload_len < 8) {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GRF: Skipped packet type %d or invalid length %u", (int)cmd_id, (unsigned)payload_len);
-            continue;
+            return false;
         }
 
         // Extract distance and strength
         uint32_t distance_cm = UINT32_VALUE(payload[3], payload[2], payload[1], payload[0]) * 10;
         uint32_t strength_db = UINT32_VALUE(payload[7], payload[6], payload[5], payload[4]);
 
-        if (distance_cm < GRF_DIST_MAX * 100) {
-            if (minimum_return_strength == 0 || (int8_t)strength_db >= minimum_return_strength) {
-                float dist_m = distance_cm * 0.01f;
-                sum_m += dist_m;
-                count++;
-            }
-        } else {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GRF: distance %dcm exceeds max %dcm", (int)distance_cm, (int)GRF_DIST_MAX * 100);
+        if (minimum_return_strength == 0 || (int8_t)strength_db >= minimum_return_strength) {
+            float dist_m = distance_cm * 0.01f;
+            sum_m += dist_m;
+            count++;
         }
     }
 
@@ -126,7 +85,6 @@ bool AP_RangeFinder_LightWareGRF::try_parse_stream_packet(float &reading_m)
     return false;
 }
 
-
 // Checks if PRODUCT_NAME payload matches expected GRF signature
 bool AP_RangeFinder_LightWareGRF::matches_product_name(const uint8_t *buf, uint16_t len)
 {
@@ -136,7 +94,7 @@ bool AP_RangeFinder_LightWareGRF::matches_product_name(const uint8_t *buf, uint1
     }
 
     const char expected[] = "GRF";
-    for (uint8_t i = 0; i < 3; i++) { // Only compare "GRF" for compatibility with GRF, GRF500
+    for (uint8_t i = 0; i < 3; i++) { // Only compare "GRF" for compatibility with GRF250, GRF500
         if (buf[i] != expected[i]) {
             return false;
         }
@@ -144,28 +102,14 @@ bool AP_RangeFinder_LightWareGRF::matches_product_name(const uint8_t *buf, uint1
     return buf[6] == '\0'; // Check null after that
 }
 
-// Sends a configuration command packet
-void AP_RangeFinder_LightWareGRF::send_config(MessageID cmd_id,
-                                        const uint8_t* payload,
-                                        uint16_t payload_len,
-                                        bool is_write)
-{
-    // Build and send a packet directly without tracking confirm state
-    uint8_t packet[32];
-    uint16_t len = build_packet(cmd_id, is_write, payload, payload_len, packet);
-    uart->write(packet, len);
-}
-
-// Parses config responses and advances setup step
 // Parses config responses and advances setup step
 void AP_RangeFinder_LightWareGRF::check_config()
 {
     MessageID resp_cmd_id;
-    uint8_t response_buf[GRF_MAX_PAYLOAD];
+    uint8_t response_buf[LIGHTWARE_PAYLOAD_LEN_MAX];
     uint16_t response_len = 0;
 
-    // Loop to consume all available packets in the buffer
-    while (read_and_parse_response(resp_cmd_id, response_buf, response_len)) {
+    if (read_and_parse_response(resp_cmd_id, response_buf, response_len)) {
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "GRF: received cmd %d (expecting %d)", (uint8_t)resp_cmd_id, (uint8_t)grf.config_step);
 
         bool valid = false;
@@ -200,11 +144,10 @@ void AP_RangeFinder_LightWareGRF::check_config()
 
         if (valid) {
             grf.config_step = static_cast<ConfigStep>(static_cast<uint8_t>(grf.config_step) + 1);
-            return; // Exit after successful match
+            return;
         }
     }
 }
-
 
 // Configure the rangefinder
 void AP_RangeFinder_LightWareGRF::configure_rangefinder()
@@ -223,12 +166,12 @@ void AP_RangeFinder_LightWareGRF::configure_rangefinder()
     switch (grf.config_step) {
     case ConfigStep::HANDSHAKE:
         uart->write((uint8_t*)"UUU", 3); // Try to switch GRF sensor to serial mode
-        send_config(MessageID::PRODUCT_NAME, nullptr, 0, false);
+        send_message((uint8_t)MessageID::PRODUCT_NAME, false, nullptr, 0);
         break;
 
     case ConfigStep::UPDATE_RATE: {
         const uint8_t payload[4] = {(uint8_t)update_rate, 0, 0, 0};
-        send_config(MessageID::UPDATE_RATE, payload, 4, true);
+        send_message((uint8_t)MessageID::UPDATE_RATE, true, payload, 4);
         break;
     }
 
@@ -247,19 +190,18 @@ void AP_RangeFinder_LightWareGRF::configure_rangefinder()
                 strength_bit = 5;
                 break;
             case GRF_ReturnSelection::FIRST_FILTERED:
-            default:
                 break;
         }
         const uint8_t payload[4] = {
             static_cast<uint8_t>((1U << data_bit) | (1U << strength_bit)), 0, 0, 0
         };
-        send_config(MessageID::DISTANCE_OUTPUT, payload, 4, true);
+        send_message((uint8_t)MessageID::DISTANCE_OUTPUT, true, payload, 4);
         break;
     }
 
     case ConfigStep::STREAM: {
         const uint8_t payload[4] = {GRF_STREAM_CM_DISTANCES, 0, 0, 0};
-        send_config(MessageID::STREAM, payload, 4, true);
+        send_message((uint8_t)MessageID::STREAM, true, payload, 4);
         break;
     }
 
@@ -270,77 +212,33 @@ void AP_RangeFinder_LightWareGRF::configure_rangefinder()
     grf.last_init_ms = now;
 }
 
-void AP_RangeFinder_LightWareGRF::move_header_in_buffer(uint16_t start_offset)
-{
-    uint8_t* header_ptr = (uint8_t*)memchr(&grf.parse_buffer[start_offset],
-                                           GRF_START_BYTE,
-                                           grf.buffer_len - start_offset);
-    if (header_ptr != nullptr) {
-        const size_t offset = header_ptr - grf.parse_buffer;
-        if (offset > 0) {
-            memmove(grf.parse_buffer, header_ptr, grf.buffer_len - offset);
-            grf.buffer_len -= offset;
-        }
-    } else {
-        grf.buffer_len = 0;
-    }
-}
-
-
 // Reads UART and tries to parse a complete response
 bool AP_RangeFinder_LightWareGRF::read_and_parse_response(MessageID& cmd_id_out,
                                                           uint8_t* payload_out,
                                                           uint16_t& payload_len_out)
 {
-    move_header_in_buffer(0);
-
-    // We need at least a header (1) + flags (2) + cmd (1) + CRC (2) to parse anything
-    if (grf.buffer_len < 6) {
+    if (uart == nullptr) {
         return false;
     }
 
-    uint8_t* buf = grf.parse_buffer;
-
-    // Must have a valid start byte
-    if (buf[0] != GRF_START_BYTE) {
-        move_header_in_buffer(1);
-        return false;
+    // process up to 1K of characters per iteration
+    uint32_t nbytes = MIN(uart->available(), 1024U);
+    while (nbytes-- > 0) {
+        uint8_t c;
+        if (!uart->read(c)) {
+            continue;
+        }
+        if (parse_byte(c)) {
+            cmd_id_out = static_cast<MessageID>(_msg.msgid);
+            payload_len_out = _msg.payload_len;
+            if (payload_len_out > 0) {
+                memcpy(payload_out, &_msg.payload, payload_len_out);
+            }
+            return true;
+        }
     }
 
-    const uint16_t flags = buf[1] | (buf[2] << 8);
-    const uint16_t payload_len = flags >> 6;
-    const uint16_t expected_len = 3 + payload_len + 2;
-
-    if (payload_len == 0 || payload_len > GRF_MAX_PAYLOAD) {
-        move_header_in_buffer(1);
-        return false;
-    }
-
-    // Need the full packet to proceed
-    if (grf.buffer_len < expected_len) {
-        return false;
-    }
-
-    const uint16_t received_crc = buf[expected_len - 2] | (buf[expected_len - 1] << 8);
-    const uint16_t calc_crc = crc16_lightware(buf, expected_len - 2);
-    if (received_crc != calc_crc) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GRF: CRC failed");
-        move_header_in_buffer(1);
-        return false;
-    }
-
-    // Extract command and payload
-    cmd_id_out = static_cast<MessageID>(buf[3]);
-    payload_len_out = payload_len;
-
-    if (payload_len > 0) {
-        memcpy(payload_out, &buf[4], payload_len);
-    }
-
-    // Consume this message
-    move_header_in_buffer(expected_len);
-
-    return true;
+    return false;
 }
 
 // Called periodically to fetch a new range reading
@@ -350,23 +248,10 @@ bool AP_RangeFinder_LightWareGRF::get_reading(float &reading_m)
         return false;
     }
 
-    const uint32_t nbytes = uart->read(&grf.parse_buffer[grf.buffer_len],
-                                       GRF_BUFFER_SIZE - grf.buffer_len);
-    if (nbytes != 0) {
-        grf.buffer_len += nbytes;
-    }
-
     if (grf.config_step != ConfigStep::DONE) {
         configure_rangefinder();
         return false;
     }
-
-    // const uint32_t now = AP_HAL::millis();
-    // if ((now - state.last_reading_ms > REINITIALIZE_GRF_TIME_MS) &&
-    //     (now - grf.last_init_ms > REINITIALIZE_GRF_TIME_MS)) {
-    //     reset_state_variables();
-    //     return false;
-    // }
 
     return try_parse_stream_packet(reading_m);
 }

@@ -1,18 +1,11 @@
 #pragma once
 
 #include <AP_RangeFinder/AP_RangeFinder_Backend_Serial.h>
+#include <AP_LightWareSerial/AP_LightWareSerial.h>
 
-#ifndef AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED
-#define AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED ENABLED
-#endif
+#if AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED
 
-#define GRF_START_BYTE       0xAA
-#define GRF_MAX_PAYLOAD      46
-#define GRF_BUFFER_SIZE      1030
-#define GRF_DIST_MAX         250
-#define GRF_MIN_DIST         0.2f
-
-class AP_RangeFinder_LightWareGRF : public AP_RangeFinder_Backend_Serial {
+class AP_RangeFinder_LightWareGRF : public AP_RangeFinder_Backend_Serial, AP_LightWareSerial {
 public:
     static AP_RangeFinder_Backend_Serial *create(
         RangeFinder::RangeFinder_State &_state,
@@ -24,8 +17,6 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
 
 protected:
-    // uint16_t rx_bufsize() const override { return 1528; }
-    // uint16_t tx_bufsize() const override { return 1528; }
 
     // Returns the MAVLink distance sensor type
     MAV_DISTANCE_SENSOR _get_mav_distance_sensor_type() const override { return MAV_DISTANCE_SENSOR_LASER; }
@@ -35,10 +26,6 @@ protected:
 
     // Returns read timeout in milliseconds
     uint16_t read_timeout_ms() const override { return 500; }
-
-    float max_distance() const override { return MIN(AP_RangeFinder_Backend::max_distance(), GRF_DIST_MAX); }
-
-    float min_distance() const override { return MAX(AP_RangeFinder_Backend::min_distance(), GRF_MIN_DIST); }
 
 private:
     // Constructor
@@ -96,20 +83,14 @@ private:
 
     // Internal state struct
     struct {
-        uint8_t parse_buffer[GRF_BUFFER_SIZE];
-        uint16_t buffer_len = 0;
-        uint32_t last_init_ms = 0;
-        ConfigStep config_step = ConfigStep::HANDSHAKE;
+        uint32_t last_init_ms;
+        ConfigStep config_step;
     } grf;
 
     AP_Int8 return_selection;
     AP_Int8 minimum_return_strength;
     AP_Int8 update_rate;
 
-    void move_header_in_buffer(uint16_t start_offset);
-    
-    // Initializes the state variables for the GRF rangefinder
-    void reset_state_variables();
 
     // Configure the rangefinder
     void configure_rangefinder();
@@ -117,25 +98,17 @@ private:
     // Parses config responses and advances setup step
     void check_config();
 
-    // Sends a configuration command packet
-    void send_config(MessageID cmd_id,
-                     const uint8_t* payload,
-                     uint16_t payload_len,
-                     bool is_write);
-
     // Attempts to parse a single streaming measurement
     bool try_parse_stream_packet(float &reading_m);
 
     // Checks if PRODUCT_NAME payload matches expected GRF signature
     bool matches_product_name(const uint8_t *buf, uint16_t len);
 
-    // Builds a UART packet with CRC from components
-    uint16_t build_packet(MessageID cmd_id, bool is_write,
-                          const uint8_t *payload, uint16_t payload_len,
-                          uint8_t *out_buf);
 
     // Reads UART and tries to parse a complete response
     bool read_and_parse_response(MessageID& cmd_id_out,
                                  uint8_t* payload_out,
                                  uint16_t& payload_len_out);
 };
+
+#endif // AP_RANGEFINDER_LIGHTWARE_GRF_ENABLED
