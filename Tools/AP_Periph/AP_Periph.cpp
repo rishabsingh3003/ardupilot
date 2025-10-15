@@ -571,6 +571,7 @@ void AP_Periph_FW::update()
     if (now - last_status_ms > 20) {
         last_status_ms = now;
         airboss_networking.send_airboss_state(js_state);
+        airboss_joystick.print_states();
     //     bool temp_switches[NUM_SWITCHES];
     //     for (uint8_t i = 0; i < NUM_SWITCHES; i++) {
     //         // airboss_networking.send_airboss_switch_state(i, airboss_switches.get_state(i));

@@ -40,11 +40,12 @@ public:
         JoystickStick left_index;
         JoystickStick right_index;
 
-        bool healthy;
+        uint8_t healthy;
         uint32_t last_update_us;
     };
 
     const JoystickState& get_state() { return _state; }
+    void print_states();
 
 private:
     bool read_channel(uint16_t cmd, uint16_t &val);

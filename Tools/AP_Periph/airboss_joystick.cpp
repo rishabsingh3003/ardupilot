@@ -142,3 +142,30 @@ void AirBoss_Joystick::adc_timer()
     _state.healthy = true;
     _state.last_update_us = AP_HAL::micros();
 }
+
+
+void AirBoss_Joystick::print_states()
+{
+    hal.console->printf("=== AirBoss Joystick ===\n");
+
+    const JoystickState &js = _state;  // current state
+
+    // Helper lambda to print both raw and normalized values for a stick
+    auto print_stick = [&](const char *name, const JoystickStick &stick) {
+        hal.console->printf("%-14s : X=%4u (%.3f)  Y=%4u (%.3f)\n",
+            name,
+            (unsigned)stick.x.raw, stick.x.norm,
+            (unsigned)stick.y.raw, stick.y.norm
+        );
+    };
+
+    print_stick("Left Thumb",  js.left_thumb);
+    print_stick("Right Thumb", js.right_thumb);
+    print_stick("Left Index",  js.left_index);
+    print_stick("Right Index", js.right_index);
+
+    hal.console->printf("%-14s : %s\n", "Healthy", js.healthy ? "YES" : "NO");
+    hal.console->printf("%-14s : %lu us\n", "Last Update", (unsigned long)js.last_update_us);
+
+    hal.console->printf("========================\n");
+}

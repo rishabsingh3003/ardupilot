@@ -762,12 +762,30 @@ include AP_DroneCAN/AP_DroneCAN.h
 global manual DroneCAN_get_FlexDebug lua_DroneCAN_get_FlexDebug 4 2 depends (HAL_ENABLE_DRONECAN_DRIVERS==1)
 
 include ../Tools/AP_Periph/AP_Periph.h depends defined(HAL_BUILD_AP_PERIPH)
+
+-- JoystickAxis
+userdata AirBoss_Joystick::JoystickAxis field raw uint16_t'skip_check read
+userdata AirBoss_Joystick::JoystickAxis field norm float'skip_check read
+
+-- JoystickStick
+userdata AirBoss_Joystick::JoystickStick field x AirBoss_Joystick::JoystickAxis read
+userdata AirBoss_Joystick::JoystickStick field y AirBoss_Joystick::JoystickAxis read
+
+-- JoystickState
+userdata AirBoss_Joystick::JoystickState field left_thumb AirBoss_Joystick::JoystickStick read
+userdata AirBoss_Joystick::JoystickState field right_thumb AirBoss_Joystick::JoystickStick read
+userdata AirBoss_Joystick::JoystickState field left_index AirBoss_Joystick::JoystickStick read
+userdata AirBoss_Joystick::JoystickState field right_index AirBoss_Joystick::JoystickStick read
+userdata AirBoss_Joystick::JoystickState field healthy uint8_t read
+userdata AirBoss_Joystick::JoystickState field last_update_us uint32_t read
+
 singleton AP_Periph_FW depends defined(HAL_BUILD_AP_PERIPH)
 singleton AP_Periph_FW rename periph
 singleton AP_Periph_FW method get_yaw_earth float
 singleton AP_Periph_FW method get_vehicle_state uint64_t
 singleton AP_Periph_FW method can_printf void "%s"'literal string
 singleton AP_Periph_FW method reboot void boolean
+singleton AP_Periph_FW method get_joystick_state void AirBoss_Joystick::JoystickState'Ref
 
 include AP_Motors/AP_Motors_Class.h depends APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI
 singleton AP::motors() depends AP_SCRIPTING_BINDING_MOTORS_ENABLED && (APM_BUILD_TYPE(APM_BUILD_ArduPlane)||APM_BUILD_COPTER_OR_HELI)
@@ -974,6 +992,8 @@ singleton AP_EFI method get_state void EFI_State'Ref
 singleton AP_EFI method get_last_update_ms uint32_t 
 
 -- ----END EFI Library----
+
+
 
 include AP_Logger/AP_Logger.h
 singleton AP_Logger depends HAL_LOGGING_ENABLED
