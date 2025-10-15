@@ -156,6 +156,8 @@ void NavEKF3_core::EstimateTerrainOffset(const of_elements &ofDataDelayed)
                 // record the time we last updated the terrain offset state
                 gndHgtValidTime_ms = imuSampleTime_ms;
             }
+            // hack - overwrite state with measurement because process model is being weird
+            terrainState = MAX(rangeDataDelayed.rng * prevTnb.c.z, rngOnGnd) + stateStruct.position.z;
         }
 
         if (!cantFuseFlowData) {
