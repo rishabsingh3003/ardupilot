@@ -571,7 +571,7 @@ void AP_Periph_FW::update()
     if (now - last_status_ms > 20) {
         last_status_ms = now;
         airboss_networking.send_airboss_state(js_state);
-        airboss_joystick.print_states();
+        // airboss_joystick.print_states();
     //     bool temp_switches[NUM_SWITCHES];
     //     for (uint8_t i = 0; i < NUM_SWITCHES; i++) {
     //         // airboss_networking.send_airboss_switch_state(i, airboss_switches.get_state(i));
@@ -584,12 +584,12 @@ void AP_Periph_FW::update()
         // airboss_switches.print_states();
     }
 
-    static uint32_t rc_mav_last_ms;
-    if (now - rc_mav_last_ms > 250) {
-        rc_mav_last_ms = now;
-        // send RC_CHANNELS message at 1Hz
-        airboss_utils.send_rc_channels_mavlink(js_state, airboss_switches);
-    }
+    // static uint32_t rc_mav_last_ms;
+    // if (now - rc_mav_last_ms > 250) {
+    //     rc_mav_last_ms = now;
+    //     // send RC_CHANNELS message at 1Hz
+    //     airboss_utils.send_rc_channels_mavlink(js_state, airboss_switches);
+    // }
 }
 
 // void AP_Periph_FW::rc_send_mavlink()

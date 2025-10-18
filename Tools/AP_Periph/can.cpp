@@ -2119,5 +2119,18 @@ void can_printf(const char *fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     can_vprintf(MAV_SEVERITY_DEBUG, fmt, ap);
+    
+    // 2. Copy va_list to use it again for GCS message
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+
+    // 3. Format to buffer for GCS text
+    char buf[128];
+    vsnprintf(buf, sizeof(buf), fmt, ap_copy);
+
+    // 4. Send to GCS console (as DEBUG_TEXT)
+    gcs().send_text(MAV_SEVERITY_DEBUG, "%s", buf);
+#
+
     va_end(ap);
 }
