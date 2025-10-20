@@ -4,49 +4,10 @@
 
 extern const AP_HAL::HAL& hal;
 
-const AP_Param::GroupInfo AirBoss_Utils::var_info[] = {
-    // --- Channel 1 ---
-    // @Param: RC1_MIN
-    // @DisplayName: RC Channel 1 minimum PWM
-    // @Description: Minimum input PWM value for channel 1
-    // @Range: 800 1200
-    AP_GROUPINFO("1_MIN", 1, AirBoss_Utils, rc1_min, 1000),
-
-    // @Param: RC1_MAX
-    // @DisplayName: RC Channel 1 maximum PWM
-    // @Description: Maximum input PWM value for channel 1
-    // @Range: 1800 2200
-    AP_GROUPINFO("1_MAX", 2, AirBoss_Utils, rc1_max, 2000),
-
-    // @Param: RC1_TRIM
-    // @DisplayName: RC Channel 1 trim PWM
-    // @Description: Trim value (center) for channel 1
-    // @Range: 1300 1700
-    AP_GROUPINFO("1_TRIM", 3, AirBoss_Utils, rc1_trim, 1500),
-
-    // --- Channel 2 ---
-    AP_GROUPINFO("2_MIN", 4, AirBoss_Utils, rc2_min, 1000),
-    AP_GROUPINFO("2_MAX", 5, AirBoss_Utils, rc2_max, 2000),
-    AP_GROUPINFO("2_TRIM", 6, AirBoss_Utils, rc2_trim, 1500),
-
-    // --- Channel 3 ---
-    AP_GROUPINFO("3_MIN", 7, AirBoss_Utils, rc3_min, 1000),
-    AP_GROUPINFO("3_MAX", 8, AirBoss_Utils, rc3_max, 2000),
-    AP_GROUPINFO("3_TRIM", 9, AirBoss_Utils, rc3_trim, 1500),
-
-    // --- Channel 4 ---
-    AP_GROUPINFO("4_MIN", 10, AirBoss_Utils, rc4_min, 1000),
-    AP_GROUPINFO("4_MAX", 11, AirBoss_Utils, rc4_max, 2000),
-    AP_GROUPINFO("4_TRIM", 12, AirBoss_Utils, rc4_trim, 1500),
-
-    AP_GROUPEND
-};
-
 
 AirBoss_Utils::AirBoss_Utils()
 {
     memset(&rc_channels, 0, sizeof(rc_channels));
-    AP_Param::setup_object_defaults(this, var_info);
 }
 
 uint16_t AirBoss_Utils::map_threeway_to_pwm(AirBoss_Switches::Switch3State s) const
@@ -62,46 +23,7 @@ uint16_t AirBoss_Utils::map_threeway_to_pwm(AirBoss_Switches::Switch3State s) co
 
 uint16_t AirBoss_Utils::normalized_to_pwm(float norm, uint8_t ch_num) const
 {
-   // Clamp input range
-   norm = MAX(-1.0f, MIN(1.0f, norm));
-
-   // Load calibration
-   int16_t minv = 1000, maxv = 2000, trim = 1500;
-   switch (ch_num) {
-       case 1: minv = rc1_min; maxv = rc1_max; trim = rc1_trim; break;
-       case 2: minv = rc2_min; maxv = rc2_max; trim = rc2_trim; break;
-       case 3: minv = rc3_min; maxv = rc3_max; trim = rc3_trim; break;
-       case 4: minv = rc4_min; maxv = rc4_max; trim = rc4_trim; break;
-       default: return 1500;
-   }
-
-   // Compute scaling factors for each half
-   const float neg_span = (float)(trim - minv);
-   const float pos_span = (float)(maxv - trim);
-
-   if (neg_span < 1.0f || pos_span < 1.0f) {
-       return 1500;
-   }
-
-   // First convert normalized value into calibrated PWM
-   float pwm_calibrated;
-   if (norm < 0.0f) {
-       pwm_calibrated = trim + norm * neg_span;    // move down toward min
-   } else {
-       pwm_calibrated = trim + norm * pos_span;    // move up toward max
-   }
-
-   // Now remap [minv..maxv] to [1000..2000],
-   // ensuring min→1000, trim→1500, max→2000
-   float pwm;
-   if (pwm_calibrated <= trim) {
-       pwm = 1000.0f + ((pwm_calibrated - minv) / neg_span) * 500.0f;
-   } else {
-       pwm = 1500.0f + ((pwm_calibrated - trim) / pos_span) * 500.0f;
-   }
-
-   pwm = MAX(1000.0f, MIN(2000.0f, pwm));
-   return float_to_uint16(pwm);
+   return (uint16_t)linear_interpolate(1000, 2000, norm, -1.0f, 1.0f);
 }
 
 void AirBoss_Utils::send_rc_channels_mavlink(const AirBoss_Joystick::JoystickState &js_state,

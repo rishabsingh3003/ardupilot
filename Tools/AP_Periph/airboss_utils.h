@@ -20,8 +20,6 @@ public:
     void send_rc_channels_mavlink(const AirBoss_Joystick::JoystickState &js_state,
                                   const AirBoss_Switches &switches);
 
-    static const struct AP_Param::GroupInfo var_info[];
-
 
 private:
 

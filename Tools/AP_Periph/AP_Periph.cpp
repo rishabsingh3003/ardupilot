@@ -584,12 +584,12 @@ void AP_Periph_FW::update()
         // airboss_switches.print_states();
     }
 
-    // static uint32_t rc_mav_last_ms;
-    // if (now - rc_mav_last_ms > 250) {
-    //     rc_mav_last_ms = now;
-    //     // send RC_CHANNELS message at 1Hz
-    //     airboss_utils.send_rc_channels_mavlink(js_state, airboss_switches);
-    // }
+    static uint32_t rc_mav_last_ms;
+    if (now - rc_mav_last_ms > 250) {
+        rc_mav_last_ms = now;
+        // send RC_CHANNELS message at 1Hz
+        airboss_utils.send_rc_channels_mavlink(js_state, airboss_switches);
+    }
 }
 
 // void AP_Periph_FW::rc_send_mavlink()
