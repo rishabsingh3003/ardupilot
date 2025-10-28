@@ -110,16 +110,16 @@ bool AirBoss_Networking::init()
 //     }
 
     // RC output (UAV -> joystick/GCS)
-    if (!rc_out.open_client("192.168.144.9", 5601)) {
-        hal.console->printf("RC_OUT open failed\n");
+    if (!telem_out.open_client("192.168.144.9", 5601)) {
+        hal.console->printf("telem_out open failed\n");
         return false;
     }
 
-    // // Telemetry output (UAV -> dashboard)
-    // if (!telem_out.open_client("192.168.1.50", 5602)) {
-    //     hal.console->printf("TELEM_OUT open failed\n");
-    //     return false;
-    // }
+    // Telemetry output (UAV -> dashboard)
+    if (!rc_out.open_client("192.168.144.9", 14551)) {
+        hal.console->printf("rc out failed\n");
+        return false;
+    }
 
     // // Debug output (optional)
     // debug_out.open_client("127.0.0.1", 6000);
@@ -137,7 +137,7 @@ void AirBoss_Networking::loop_50hz()
 
 void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickState& js)
 {
-    if (!rc_out.is_open()) {
+    if (!telem_out.is_open()) {
         return;
     }
 
@@ -183,11 +183,32 @@ void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickStat
     }
     pkt.crc = crc;
 
-    rc_out.write(reinterpret_cast<const uint8_t*>(&pkt), sizeof(pkt));
+    telem_out.write(reinterpret_cast<const uint8_t*>(&pkt), sizeof(pkt));
     // hal.console->printf("Sent joystick: LT(%u,%u) RT(%u,%u) LI(%u,%u) RI(%u,%u) healthy=%u\n",
     //                     pkt.raw[0], pkt.raw[1], pkt.raw[2], pkt.raw[3],
     //                     pkt.raw[4], pkt.raw[6], pkt.raw[5], pkt.raw[7],
     //                     pkt.healthy);
+}
+
+void AirBoss_Networking::send_sbus_packet(const uint8_t* sbus_packet, size_t length)
+{
+    // Validate
+    if (!rc_out.is_open() || sbus_packet == nullptr) {
+        return;
+    }
+
+    // Ensure correct SBUS size (25 bytes typical)
+    if (length == 0) {
+        return;
+    }
+
+    // Optionally clamp size if caller passed more than 25
+    if (length > 25) {
+        length = 25;
+    }
+
+    // Transmit the full pre-built SBUS frame
+    rc_out.write(sbus_packet, length);
 }
 
 // void AirBoss_Networking::handle_rc_rx()
@@ -206,7 +227,7 @@ void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickStat
 
 // void AirBoss_Networking::send_rc(const RCFrame& frame)
 // {
-//     rc_out.write(reinterpret_cast<const uint8_t*>(&frame), sizeof(frame));
+//     telem_out.write(reinterpret_cast<const uint8_t*>(&frame), sizeof(frame));
 // }
 
 // void AirBoss_Networking::send_debug(const char* msg)

@@ -106,9 +106,14 @@ bool AP_Networking_ChibiOS::allocate_buffers()
 */
 bool AP_Networking_ChibiOS::init()
 {
-#ifdef HAL_GPIO_ETH_ENABLE
+    #ifdef HAL_GPIO_ETH_ENABLE
     hal.gpio->pinMode(HAL_GPIO_ETH_ENABLE, HAL_GPIO_OUTPUT);
-    hal.gpio->write(HAL_GPIO_ETH_ENABLE, frontend.param.enabled ? 1 : 0);
+
+    // Force PHY reset sequence using the enable pin
+    hal.gpio->write(HAL_GPIO_ETH_ENABLE, 0);
+    hal.scheduler->delay(20);   // hold low 20 ms (acts as reset pulse)
+    hal.gpio->write(HAL_GPIO_ETH_ENABLE, 1);
+    hal.scheduler->delay(100);  // allow 100 ms for PHY startup
 #endif
 
     if (!allocate_buffers()) {

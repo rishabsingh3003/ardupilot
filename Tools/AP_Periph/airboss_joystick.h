@@ -48,6 +48,9 @@ public:
     };
 
     const JoystickState& get_state() { return _state; }
+
+    uint16_t axis_to_sbus(float norm) const;
+    
     void print_states();
 
     static const struct AP_Param::GroupInfo var_info[];

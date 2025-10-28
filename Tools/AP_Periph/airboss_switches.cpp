@@ -21,14 +21,14 @@ AirBoss_Switches::AirBoss_Switches() {
 
     function_map[(uint8_t)Function::KILL_SWITCH]   = {8, 9};   // GPIO1, GPIO2
     function_map[(uint8_t)Function::MODE_SELECT]   = {4, 5};   // GPIO3, GPIO4
-    function_map[(uint8_t)Function::CAM_MODE]      = {2, 255}; // GPIO5
+    function_map[(uint8_t)Function::CAM_MODE]      = {11, 255}; // GPIO5
     function_map[(uint8_t)Function::REC]           = {3, 255}; // GPIO6
-    function_map[(uint8_t)Function::CENTRE]        = {6, 255}; // GPIO7
-    function_map[(uint8_t)Function::UP]            = {7, 255}; // GPIO8
-    function_map[(uint8_t)Function::DOWN]          = {10, 255}; // GPIO9
-    function_map[(uint8_t)Function::LIGHTS]        = {12, 255}; // GPIO10
-    function_map[(uint8_t)Function::BEHIND_RIGHT]  = {1, 255}; // GPIO11
-    function_map[(uint8_t)Function::BEHIND_LEFT]   = {11, 255}; // GPIO12
+    function_map[(uint8_t)Function::CENTRE]        = {2, 255}; // GPIO7
+    function_map[(uint8_t)Function::UP]            = {10, 255}; // GPIO8
+    function_map[(uint8_t)Function::DOWN]          = {12, 255}; // GPIO9
+    function_map[(uint8_t)Function::LIGHTS]        = {1, 255}; // GPIO10
+    function_map[(uint8_t)Function::BEHIND_RIGHT]  = {7, 255}; // GPIO11
+    function_map[(uint8_t)Function::BEHIND_LEFT]   = {6, 255}; // GPIO12
 }
 
 void AirBoss_Switches::init() {
@@ -72,7 +72,7 @@ void AirBoss_Switches::timer_update() {
 
 bool AirBoss_Switches::get_state(uint8_t index) const {
     if (index >= NUM_SWITCHES) return false;
-    return sw[index].state;
+    return !sw[index].state;
 }
 
 bool AirBoss_Switches::get_raw(uint8_t index) const {
@@ -119,6 +119,33 @@ static const char* function_name(AirBoss_Switches::Function f)
     case AirBoss_Switches::Function::BEHIND_LEFT:     return "BEHIND_LEFT";
     default:                                          return "UNKNOWN";
     }
+}
+
+uint16_t AirBoss_Switches::function_to_sbus(Function f) const
+{
+    uint16_t sbus_val = 992; // neutral by default
+
+    // --- CASE 1: 3-way switch ---
+    // Determine if it's a 3-way or normal button
+    const auto &map = function_map[(uint8_t)f];
+    if (map.high_pin != 255) {
+        Switch3State s3 = get_threeway(f);
+        switch (s3) {
+            case Switch3State::DOWN: sbus_val = 172;  break;
+            case Switch3State::MID:  sbus_val = 992;  break;
+            case Switch3State::UP:   sbus_val = 1811; break;
+        }
+        return sbus_val;
+    }
+
+    // --- CASE 2: button / 2-way ---
+    if (get_state(map.low_pin)) {
+        sbus_val = 1811;
+    } else {
+        sbus_val = 172;
+    }
+
+    return sbus_val;
 }
 
 

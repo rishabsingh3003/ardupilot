@@ -588,8 +588,86 @@ void AP_Periph_FW::update()
     if (now - rc_mav_last_ms > 250) {
         rc_mav_last_ms = now;
         // send RC_CHANNELS message at 1Hz
-        airboss_utils.send_rc_channels_mavlink(js_state, airboss_switches);
+        // airboss_utils.send_rc_channels_mavlink(js_state, airboss_switches);
+        auto *uart = hal.serial(0);
+        if (uart != nullptr) {
+            uart->usb_hid_send_joystick(65535, js_state.right_thumb.x.norm*127, js_state.right_thumb.y.norm*127);
+        }
+        airboss_switches.print_states();
     }
+
+    static uint32_t sbus_last_ms;
+    if (now - sbus_last_ms > 20) {
+        sbus_last_ms = now;
+        uint8_t sbus_frame[25];
+        size_t len = pack_sbus_from_joystick_and_switches(
+            airboss_joystick.get_state(),
+            airboss_switches,
+            sbus_frame);
+
+        airboss_networking.send_sbus_packet(sbus_frame, len);
+    }
+}
+
+size_t AP_Periph_FW::pack_sbus_from_joystick_and_switches(
+    const AirBoss_Joystick::JoystickState& js,
+    const AirBoss_Switches& switches,
+    uint8_t* sbus_out)
+{
+    if (sbus_out == nullptr) {
+        return 0;
+    }
+
+    uint16_t ch[16] = {992};
+    // ───────────────────────────────────────────────
+    // Joystick → CH1-CH8
+
+    // ───────────────────────────────────────────────
+    ch[0] = airboss_joystick.axis_to_sbus(js.right_thumb.x.norm);   // roll
+    ch[1] = airboss_joystick.axis_to_sbus(js.right_thumb.y.norm);   // pitch
+    ch[2] = airboss_joystick.axis_to_sbus(js.left_thumb.y.norm);  // throttle
+    ch[3] = airboss_joystick.axis_to_sbus(js.left_thumb.x.norm);  // yaw
+
+    // ───────────────────────────────────────────────
+    // Buttons / Switches
+    // Each logical Function is mapped to one channel.
+    // Three-way switches use 172/992/1811.
+    // Two-way buttons use 172/1811.
+    // ───────────────────────────────────────────────
+    ch[4] = switches.function_to_sbus(AirBoss_Switches::Function::MODE_SELECT);
+    ch[6] = switches.function_to_sbus(AirBoss_Switches::Function::KILL_SWITCH);
+    ch[7] = switches.function_to_sbus(AirBoss_Switches::Function::KILL_SWITCH);
+    ch[11] = switches.function_to_sbus(AirBoss_Switches::Function::LIGHTS);
+
+    // ───────────────────────────────────────────────
+    // Optional: mark joystick health in last channel
+    // ───────────────────────────────────────────────
+    ch[15] = js.healthy ? 1811 : 172;
+
+    // ───────────────────────────────────────────────
+    // Pack into SBUS byte frame
+    // ───────────────────────────────────────────────
+    uint8_t SBUS_FRAME_SIZE = 25;
+    memset(sbus_out, 0, SBUS_FRAME_SIZE);
+    sbus_out[0] = 0x0F; // SBUS header
+
+    uint32_t bit_ofs = 0;
+    for (uint8_t ch_i = 0; ch_i < 16; ch_i++) {
+        uint16_t val = ch[ch_i];
+        if (val > 2047) val = 2047;
+        uint16_t byte_idx = 1 + (bit_ofs / 8);
+        uint8_t bit_idx = bit_ofs % 8;
+        uint32_t word = static_cast<uint32_t>(val) << bit_idx;
+
+        sbus_out[byte_idx + 0] |= (word & 0xFF);
+        sbus_out[byte_idx + 1] |= ((word >> 8) & 0xFF);
+        sbus_out[byte_idx + 2] |= ((word >> 16) & 0xFF);
+        bit_ofs += 11;
+    }
+
+    sbus_out[23] = 0x00; // Flags (frame lost/failsafe bits)
+    sbus_out[24] = 0x00; // End byte
+    return SBUS_FRAME_SIZE;
 }
 
 // void AP_Periph_FW::rc_send_mavlink()

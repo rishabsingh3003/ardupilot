@@ -137,7 +137,7 @@ public:
       return true if this UART has DMA enabled on both RX and TX
      */
     bool is_dma_enabled() const override { return rx_dma_enabled && tx_dma_enabled; }
-
+    void usb_hid_send_joystick(int16_t buttons, int8_t x, int8_t y) override;
 private:
     const SerialDef &sdef;
     bool rx_dma_enabled;

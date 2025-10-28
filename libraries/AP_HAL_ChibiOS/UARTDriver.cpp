@@ -1832,5 +1832,25 @@ void UARTDriver::disable_rxtx(void) const
         palSetLineMode(atx_line, PAL_MODE_INPUT);
     }
 }
+void UARTDriver::usb_hid_send_joystick(int16_t buttons, int8_t x, int8_t y)
+{
+    USBDriver *usbp = serusbcfg1.usbp;
+
+    if (usbp == nullptr || usbp->state != USB_ACTIVE) {
+        return; // USB not ready or not configured
+    }
+
+    static uint8_t report[4];  // must persist until transfer completes
+    report[0] = (uint8_t)(buttons & 0xFF);
+    report[1] = (uint8_t)((buttons >> 8) & 0xFF);
+    report[2] = (uint8_t)x;
+    report[3] = (uint8_t)y;
+
+    osalSysLock();
+    if (!usbGetTransmitStatusI(usbp, 3)) {
+        usbStartTransmitI(usbp, 3, report, sizeof(report));
+    }
+    osalSysUnlock();
+}
 
 #endif //CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS

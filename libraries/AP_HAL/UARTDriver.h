@@ -220,6 +220,8 @@ public:
         return lock_write_key != 0;
     }
 
+    virtual void usb_hid_send_joystick(int16_t buttons, int8_t x, int8_t y) {};
+
 protected:
     // key for a locked port
     uint32_t lock_write_key;

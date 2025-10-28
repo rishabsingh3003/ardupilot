@@ -51,13 +51,35 @@ static cdc_linecoding_t linecoding = {
 #define USBD1_DATA_AVAILABLE_EP         1
 #define USBD1_INTERRUPT_REQUEST_EP      2
 
+/* ===== HID (Joystick) ===== */
+#define USB_DT_HID                       0x21
+#define USB_DT_REPORT                    0x22
+#define HID_IN_EP                        3   /* HID IN (device->host) EP3    */
+#define HID_IN_SIZE                      0x0008
+#define HID_POLL_MS                      0x40
+
+/* HID Report Descriptor: 16 buttons + 2 axes */
+static const uint8_t hid_report_descriptor_data[] = {
+  0x05, 0x01, 0x09, 0x04, 0xA1, 0x01, 0xA1, 0x00,
+  0x05, 0x09, 0x19, 0x01, 0x29, 0x10, 0x15, 0x00,
+  0x25, 0x01, 0x95, 0x10, 0x75, 0x01, 0x81, 0x02,
+  0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x15, 0x81,
+  0x25, 0x7F, 0x75, 0x08, 0x95, 0x02, 0x81, 0x02,
+  0xC0, 0xC0
+};
+
+static const USBDescriptor hid_report_descriptor = {
+  sizeof(hid_report_descriptor_data),
+  hid_report_descriptor_data
+};
+
 /*
  * USB Device Descriptor.
  */
 static const uint8_t vcom_device_descriptor_data[18] = {
     USB_DESC_DEVICE(
-        0x0110,             /* bcdUSB (1.1).                    */
-        0x02,               /* bDeviceClass (CDC).              */
+        0x0200,             /* bcdUSB (1.1).                    */
+        0x00,               /* bDeviceClass (CDC).              */
         0x00,               /* bDeviceSubClass.                 */
         0x00,               /* bDeviceProtocol.                 */
         0x40,               /* bMaxPacketSize.                  */
@@ -79,10 +101,10 @@ static const USBDescriptor vcom_device_descriptor = {
 };
 
 /* Configuration Descriptor tree for a CDC.*/
-static const uint8_t vcom_configuration_descriptor_data[67] = {
+static const uint8_t vcom_configuration_descriptor_data[92] = {
   /* Configuration Descriptor.*/
-  USB_DESC_CONFIGURATION(67,            /* wTotalLength.                    */
-                         0x02,          /* bNumInterfaces.                  */
+  USB_DESC_CONFIGURATION(92,            /* wTotalLength.                    */
+                         0x03,          /* bNumInterfaces.                  */
                          0x01,          /* bConfigurationValue.             */
                          0,             /* iConfiguration.                  */
                          0xC0,          /* bmAttributes (self powered).     */
@@ -152,7 +174,17 @@ static const uint8_t vcom_configuration_descriptor_data[67] = {
   USB_DESC_ENDPOINT     (USBD1_DATA_REQUEST_EP|0x80,    /* bEndpointAddress.*/
                          0x02,          /* bmAttributes (Bulk).             */
                          0x0040,        /* wMaxPacketSize.                  */
-                         0x00)          /* bInterval.                       */
+                         0x00),          /* bInterval.                       */
+
+    /* --- HID Interface (Interface #2) --- */
+  USB_DESC_INTERFACE(0x02, 0x00, 0x01, 0x03, 0x00, 0x00, 0x00),
+  0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22,
+  sizeof(hid_report_descriptor_data) & 0xFF,
+  (sizeof(hid_report_descriptor_data) >> 8) & 0xFF,
+  USB_DESC_ENDPOINT((HID_IN_EP | 0x80),
+                    0x03,
+                    HID_IN_SIZE,
+                    HID_POLL_MS)
 };
 
 /*
@@ -234,6 +266,9 @@ static const USBDescriptor *get_descriptor(USBDriver *usbp,
       if (dindex < 4) {
           return &vcom_strings[dindex];
       }
+      break;
+  case USB_DT_REPORT:
+      return &hid_report_descriptor;
   }
   return NULL;
 }
@@ -311,6 +346,18 @@ static const USBEndpointConfig ep2config = {
   NULL
 };
 
+/* HID EP3 IN (Interrupt) */
+static USBInEndpointState ep3instate;
+
+static const USBEndpointConfig ep3config = {
+  USB_EP_MODE_TYPE_INTR,
+  NULL, NULL, NULL,
+  HID_IN_SIZE, 0x0000,
+  &ep3instate, NULL,
+  1, NULL
+};
+
+
 /*
  * Handles the USB driver global events.
  */
@@ -328,6 +375,7 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
        must be used.*/
     usbInitEndpointI(usbp, USBD1_DATA_REQUEST_EP, &ep1config);
     usbInitEndpointI(usbp, USBD1_INTERRUPT_REQUEST_EP, &ep2config);
+    usbInitEndpointI(usbp, HID_IN_EP, &ep3config);
 
     /* Resetting the state of the CDC subsystem.*/
     sduConfigureHookI(&SDU1);

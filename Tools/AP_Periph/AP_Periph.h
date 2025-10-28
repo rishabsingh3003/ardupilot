@@ -465,6 +465,11 @@ public:
     AirBoss_Utils airboss_utils;
     
     void airboss_joystick_update();
+    size_t pack_sbus_from_joystick_and_switches(
+        const AirBoss_Joystick::JoystickState& js,
+        const AirBoss_Switches& switches,
+        uint8_t* sbus_out);
+    
     
     // void rc_send_mavlink();
 

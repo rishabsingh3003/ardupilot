@@ -78,6 +78,7 @@ public:
     void send_debug(const char* msg);
 
     void send_airboss_state(const AirBoss_Joystick::JoystickState& js);
+    void send_sbus_packet(const uint8_t* sbus_packet, size_t length);
 
 private:
     UDPChannel rc_in;

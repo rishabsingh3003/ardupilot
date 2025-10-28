@@ -46,6 +46,8 @@ public:
 
     void print_states();
 
+    uint16_t function_to_sbus(Function f) const;
+
 private:
     struct Switch {
         int pin;               // integer GPIO ID from hwdef

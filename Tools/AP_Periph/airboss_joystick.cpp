@@ -97,7 +97,7 @@ const AP_Param::GroupInfo AirBoss_Joystick::var_info[] = {
     AP_GROUPINFO("RIY_MIN", 22, AirBoss_Joystick, rc_min[7], 0),
     AP_GROUPINFO("RIY_MAX", 23, AirBoss_Joystick, rc_max[7], 4095),
     AP_GROUPINFO("RIY_TRIM", 24, AirBoss_Joystick, rc_trim[7], 2047),
-    
+
     AP_GROUPEND
 };
 
@@ -224,6 +224,15 @@ void AirBoss_Joystick::adc_timer()
     _state.last_update_us = AP_HAL::micros();
 }
 
+uint16_t AirBoss_Joystick::axis_to_sbus(float norm) const
+{
+    // Clamp normalized input
+    if (norm > 1.0f) norm = 1.0f;
+    if (norm < -1.0f) norm = -1.0f;
+
+    // Map -1..+1 → SBUS 172..1811 (≈1000–2000 µs)
+    return static_cast<uint16_t>((norm + 1.0f) * 0.5f * (1811 - 172) + 172);
+}
 
 void AirBoss_Joystick::print_states()
 {
