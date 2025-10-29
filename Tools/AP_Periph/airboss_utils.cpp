@@ -46,8 +46,8 @@ void AirBoss_Utils::send_rc_channels_mavlink(const AirBoss_Joystick::JoystickSta
     rc.chan4_raw = normalized_to_pwm(js_state.left_thumb.x.norm,  4); // yaw
 
     // ---- Switches mapping ----
-    rc.chan5_raw = map_threeway_to_pwm(switches.get_threeway(AirBoss_Switches::Function::MODE_SELECT));
-    rc.chan6_raw = map_threeway_to_pwm(switches.get_threeway(AirBoss_Switches::Function::KILL_SWITCH));
+    rc.chan5_raw = map_threeway_to_pwm(switches.get_switch_state(AirBoss_Switches::Function::MODE_SELECT));
+    rc.chan6_raw = map_threeway_to_pwm(switches.get_switch_state(AirBoss_Switches::Function::KILL_SWITCH));
     rc.chan7_raw = switches.is_pressed(AirBoss_Switches::Function::LIGHTS)      ? 2000 : 1000;
     rc.chan8_raw = switches.is_pressed(AirBoss_Switches::Function::REC)         ? 2000 : 1000;
 

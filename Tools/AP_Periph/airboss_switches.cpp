@@ -10,12 +10,8 @@ AirBoss_Switches::AirBoss_Switches() {
         sw[i].last_change = 0;
     }
 
-    // // Default 3-way group mappings (you can adjust these)
-    // kill_switch = {10, 9, Switch3State::MID};       // uses GPIO1 & GPIO2
-    // mode_select_switch = {2, 3, Switch3State::MID}; // uses GPIO3 & GPIO4
-
-     // Default logical mapping
-     for (uint8_t i = 0; i < (uint8_t)Function::COUNT; i++) {
+    // Default logical mapping
+    for (uint8_t i = 0; i < (uint8_t)Function::COUNT; i++) {
         function_map[i] = {255, 255}; // unused
     }
 
@@ -81,7 +77,7 @@ bool AirBoss_Switches::get_raw(uint8_t index) const {
 }
 
 AirBoss_Switches::Switch3State
-AirBoss_Switches::get_threeway_state(uint8_t low_idx, uint8_t high_idx) const {
+AirBoss_Switches::get_three_way_switch_state(uint8_t low_idx, uint8_t high_idx) const {
     bool low  = get_state(low_idx);
     bool high = get_state(high_idx);
 
@@ -97,11 +93,11 @@ bool AirBoss_Switches::is_pressed(Function f) const {
 }
 
 AirBoss_Switches::Switch3State
-AirBoss_Switches::get_threeway(Function f) const {
+AirBoss_Switches::get_switch_state(Function f) const {
     const auto &m = function_map[(uint8_t)f];
     if (m.high_pin == 255)
-        return get_state(m.low_pin) ? Switch3State::UP : Switch3State::MID;
-    return get_threeway_state(m.low_pin, m.high_pin);
+        return get_state(m.low_pin) ? Switch3State::UP : Switch3State::DOWN;
+    return get_three_way_switch_state(m.low_pin, m.high_pin);
 }
 
 static const char* function_name(AirBoss_Switches::Function f)
@@ -124,30 +120,14 @@ static const char* function_name(AirBoss_Switches::Function f)
 uint16_t AirBoss_Switches::function_to_sbus(Function f) const
 {
     uint16_t sbus_val = 992; // neutral by default
-
-    // --- CASE 1: 3-way switch ---
-    // Determine if it's a 3-way or normal button
-    const auto &map = function_map[(uint8_t)f];
-    if (map.high_pin != 255) {
-        Switch3State s3 = get_threeway(f);
-        switch (s3) {
-            case Switch3State::DOWN: sbus_val = 172;  break;
-            case Switch3State::MID:  sbus_val = 992;  break;
-            case Switch3State::UP:   sbus_val = 1811; break;
-        }
-        return sbus_val;
+    Switch3State s3 = get_switch_state(f);
+    switch (s3) {
+        case Switch3State::DOWN: sbus_val = 172;  break;
+        case Switch3State::MID:  sbus_val = 992;  break;
+        case Switch3State::UP:   sbus_val = 1811; break;
     }
-
-    // --- CASE 2: button / 2-way ---
-    if (get_state(map.low_pin)) {
-        sbus_val = 1811;
-    } else {
-        sbus_val = 172;
-    }
-
     return sbus_val;
 }
-
 
 void AirBoss_Switches::print_states()
 {
@@ -156,22 +136,11 @@ void AirBoss_Switches::print_states()
     for (uint8_t i = 1; i < (uint8_t)Function::COUNT; i++) {
         Function f = static_cast<Function>(i);
         const char* name = function_name(f);
-
-        // Determine if it's a 3-way or normal button
-        const auto &map = function_map[(uint8_t)f];
-        if (map.high_pin != 255) {
-            // 3-way switch
-            auto state = get_threeway(f);
-            const char* s =
-                (state == Switch3State::UP)   ? "UP" :
-                (state == Switch3State::MID)  ? "MID" : "DOWN";
-            hal.console->printf("%-14s : %s\n", name, s);
-        } else if (map.low_pin != 255) {
-            // Single button
-            bool pressed = get_state(map.low_pin);
-            hal.console->printf("%-14s : %u\n", name, (unsigned)pressed);
-        }
+        auto state = get_switch_state(f);
+        const char* s =
+            (state == Switch3State::UP)   ? "UP" :
+            (state == Switch3State::MID)  ? "MID" : "DOWN";
+        hal.console->printf("%-14s : %s\n", name, s);
     }
-
     hal.console->printf("========================\n");
 }

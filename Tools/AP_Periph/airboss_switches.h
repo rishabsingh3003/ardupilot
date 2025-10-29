@@ -42,7 +42,7 @@ public:
     bool is_pressed(Function f) const;
 
     // Get 3-way switch position
-    Switch3State get_threeway(Function f) const;
+    Switch3State get_switch_state(Function f) const;
 
     void print_states();
 
@@ -67,5 +67,6 @@ private:
     bool initialised = false;
 
     void timer_update();                 // 1 kHz debounce task
-    Switch3State get_threeway_state(uint8_t low_idx, uint8_t high_idx) const;
+
+    Switch3State get_three_way_switch_state(uint8_t low_idx, uint8_t high_idx) const;
 };
