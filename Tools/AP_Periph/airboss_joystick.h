@@ -8,6 +8,7 @@
 #include <utility>
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <GCS_MAVLink/GCS.h>
+#include <Filter/Filter.h>
 
 #ifndef AP_PERIPH_AIRBOSS_JOYSTICK_ENABLED
 #define AP_PERIPH_AIRBOSS_JOYSTICK_ENABLED 1
@@ -29,9 +30,9 @@ public:
 
     struct JoystickAxis {
         uint16_t raw;   // raw 12-bit ADC
+        ModeFilterUInt16_Size7 filter{3};
         float norm;     // normalized -1..+1
     };
-
     struct JoystickStick {
         JoystickAxis x;
         JoystickAxis y;
@@ -53,9 +54,19 @@ public:
 
     void print_states();
 
+    void update();
+
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
+
+    float normalize_adc_input(
+        uint16_t raw,
+        uint16_t min,
+        uint16_t max,
+        uint16_t trim,
+        bool rev);
+
     bool read_channel(uint16_t cmd, uint16_t &val);
     AP_HAL::OwnPtr<AP_HAL::SPIDevice> dev;
     bool _configured;
@@ -66,6 +77,8 @@ private:
     AP_Int16 rc_min[8];
     AP_Int16 rc_max[8];
     AP_Int16 rc_trim[8];
+    AP_Int8  rc_rev[8];
+    AP_Int8  _reset;
 
     // Logical order mapping: [left_thumb.x, left_thumb.y, right_thumb.x, right_thumb.y, left_index.x, left_index.y, right_index.x, right_index.y]
     // Each entry is the ADC channel index (0–7)
@@ -76,14 +89,6 @@ private:
         6, 7    // Right index
     };
 
-    // ArduPilot parameter channel mapping. This has to be different from channel_map because some axes are fixed like Throttle is always channel 3
-    uint8_t parameter_channel_map[8] = {
-        2, 3,   // Left thumb
-        0, 1,   // Right thumb
-        4, 5,   // Left index
-        6, 7    // Right index
-    };
-
     // Optional inversion flags (1 = invert, 0 = normal)
     bool invert_axis[8] = {
         false, false,   // Left thumb
@@ -91,6 +96,8 @@ private:
         false, true,    // Left index (invert Y for example)
         false, false    // Right index
     };
+
+    HAL_Semaphore _state_sem;
 
 };
 

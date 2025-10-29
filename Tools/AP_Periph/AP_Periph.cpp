@@ -565,13 +565,18 @@ void AP_Periph_FW::update()
 #endif
 
     // airboss_joystick_update();
+    static uint32_t airboss_joystick_last_ms;
+    if (now - airboss_joystick_last_ms > 10) {
+        // run at 100Hz
+        airboss_joystick_last_ms = now;
+        airboss_joystick.update();
+    }
     const AirBoss_Joystick::JoystickState js_state = airboss_joystick.get_state();
     
     static uint32_t last_status_ms;
     if (now - last_status_ms > 20) {
         last_status_ms = now;
         airboss_networking.send_airboss_state(js_state);
-        // airboss_joystick.print_states();
     //     bool temp_switches[NUM_SWITCHES];
     //     for (uint8_t i = 0; i < NUM_SWITCHES; i++) {
     //         // airboss_networking.send_airboss_switch_state(i, airboss_switches.get_state(i));
@@ -581,7 +586,6 @@ void AP_Periph_FW::update()
     //         (unsigned)temp_switches[0], (unsigned)temp_switches[1], (unsigned)temp_switches[2], (unsigned)temp_switches[3],
     //         (unsigned)temp_switches[4], (unsigned)temp_switches[5], (unsigned)temp_switches[6], (unsigned)temp_switches[7],
     //         (unsigned)temp_switches[8], (unsigned)temp_switches[9], (unsigned)temp_switches[10], (unsigned)temp_switches[11]);
-        // airboss_switches.print_states();
     }
 
     static uint32_t rc_mav_last_ms;
@@ -593,7 +597,8 @@ void AP_Periph_FW::update()
         if (uart != nullptr) {
             uart->usb_hid_send_joystick(65535, js_state.right_thumb.x.norm*127, js_state.right_thumb.y.norm*127);
         }
-        airboss_switches.print_states();
+        // airboss_switches.print_states();
+        // airboss_joystick.print_states();
     }
 
     static uint32_t sbus_last_ms;

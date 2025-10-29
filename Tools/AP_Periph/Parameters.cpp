@@ -760,7 +760,7 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
 
     // @Group: airboss_joystick
     // @Path: airboss_joystick.cpp
-    GOBJECT(airboss_joystick, "RC",  AirBoss_Joystick),
+    GOBJECT(airboss_joystick, "RC_",  AirBoss_Joystick),
 
     AP_VAREND
 };

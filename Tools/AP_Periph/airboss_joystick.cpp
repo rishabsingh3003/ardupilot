@@ -45,68 +45,120 @@ static const uint16_t joystick_cmds[8] = {
     JOYSTICK_7_VOLTAGE_REG,
 };
 
+#define ADC_MAX_VALUE 4095.0f
+#define ADC_MID_VALUE 2048.0f
+#define ADC_MIN_VALUE 0.0f
+
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AirBoss_Joystick::var_info[] = {
-    // --- Channel 1 ---
-    // @Param: RC1_MIN
-    // @DisplayName: RC Channel 1 minimum PWM
-    // @Description: Minimum input PWM value for channel 1
-    // @Range: 800 1200
-    AP_GROUPINFO("1_MIN", 1, AirBoss_Joystick, rc_min[0], 0),
 
-    // @Param: RC1_MAX
-    // @DisplayName: RC Channel 1 maximum PWM
-    // @Description: Maximum input PWM value for channel 1
-    // @Range: 1800 2200
-    AP_GROUPINFO("1_MAX", 2, AirBoss_Joystick, rc_max[0], 4095),
+    // ───────────────────────────────────────────────
+    // Left Thumb X (Yaw)
+    // ───────────────────────────────────────────────
+    // @Param: LTX_MIN
+    // @DisplayName: Left Thumb X Minimum
+    // @Description: Minimum ADC value for Left Thumb X axis
+    // @Range: 0 4095
+    // @User: Standard
+    AP_GROUPINFO("LTX_MIN", 1, AirBoss_Joystick, rc_min[0], ADC_MIN_VALUE),
 
-    // @Param: RC1_TRIM
-    // @DisplayName: RC Channel 1 trim PWM
-    // @Description: Trim value (center) for channel 1
-    // @Range: 1300 1700
-    AP_GROUPINFO("1_TRIM", 3, AirBoss_Joystick, rc_trim[0], 2047),
+    // @Param: LTX_MAX
+    // @DisplayName: Left Thumb X Maximum
+    // @Description: Maximum ADC value for Left Thumb X axis
+    // @Range: 0 4095
+    // @User: Standard
+    AP_GROUPINFO("LTX_MAX", 2, AirBoss_Joystick, rc_max[0], ADC_MAX_VALUE),
 
-    // --- Channel 2 ---
-    AP_GROUPINFO("2_MIN", 4, AirBoss_Joystick, rc_min[1], 0),
-    AP_GROUPINFO("2_MAX", 5, AirBoss_Joystick, rc_max[1], 4095),
-    AP_GROUPINFO("2_TRIM", 6, AirBoss_Joystick, rc_trim[1], 2047),
+    // @Param: LTX_TRIM
+    // @DisplayName: Left Thumb X Trim
+    // @Description: Center ADC value for Left Thumb X axis
+    // @Range: 0 4095
+    // @User: Standard
+    AP_GROUPINFO("LTX_TRIM", 3, AirBoss_Joystick, rc_trim[0], ADC_MID_VALUE),
 
-    // --- Channel 3 ---
-    AP_GROUPINFO("3_MIN", 7, AirBoss_Joystick, rc_min[2], 0),
-    AP_GROUPINFO("3_MAX", 8, AirBoss_Joystick, rc_max[2], 4095),
-    AP_GROUPINFO("3_TRIM", 9, AirBoss_Joystick, rc_trim[2], 2047),
+    // @Param: LTX_REV
+    // @DisplayName: Left Thumb X Reverse
+    // @Description: Reverse direction of Left Thumb X axis
+    // @Values: 0:Normal,1:Reversed
+    // @User: Standard
+    AP_GROUPINFO("LTX_REV", 4, AirBoss_Joystick, rc_rev[0], 0),
 
-    // --- Channel 4 ---
-    AP_GROUPINFO("4_MIN", 10, AirBoss_Joystick, rc_min[3], 0),
-    AP_GROUPINFO("4_MAX", 11, AirBoss_Joystick, rc_max[3], 4095),
-    AP_GROUPINFO("4_TRIM", 12, AirBoss_Joystick, rc_trim[3], 2047),
+    // ───────────────────────────────────────────────
+    // Left Thumb Y (Throttle)
+    // ───────────────────────────────────────────────
+    AP_GROUPINFO("LTY_MIN", 5, AirBoss_Joystick, rc_min[1], ADC_MIN_VALUE),
+    AP_GROUPINFO("LTY_MAX", 6, AirBoss_Joystick, rc_max[1], ADC_MAX_VALUE),
+    AP_GROUPINFO("LTY_TRIM", 7, AirBoss_Joystick, rc_trim[1], ADC_MID_VALUE),
+    AP_GROUPINFO("LTY_REV", 8, AirBoss_Joystick, rc_rev[1], 0),
 
-    AP_GROUPINFO("LIX_MIN", 13, AirBoss_Joystick, rc_min[4], 0),
-    AP_GROUPINFO("LIX_MAX", 14, AirBoss_Joystick, rc_max[4], 4095),
-    AP_GROUPINFO("LIX_TRIM", 15, AirBoss_Joystick, rc_trim[4], 2047),
+    // ───────────────────────────────────────────────
+    // Right Thumb X (Roll)
+    // ───────────────────────────────────────────────
+    AP_GROUPINFO("RTX_MIN", 9, AirBoss_Joystick, rc_min[2], ADC_MIN_VALUE),
+    AP_GROUPINFO("RTX_MAX", 10, AirBoss_Joystick, rc_max[2], ADC_MAX_VALUE),
+    AP_GROUPINFO("RTX_TRIM", 11, AirBoss_Joystick, rc_trim[2], ADC_MID_VALUE),
+    AP_GROUPINFO("RTX_REV", 12, AirBoss_Joystick, rc_rev[2], 0),
 
-    AP_GROUPINFO("LIY_MIN", 16, AirBoss_Joystick, rc_min[5], 0),
-    AP_GROUPINFO("LIY_MAX", 17, AirBoss_Joystick, rc_max[5], 4095),
-    AP_GROUPINFO("LIY_TRIM", 18, AirBoss_Joystick, rc_trim[5], 2047),
+    // ───────────────────────────────────────────────
+    // Right Thumb Y (Pitch)
+    // ───────────────────────────────────────────────
+    AP_GROUPINFO("RTY_MIN", 13, AirBoss_Joystick, rc_min[3], ADC_MIN_VALUE),
+    AP_GROUPINFO("RTY_MAX", 14, AirBoss_Joystick, rc_max[3], ADC_MAX_VALUE),
+    AP_GROUPINFO("RTY_TRIM", 15, AirBoss_Joystick, rc_trim[3], ADC_MID_VALUE),
+    AP_GROUPINFO("RTY_REV", 16, AirBoss_Joystick, rc_rev[3], 0),
 
-    AP_GROUPINFO("RIX_MIN", 19, AirBoss_Joystick, rc_min[6], 0),
-    AP_GROUPINFO("RIX_MAX", 20, AirBoss_Joystick, rc_max[6], 4095),
-    AP_GROUPINFO("RIX_TRIM", 21, AirBoss_Joystick, rc_trim[6], 2047),
+    // ───────────────────────────────────────────────
+    // Left Index X
+    // ───────────────────────────────────────────────
+    AP_GROUPINFO("LIX_MIN", 17, AirBoss_Joystick, rc_min[4], ADC_MIN_VALUE),
+    AP_GROUPINFO("LIX_MAX", 18, AirBoss_Joystick, rc_max[4], ADC_MAX_VALUE),
+    AP_GROUPINFO("LIX_TRIM", 19, AirBoss_Joystick, rc_trim[4], ADC_MID_VALUE),
+    AP_GROUPINFO("LIX_REV", 20, AirBoss_Joystick, rc_rev[4], 0),
 
-    AP_GROUPINFO("RIY_MIN", 22, AirBoss_Joystick, rc_min[7], 0),
-    AP_GROUPINFO("RIY_MAX", 23, AirBoss_Joystick, rc_max[7], 4095),
-    AP_GROUPINFO("RIY_TRIM", 24, AirBoss_Joystick, rc_trim[7], 2047),
+    // ───────────────────────────────────────────────
+    // Left Index Y
+    // ───────────────────────────────────────────────
+    AP_GROUPINFO("LIY_MIN", 21, AirBoss_Joystick, rc_min[5], ADC_MIN_VALUE),
+    AP_GROUPINFO("LIY_MAX", 22, AirBoss_Joystick, rc_max[5], ADC_MAX_VALUE),
+    AP_GROUPINFO("LIY_TRIM", 23, AirBoss_Joystick, rc_trim[5], ADC_MID_VALUE),
+    AP_GROUPINFO("LIY_REV", 24, AirBoss_Joystick, rc_rev[5], 0),
+
+    // ───────────────────────────────────────────────
+    // Right Index X
+    // ───────────────────────────────────────────────
+    AP_GROUPINFO("RIX_MIN", 25, AirBoss_Joystick, rc_min[6], ADC_MIN_VALUE),
+    AP_GROUPINFO("RIX_MAX", 26, AirBoss_Joystick, rc_max[6], ADC_MAX_VALUE),
+    AP_GROUPINFO("RIX_TRIM", 27, AirBoss_Joystick, rc_trim[6], ADC_MID_VALUE),
+    AP_GROUPINFO("RIX_REV", 28, AirBoss_Joystick, rc_rev[6], 0),
+
+    // ───────────────────────────────────────────────
+    // Right Index Y
+    // ───────────────────────────────────────────────
+    AP_GROUPINFO("RIY_MIN", 29, AirBoss_Joystick, rc_min[7], ADC_MIN_VALUE),
+    AP_GROUPINFO("RIY_MAX", 30, AirBoss_Joystick, rc_max[7], ADC_MAX_VALUE),
+    AP_GROUPINFO("RIY_TRIM", 31, AirBoss_Joystick, rc_trim[7], ADC_MID_VALUE),
+    AP_GROUPINFO("RIY_REV", 32, AirBoss_Joystick, rc_rev[7], 0),
+
+    // ───────────────────────────────────────────────
+    // Miscellaneous
+    // ───────────────────────────────────────────────
+    // @Param: RESET
+    // @DisplayName: Reset joystick calibration
+    // @Description: Set to 1 to reset all min/max/trim/rev values to defaults
+    // @Values: 0:Normal,1:Reset
+    // @User: Standard
+    AP_GROUPINFO("RESET", 33, AirBoss_Joystick, _reset, 0),
 
     AP_GROUPEND
 };
+
 
 AirBoss_Joystick::AirBoss_Joystick() :
     dev(nullptr),
     _configured(false)
 {
     AP_Param::setup_object_defaults(this, var_info);
-    memset(&_state, 0, sizeof(_state));
 }
 
 void AirBoss_Joystick::init()
@@ -144,14 +196,130 @@ bool AirBoss_Joystick::read_channel(uint16_t cmd, uint16_t &val)
     return true;
 }
 
+void AirBoss_Joystick::update()
+{
+    if (_reset.get() != 0) {
+        // Reset parameters to defaults
+        for (uint8_t i = 0; i < 8; i++)
+        {
+            rc_min[i].set_and_save(ADC_MIN_VALUE);
+            rc_max[i].set_and_save(ADC_MAX_VALUE);
+            rc_trim[i].set_and_save(ADC_MID_VALUE);
+            rc_rev[i].set_and_save(0);
+        }
+        hal.console->println("AirBoss_Joystick: calibration reset");
+        _reset.set_and_save(0);
+    }
+
+    WITH_SEMAPHORE(_state_sem);
+    _state.left_thumb.x.norm = normalize_adc_input(
+        _state.left_thumb.x.filter.get(),
+        static_cast<uint16_t>(rc_min[0].get()),
+        static_cast<uint16_t>(rc_max[0].get()),
+        static_cast<uint16_t>(rc_trim[0].get()),
+        (rc_rev[0].get() != 0)
+    );
+    _state.left_thumb.y.norm = normalize_adc_input(
+        _state.left_thumb.y.filter.get(),
+        static_cast<uint16_t>(rc_min[1].get()),
+        static_cast<uint16_t>(rc_max[1].get()),
+        static_cast<uint16_t>(rc_trim[1].get()),
+        (rc_rev[1].get() != 0)
+    );
+    _state.right_thumb.x.norm = normalize_adc_input(
+        _state.right_thumb.x.filter.get(),
+        static_cast<uint16_t>(rc_min[2].get()),
+        static_cast<uint16_t>(rc_max[2].get()),
+        static_cast<uint16_t>(rc_trim[2].get()),
+        (rc_rev[2].get() != 0)
+    );
+    _state.right_thumb.y.norm = normalize_adc_input(
+        _state.right_thumb.y.filter.get(),
+        static_cast<uint16_t>(rc_min[3].get()),
+        static_cast<uint16_t>(rc_max[3].get()),
+        static_cast<uint16_t>(rc_trim[3].get()),
+        (rc_rev[3].get() != 0)
+    );
+    _state.left_index.x.norm = normalize_adc_input(
+        _state.left_index.x.filter.get(),
+        static_cast<uint16_t>(rc_min[4].get()),
+        static_cast<uint16_t>(rc_max[4].get()),
+        static_cast<uint16_t>(rc_trim[4].get()),
+        (rc_rev[4].get() != 0)
+    );
+    _state.left_index.y.norm = normalize_adc_input(
+        _state.left_index.y.filter.get(),
+        static_cast<uint16_t>(rc_min[5].get()),
+        static_cast<uint16_t>(rc_max[5].get()),
+        static_cast<uint16_t>(rc_trim[5].get()),
+        (rc_rev[5].get() != 0)
+    );
+    _state.right_index.x.norm = normalize_adc_input(
+        _state.right_index.x.filter.get(),
+        static_cast<uint16_t>(rc_min[6].get()),
+        static_cast<uint16_t>(rc_max[6].get()),
+        static_cast<uint16_t>(rc_trim[6].get()),
+        (rc_rev[6].get() != 0)
+    );
+    _state.right_index.y.norm = normalize_adc_input(
+        _state.right_index.y.filter.get(),
+        static_cast<uint16_t>(rc_min[7].get()),
+        static_cast<uint16_t>(rc_max[7].get()),
+        static_cast<uint16_t>(rc_trim[7].get()),
+        (rc_rev[7].get() != 0)
+    );
+}
+
+// Normalizes a raw ADC joystick input (0–4095) into [-1.0, 1.0] range
+// applying calibration (min/max/trim) and inversion (rev flag).
+float AirBoss_Joystick::normalize_adc_input(uint16_t raw,
+                                 uint16_t min,
+                                 uint16_t max,
+                                 uint16_t trim,
+                                 bool reversed)
+{
+    // Prevent invalid ranges
+    if (max <= min) {
+        return 0.0f;
+    }
+
+    const float fmin  = static_cast<float>(min);
+    const float fmax  = static_cast<float>(max);
+    const float ftrim = static_cast<float>(trim);
+    const float fraw  = static_cast<float>(raw);
+
+    // Compute negative and positive ranges (trim acts as zero point)
+    const float range_neg = (ftrim > fmin) ? (ftrim - fmin) : 1.0f;
+    const float range_pos = (fmax  > ftrim) ? (fmax - ftrim) : 1.0f;
+
+    float norm = 0.0f;
+
+    if (fraw >= ftrim) {
+        norm = (fraw - ftrim) / range_pos;
+    } else {
+        norm = -(ftrim - fraw) / range_neg;
+    }
+
+    // Clamp to [-1, 1]
+    if (norm > 1.0f)  norm = 1.0f;
+    if (norm < -1.0f) norm = -1.0f;
+
+    // Apply inversion if required
+    if (reversed) {
+        norm = -norm;
+    }
+
+    return norm;
+}
 
 void AirBoss_Joystick::adc_timer()
 {
+    WITH_SEMAPHORE(_state_sem);
     uint16_t raw_values[8];
-    float    norm_values[8];
+    // float    norm_values[8];
 
     // Clear (portable)
-    for (uint8_t i = 0; i < 8; i++) { raw_values[i] = 0xFFFF; norm_values[i] = 0.0f; }
+    for (uint8_t i = 0; i < 8; i++) { raw_values[i] = 0xFFFF; }
 
     // ---- ADS7951 pipeline handling (N+2) ----
     uint16_t tmp;
@@ -178,46 +346,62 @@ void AirBoss_Joystick::adc_timer()
     if (!read_channel(joystick_cmds[0], tmp)) { _state.healthy = false; return; }
     raw_values[7] = tmp;
 
-    // === Normalization with mapping and inversion ===
-    for (uint8_t logical = 0; logical < 8; logical++) {
-        const uint8_t ch = channel_map[logical];   // physical ADC channel index
-        const uint8_t param_ch = parameter_channel_map[logical]; // parameter mapping index
-        const float min  = rc_min[param_ch];
-        const float max  = rc_max[param_ch];
-        const float trim = rc_trim[param_ch];
-        const float raw  = raw_values[ch];
-
-        const float range_neg = (trim > min) ? (trim - min) : 1.0f;
-        const float range_pos = (max > trim) ? (max - trim) : 1.0f;
-
-        float norm;
-        if (raw >= trim) {
-            norm = (raw - trim) / range_pos;
-        } else {
-            norm = -(trim - raw) / range_neg;
-        }
-
-        // apply inversion if required
-        if (invert_axis[logical]) {
-            norm = -norm;
-        }
-
-        // clamp
-        norm_values[logical] = constrain_float(norm, -1.0f, 1.0f);
-    }
+    // // ---- Normalize all axes ----
+    // for (uint8_t i = 0; i < 8; i++) {
+    //     uint8_t channel_id = channel_map[i];
+    //     norm_values[i] = normalize_adc_input(
+    //         raw_values[channel_id],
+    //         static_cast<uint16_t>(rc_min[channel_id].get()),
+    //         static_cast<uint16_t>(rc_max[channel_id].get()),
+    //         static_cast<uint16_t>(rc_trim[channel_id].get()),
+    //         (rc_rev[channel_id].get() != 0)
+    //     );
+    // }
 
     // Map channels to sticks (keep your chosen wiring order)
-    _state.left_thumb.x   = { raw_values[channel_map[0]], norm_values[0] };
-    _state.left_thumb.y   = { raw_values[channel_map[1]], norm_values[1] };
+    _state.left_thumb.x.raw  = raw_values[channel_map[0]];
+    _state.left_thumb.x.filter.apply(_state.left_thumb.x.raw);
+    // _state.left_thumb.x.norm = norm_values[0];
 
-    _state.right_thumb.x  = { raw_values[channel_map[2]], norm_values[2] };
-    _state.right_thumb.y  = { raw_values[channel_map[3]], norm_values[3] };
+    _state.left_thumb.y.raw  = raw_values[channel_map[1]];
+    _state.left_thumb.y.filter.apply(_state.left_thumb.y.raw);
+    // _state.left_thumb.y.norm = norm_values[1];
 
-    _state.left_index.x   = { raw_values[channel_map[4]], norm_values[4] };
-    _state.left_index.y   = { raw_values[channel_map[5]], norm_values[5] };
+    _state.right_thumb.x.raw  = raw_values[channel_map[2]];
+    _state.right_thumb.x.filter.apply(_state.right_thumb.x.raw);
+    // _state.right_thumb.x.norm = norm_values[2];
 
-    _state.right_index.x  = { raw_values[channel_map[6]], norm_values[6] };
-    _state.right_index.y  = { raw_values[channel_map[7]], norm_values[7] };
+    _state.right_thumb.y.raw  = raw_values[channel_map[3]];
+    _state.right_thumb.y.filter.apply(_state.right_thumb.y.raw);
+    // _state.right_thumb.y.norm = norm_values[3];
+
+    _state.left_index.x.raw  = raw_values[channel_map[4]];
+    _state.left_index.x.filter.apply(_state.left_index.x.raw);
+    // _state.left_index.x.norm = norm_values[4];
+
+    _state.left_index.y.raw  = raw_values[channel_map[5]];
+    _state.left_index.y.filter.apply(_state.left_index.y.raw);
+    // _state.left_index.y.norm = norm_values[5];
+
+    _state.right_index.x.raw  = raw_values[channel_map[6]];
+    _state.right_index.x.filter.apply(_state.right_index.x.raw);
+    // _state.right_index.x.norm = norm_values[6];
+
+    _state.right_index.y.raw  = raw_values[channel_map[7]];
+    _state.right_index.y.filter.apply(_state.right_index.y.raw);
+    // _state.right_index.y.norm = norm_values[7];
+
+    
+    // _state.left_thumb.y   = { raw_values[channel_map[1]], norm_values[1] };
+
+    // _state.right_thumb.x  = { raw_values[channel_map[2]], norm_values[2] };
+    // _state.right_thumb.y  = { raw_values[channel_map[3]], norm_values[3] };
+
+    // _state.left_index.x   = { raw_values[channel_map[4]], norm_values[4] };
+    // _state.left_index.y   = { raw_values[channel_map[5]], norm_values[5] };
+
+    // _state.right_index.x  = { raw_values[channel_map[6]], norm_values[6] };
+    // _state.right_index.y  = { raw_values[channel_map[7]], norm_values[7] };
 
 
     _state.healthy = true;
