@@ -32,9 +32,10 @@ public:
         CENTRE,
         UP,
         DOWN,
-        LIGHTS,
+        LIGHTS, // special handling in code
         BEHIND_RIGHT,
         BEHIND_LEFT,
+        EMERGENCY_KILL, // virtual function
         COUNT
     };
 
@@ -69,4 +70,7 @@ private:
     void timer_update();                 // 1 kHz debounce task
 
     Switch3State get_three_way_switch_state(uint8_t low_idx, uint8_t high_idx) const;
+
+    Switch3State lights_state = Switch3State::DOWN;
+    bool last_lights_pressed = false;
 };

@@ -18,6 +18,7 @@
 #include <hal.h>
 #include "../../modules/ChibiOS/os/various/evtimer.h"
 #include <AP_HAL_ChibiOS/hwdef/common/stm32_util.h>
+#include <hal_mii.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -462,6 +463,7 @@ void AP_Networking_ChibiOS::thread()
 */
 void AP_Networking_ChibiOS::update()
 {
+    // ---- track IP/netmask/gw changes ----
     const uint32_t ip = ntohl(thisif->ip_addr.addr);
     const uint32_t nm = ntohl(thisif->netmask.addr);
     const uint32_t gw = ntohl(thisif->gw.addr);
@@ -474,7 +476,166 @@ void AP_Networking_ChibiOS::update()
         activeSettings.nm = nm;
         activeSettings.last_change_ms = AP_HAL::millis();
     }
-}
 
+//     // ---- periodic (1 Hz) PHY/MAC monitor ----
+//     static uint32_t last_poll_ms        = 0;
+//     static uint32_t last_soft_reset_ms  = 0;
+//     static uint32_t last_hw_reset_ms    = 0;
+//     // static uint8_t  an_fail_count       = 0;   // how many times AN didn’t complete
+//     const uint32_t now = AP_HAL::millis();
+
+//     if (now - last_poll_ms < 1000) {
+//         return;
+//     }
+//     last_poll_ms = now;
+
+//     // --- read PHY regs ---
+//     const uint32_t physts = mii_read(&ETHD1, MII_PHYSTS);
+//     uint32_t bmcr         = mii_read(&ETHD1, MII_BMCR);
+//     const uint32_t bmsr   = mii_read(&ETHD1, MII_BMSR);
+//     const uint32_t lpa    = mii_read(&ETHD1, MII_LPA);
+//     uint32_t advert       = mii_read(&ETHD1, MII_ADVERTISE);
+
+//     // live link from PHYSTS
+//     const bool link_up     = (physts & 0x0001);
+//     const bool full_duplex = (physts & 0x0004);
+//     const bool speed_100   = !(physts & 0x0002);
+
+//     // always print once a second (we may not have GCS)
+//     hal.console->printf(
+//         "\n[NET] Link:%s | Mode:%s %s | BMCR=0x%04lx BMSR=0x%04lx ADV=0x%04lx LPA=0x%04lx PHYSTS=0x%04lx\n",
+//         link_up ? "UP" : "DOWN",
+//         speed_100 ? "100Mbps" : "10Mbps",
+//         full_duplex ? "Full" : "Half",
+//         (unsigned long)bmcr,
+//         (unsigned long)bmsr,
+//         (unsigned long)advert,
+//         (unsigned long)lpa,
+//         (unsigned long)physts
+//     );
+
+//     // ------------------------------------------------------------------
+//     // LINK DOWN  → try to revive
+//     // ------------------------------------------------------------------
+//     if (!link_up) {
+//         // 1) wake from power-down
+//         if (bmcr & BMCR_PDOWN) {
+//             hal.console->printf("⚙️  PHY is in power-down — waking up\n");
+//             bmcr &= ~BMCR_PDOWN;
+//             mii_write(&ETHD1, MII_BMCR, bmcr);
+//         }
+
+//         // 2) make sure we advertise everything sensible
+//         uint16_t wanted_adv =
+//             ADVERTISE_CSMA   |
+//             ADVERTISE_10HALF |
+//             ADVERTISE_10FULL |
+//             ADVERTISE_100HALF|
+//             ADVERTISE_100FULL|
+//             ADVERTISE_PAUSE_CAP;
+//         if (advert != wanted_adv) {
+//             hal.console->printf("⚙️  Fixing PHY advertise: 0x%04x → 0x%04x\n",
+//                                 (unsigned)advert, (unsigned)wanted_adv);
+//             mii_write(&ETHD1, MII_ADVERTISE, wanted_adv);
+//         }
+
+//         // 3) restart AN
+//         hal.console->printf("⚙️  Restarting auto-negotiation (link down)\n");
+//         bmcr |= (BMCR_ANENABLE | BMCR_ANRESTART);
+//         mii_write(&ETHD1, MII_BMCR, bmcr);
+
+//         // 4) every 5s, soft-reset PHY
+//         if (now - last_soft_reset_ms > 5000) {
+//             hal.console->printf("🔄 PHY soft reset (link down)\n");
+//             mii_write(&ETHD1, MII_BMCR, BMCR_RESET);
+//             hal.scheduler->delay(100);
+//             last_soft_reset_ms = now;
+//             // an_fail_count = 0;  // restart counting after reset
+//         }
+
+// #ifdef HAL_GPIO_ETH_ENABLE
+//         // 5) every 10s, toggle hardware reset pin
+//         if (now - last_hw_reset_ms > 10000) {
+//             hal.console->printf("🧰 PHY hw-reset via HAL_GPIO_ETH_ENABLE\n");
+//             hal.gpio->write(HAL_GPIO_ETH_ENABLE, 0);
+//             hal.scheduler->delay(50);
+//             hal.gpio->write(HAL_GPIO_ETH_ENABLE, 1);
+//             hal.scheduler->delay(150);
+//             last_hw_reset_ms = now;
+//         }
+// #endif
+
+//         hal.console->printf("🕓 Waiting for PHY link to come up...\n");
+//         return;
+//     }
+
+//     // ------------------------------------------------------------------
+//     // LINK UP  → but AN not complete  → that’s your current case
+//     // ------------------------------------------------------------------
+//     const bool an_complete = (bmsr & BMSR_ANEGCOMPLETE);
+//     if (!an_complete) {
+//         hal.console->printf("⚠️  PHY link up but auto-negotiation NOT complete (LPA=0x%04lx)\n",
+//                             (unsigned long)lpa);
+
+//         // Ensure we are advertising everything sane
+//         uint16_t wanted_adv =
+//             ADVERTISE_CSMA   |
+//             ADVERTISE_10HALF |
+//             ADVERTISE_10FULL |
+//             ADVERTISE_100HALF|
+//             ADVERTISE_100FULL|
+//             ADVERTISE_PAUSE_CAP;
+//         if (advert != wanted_adv) {
+//             hal.console->printf("⚙️  Fixing PHY advertise (link up): 0x%04x → 0x%04x\n",
+//                                 (unsigned)advert, (unsigned)wanted_adv);
+//             mii_write(&ETHD1, MII_ADVERTISE, wanted_adv);
+//         }
+
+//         // try restarting AN
+//         hal.console->printf("⚙️  Forcing AN restart (link up, no LPA)\n");
+//         bmcr |= (BMCR_ANENABLE | BMCR_ANRESTART);
+//         mii_write(&ETHD1, MII_BMCR, bmcr);
+
+//         // if we keep failing, fall back to forced 100/FD
+//         if (++an_fail_count > 5) {
+//             hal.console->printf("🛠  AN stuck → forcing 100Mbps FULL, AN off\n");
+//             uint32_t force = 0;
+//             force |= BMCR_SPEED100;   // bit 13
+//             force |= BMCR_FULLDPLX;   // bit 8
+//             // AN disabled → link partner should still work if fixed-speed
+//             mii_write(&ETHD1, MII_BMCR, force);
+//             an_fail_count = 0;
+//         }
+
+//         // also reinit MAC, since you saw 0 RX/TX:
+//         hal.console->printf("🔁 Reinitializing MAC (macStop/macStart) due to AN stall\n");
+//         macStop(&ETHD1);
+//         {
+//             const MACConfig mac_config = {thisif->hwaddr};
+//             macStart(&ETHD1, &mac_config);
+//         }
+
+//     } else {
+//         // got AN
+//         an_fail_count = 0;
+//     }
+
+//     // ------------------------------------------------------------------
+//     // LINK UP  → show MAC counters (if present on this STM32)
+//     // ------------------------------------------------------------------
+// #if defined(ETH)
+//     uint32_t rx_ok = 0, tx_ok = 0;
+//     #if defined(ETH_MMCRGUFCR)
+//         rx_ok = ETH->MMCRGUFCR;   // Good unicast frames received
+//     #endif
+//     #if defined(ETH_MMCTGFCR)
+//         tx_ok = ETH->MMCTGFCR;    // Good frames transmitted
+//     #elif defined(ETH_MMCTGFSCCR)
+//         tx_ok = ETH->MMCTGFSCCR;
+//     #endif
+//     hal.console->printf("📊 MAC Counters: RX_OK=%lu TX_OK=%lu\n",
+//                         (unsigned long)rx_ok, (unsigned long)tx_ok);
+// #endif
+}
 #endif // AP_NETWORKING_BACKEND_CHIBIOS
 

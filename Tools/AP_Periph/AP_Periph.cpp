@@ -570,6 +570,7 @@ void AP_Periph_FW::update()
         // run at 100Hz
         airboss_joystick_last_ms = now;
         airboss_joystick.update();
+        airboss_switches.update();
     }
     const AirBoss_Joystick::JoystickState js_state = airboss_joystick.get_state();
     
@@ -597,7 +598,7 @@ void AP_Periph_FW::update()
         if (uart != nullptr) {
             uart->usb_hid_send_joystick(65535, js_state.right_thumb.x.norm*127, js_state.right_thumb.y.norm*127);
         }
-        // airboss_switches.print_states();
+        airboss_switches.print_states();
         // airboss_joystick.print_states();
     }
 
@@ -641,7 +642,7 @@ size_t AP_Periph_FW::pack_sbus_from_joystick_and_switches(
     // ───────────────────────────────────────────────
     ch[4] = switches.function_to_sbus(AirBoss_Switches::Function::MODE_SELECT);
     ch[6] = switches.function_to_sbus(AirBoss_Switches::Function::KILL_SWITCH);
-    ch[7] = switches.function_to_sbus(AirBoss_Switches::Function::KILL_SWITCH);
+    ch[7] = switches.function_to_sbus(AirBoss_Switches::Function::EMERGENCY_KILL);
     ch[11] = switches.function_to_sbus(AirBoss_Switches::Function::LIGHTS);
 
     // ───────────────────────────────────────────────

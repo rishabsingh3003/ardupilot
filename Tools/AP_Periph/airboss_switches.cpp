@@ -25,6 +25,7 @@ AirBoss_Switches::AirBoss_Switches() {
     function_map[(uint8_t)Function::LIGHTS]        = {1, 255}; // GPIO10
     function_map[(uint8_t)Function::BEHIND_RIGHT]  = {7, 255}; // GPIO11
     function_map[(uint8_t)Function::BEHIND_LEFT]   = {6, 255}; // GPIO12
+    // EMERGENCY_KILL not mapped by default - its a virtual function that depends on activation of KILL_SWITCH and  BEHIND_RIGHT/LEFT
 }
 
 void AirBoss_Switches::init() {
@@ -50,6 +51,19 @@ void AirBoss_Switches::init() {
 
 void AirBoss_Switches::update() {
     // optional slow logic here (e.g. MAVLink report or logging)
+    const bool lights_pressed = is_pressed(Function::LIGHTS);
+
+    // detect edge (button press transition)
+    if (lights_pressed && !last_lights_pressed) {
+        // cycle through DOWN → MID → UP → DOWN ...
+        switch (lights_state) {
+            case Switch3State::DOWN: lights_state = Switch3State::MID; break;
+            case Switch3State::MID:  lights_state = Switch3State::UP;  break;
+            case Switch3State::UP:   lights_state = Switch3State::DOWN; break;
+        }
+    }
+
+    last_lights_pressed = lights_pressed;
 }
 
 void AirBoss_Switches::timer_update() {
@@ -94,6 +108,22 @@ bool AirBoss_Switches::is_pressed(Function f) const {
 
 AirBoss_Switches::Switch3State
 AirBoss_Switches::get_switch_state(Function f) const {
+    // we have special handling for some functions
+    if (f == Function::LIGHTS) {
+        return lights_state;
+    }
+    if (f == Function::EMERGENCY_KILL) {
+        // Emergency kill is active if KILL_SWITCH is active AND either BEHIND_RIGHT or BEHIND_LEFT is active
+        Switch3State kill_active = get_switch_state(Function::KILL_SWITCH);
+        Switch3State behind_right = get_switch_state(Function::BEHIND_RIGHT);
+        Switch3State behind_left = get_switch_state(Function::BEHIND_LEFT);
+        if (kill_active == Switch3State::UP && (behind_right  == Switch3State::UP || behind_left  == Switch3State::UP)) {
+            return Switch3State::UP; // EMERGENCY_KILL active
+        } else {
+            return Switch3State::DOWN; // EMERGENCY_KILL inactive
+        }
+    }
+
     const auto &m = function_map[(uint8_t)f];
     if (m.high_pin == 255)
         return get_state(m.low_pin) ? Switch3State::UP : Switch3State::DOWN;
@@ -113,6 +143,7 @@ static const char* function_name(AirBoss_Switches::Function f)
     case AirBoss_Switches::Function::LIGHTS:          return "LIGHTS";
     case AirBoss_Switches::Function::BEHIND_RIGHT:    return "BEHIND_RIGHT";
     case AirBoss_Switches::Function::BEHIND_LEFT:     return "BEHIND_LEFT";
+    case AirBoss_Switches::Function::EMERGENCY_KILL:  return "EMERGENCY_KILL";
     default:                                          return "UNKNOWN";
     }
 }
