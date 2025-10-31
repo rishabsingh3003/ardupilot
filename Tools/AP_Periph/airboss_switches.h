@@ -16,10 +16,10 @@ public:
     bool get_raw(uint8_t index) const;   // instant raw read
 
      // 3-way switch state
-     enum class Switch3State {
-        DOWN = -1,
-        MID  = 0,
-        UP   = 1
+     enum class Switch3State : uint8_t {
+        DOWN = 0,
+        MID,
+        UP
     };
 
     // Logical functionality mapping

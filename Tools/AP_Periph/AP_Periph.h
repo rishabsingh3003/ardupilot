@@ -432,7 +432,10 @@ public:
     uint64_t get_vehicle_state() { return 0; }
 #endif
 
-    void get_joystick_state(AirBoss_Joystick::JoystickState &js) { js = airboss_joystick.get_state(); }  
+    void get_joystick_state(AirBoss_Joystick::JoystickState &js) { js = airboss_joystick.get_state(); }
+    uint8_t get_switch_status(uint8_t f) {
+        return static_cast<uint8_t>(airboss_switches.get_switch_state(static_cast<AirBoss_Switches::Function>(f)));
+    }
 
 #if AP_SCRIPTING_ENABLED
     AP_Scripting scripting;
