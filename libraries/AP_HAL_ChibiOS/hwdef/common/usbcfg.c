@@ -78,12 +78,12 @@ static const USBDescriptor hid_report_descriptor = {
  */
 static const uint8_t vcom_device_descriptor_data[18] = {
     USB_DESC_DEVICE(
-        0x0200,             /* bcdUSB (1.1).                    */
-        0x00,               /* bDeviceClass (CDC).              */
-        0x00,               /* bDeviceSubClass.                 */
-        0x00,               /* bDeviceProtocol.                 */
+        0x0200,             /* bcdUSB (2.0).                    */
+        0xEF,               /* bDeviceClass (Miscellaneous).    */
+        0x02,               /* bDeviceSubClass.                 */
+        0x01,               /* bDeviceProtocol.                 */
         0x40,               /* bMaxPacketSize.                  */
-        HAL_USB_VENDOR_ID,  /* idVendor (ST).                   */
+        HAL_USB_VENDOR_ID,  /* idVendor.                        */
         HAL_USB_PRODUCT_ID, /* idProduct.                       */
         0x0200,             /* bcdDevice.                       */
         1,                  /* iManufacturer.                   */
@@ -91,6 +91,7 @@ static const uint8_t vcom_device_descriptor_data[18] = {
         3,                  /* iSerialNumber.                   */
         1)                  /* bNumConfigurations.              */
 };
+
 
 /*
  * Device Descriptor wrapper.
@@ -100,15 +101,24 @@ static const USBDescriptor vcom_device_descriptor = {
   vcom_device_descriptor_data
 };
 
-/* Configuration Descriptor tree for a CDC.*/
-static const uint8_t vcom_configuration_descriptor_data[92] = {
+/* Configuration Descriptor tree for CDC + HID. */
+static const uint8_t vcom_configuration_descriptor_data[100] = {
   /* Configuration Descriptor.*/
-  USB_DESC_CONFIGURATION(92,            /* wTotalLength.                    */
+  USB_DESC_CONFIGURATION(100,           /* wTotalLength.                    */
                          0x03,          /* bNumInterfaces.                  */
                          0x01,          /* bConfigurationValue.             */
                          0,             /* iConfiguration.                  */
                          0xC0,          /* bmAttributes (self powered).     */
                          50),           /* bMaxPower (100mA).               */
+    /* Interface Association Descriptor (IAD) for CDC (IF 0 + 1). */
+    0x08,                  /* bLength.                         */
+    0x0B,                  /* bDescriptorType (IAD).           */
+    0x00,                  /* bFirstInterface (0).             */
+    0x02,                  /* bInterfaceCount (0 and 1).       */
+    0x02,                  /* bFunctionClass (CDC).            */
+    0x02,                  /* bFunctionSubClass (ACM).         */
+    0x01,                  /* bFunctionProtocol (AT commands). */
+    0x00,                  /* iFunction.                       */
   /* Interface Descriptor.*/
   USB_DESC_INTERFACE    (0x00,          /* bInterfaceNumber.                */
                          0x00,          /* bAlternateSetting.               */
