@@ -110,13 +110,13 @@ bool AirBoss_Networking::init()
 //     }
 
     // RC output (UAV -> joystick/GCS)
-    if (!telem_out.open_client("192.168.144.9", 5601)) {
+    if (!telem_out.open_client("192.168.17.9", 14559)) {
         hal.console->printf("telem_out open failed\n");
         return false;
     }
 
     // Telemetry output (UAV -> dashboard)
-    if (!rc_out.open_client("192.168.144.9", 14551)) {
+    if (!rc_out.open_client("192.168.17.202", 14551)) {
         hal.console->printf("rc out failed\n");
         return false;
     }

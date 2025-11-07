@@ -598,7 +598,7 @@ void AP_Periph_FW::update()
         if (uart != nullptr) {
             uart->usb_hid_send_joystick(65535, js_state.right_thumb.x.norm*127, js_state.right_thumb.y.norm*127);
         }
-        airboss_switches.print_states();
+        // airboss_switches.print_states();
         // airboss_joystick.print_states();
     }
 
