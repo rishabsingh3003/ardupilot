@@ -137,7 +137,20 @@ public:
       return true if this UART has DMA enabled on both RX and TX
      */
     bool is_dma_enabled() const override { return rx_dma_enabled && tx_dma_enabled; }
-    void usb_hid_send_joystick(int16_t buttons, int8_t x, int8_t y) override;
+    void usb_hid_send_joystick(uint16_t x, uint16_t y,
+        uint16_t z, uint16_t rz,
+        uint8_t hat, uint16_t buttons) override;
+
+    struct PACKED HIDJoystickReport_t {
+        uint16_t x  :12;
+        uint16_t y  :12;
+        uint16_t z  :12;
+        uint16_t rz :12;
+        uint8_t  hat :4;
+        uint8_t  buttons_lo;  // bits 0–7
+        uint8_t  buttons_hi;  // bits 8–13 (6 bits used)
+    };
+
 private:
     const SerialDef &sdef;
     bool rx_dma_enabled;

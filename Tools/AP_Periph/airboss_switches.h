@@ -48,6 +48,8 @@ public:
     void print_states();
 
     uint16_t function_to_sbus(Function f) const;
+    
+    uint16_t compute_hid_buttons() const ;
 
 private:
     struct Switch {

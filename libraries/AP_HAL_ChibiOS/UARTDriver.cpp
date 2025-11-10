@@ -1832,19 +1832,33 @@ void UARTDriver::disable_rxtx(void) const
         palSetLineMode(atx_line, PAL_MODE_INPUT);
     }
 }
-void UARTDriver::usb_hid_send_joystick(int16_t buttons, int8_t x, int8_t y)
+void UARTDriver::usb_hid_send_joystick(uint16_t x, uint16_t y,
+                                       uint16_t z, uint16_t rz,
+                                       uint8_t hat, uint16_t buttons)
 {
     USBDriver *usbp = serusbcfg1.usbp;
 
+    // Ensure USB is configured
     if (usbp == nullptr || usbp->state != USB_ACTIVE) {
-        return; // USB not ready or not configured
+        return;
     }
 
-    static uint8_t report[4];  // must persist until transfer completes
-    report[0] = (uint8_t)(buttons & 0xFF);
-    report[1] = (uint8_t)((buttons >> 8) & 0xFF);
-    report[2] = (uint8_t)x;
-    report[3] = (uint8_t)y;
+    static uint8_t report[9];  // exactly 9 bytes per HID descriptor
+
+    // Pack 4×12-bit axes (little-endian)
+    report[0] =  x & 0xFF;
+    report[1] = ((x >> 8) & 0x0F) | ((y & 0x0F) << 4);
+    report[2] = (y >> 4) & 0xFF;
+    report[3] =  z & 0xFF;
+    report[4] = ((z >> 8) & 0x0F) | ((rz & 0x0F) << 4);
+    report[5] = (rz >> 4) & 0xFF;
+
+    // Hat + 2 bits padding
+    report[6] = (hat & 0x0F) | (0x00 << 4);
+
+    // 14 buttons (2 bytes)
+    report[7] = buttons & 0xFF;
+    report[8] = (buttons >> 8) & 0x3F;
 
     osalSysLock();
     if (!usbGetTransmitStatusI(usbp, 3)) {

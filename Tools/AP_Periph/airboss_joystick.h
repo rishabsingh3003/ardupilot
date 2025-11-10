@@ -56,6 +56,8 @@ public:
 
     void update();
 
+    uint8_t compute_hat_direction(float x_norm, float y_norm);
+
     static const struct AP_Param::GroupInfo var_info[];
 
 private:

@@ -443,3 +443,46 @@ void AirBoss_Joystick::print_states()
 
     hal.console->printf("========================\n");
 }
+
+/**
+ * @brief Compute hat direction based on right index stick normalized inputs.
+ * 
+ * @param x_norm  Right index X axis, normalized [-1.0, +1.0]
+ * @param y_norm  Right index Y axis, normalized [-1.0, +1.0]
+ * @return uint8_t Hat value (0–7 = direction, 8 = neutral)
+ */
+uint8_t AirBoss_Joystick::compute_hat_direction(float x_norm, float y_norm)
+{
+    const float HIGH =  0.39f;  // equivalent to >2848
+    const float LOW  = -0.39f;  // equivalent to <1248
+    uint8_t hat = 8;            // neutral (null state)
+
+    if (y_norm > HIGH)
+    {
+        if (x_norm > HIGH)
+            hat = 1;  // Up-Right
+        else if (x_norm < LOW)
+            hat = 7;  // Up-Left
+        else
+            hat = 0;  // Up
+    }
+    else if (y_norm < LOW)
+    {
+        if (x_norm > HIGH)
+            hat = 3;  // Down-Right
+        else if (x_norm < LOW)
+            hat = 5;  // Down-Left
+        else
+            hat = 4;  // Down
+    }
+    else if (x_norm > HIGH)
+    {
+        hat = 2;      // Right
+    }
+    else if (x_norm < LOW)
+    {
+        hat = 6;      // Left
+    }
+
+    return hat;
+}

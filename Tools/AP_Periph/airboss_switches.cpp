@@ -175,3 +175,27 @@ void AirBoss_Switches::print_states()
     }
     hal.console->printf("========================\n");
 }
+
+// Returns a 14-bit HID-style button mask based on current switch states
+uint16_t AirBoss_Switches::compute_hid_buttons() const {
+    uint16_t buttons = 0;
+    uint8_t bit_index = 0;
+
+    for (uint8_t i = 0; i < (uint8_t)Function::COUNT; i++) {
+        if (bit_index >= 14) {
+            break;  // HID joystick supports 14 buttons
+        }
+
+        const Function f = static_cast<Function>(i);
+        const Switch3State state = get_switch_state(f);
+
+        // Treat UP as pressed (1), everything else as unpressed (0)
+        if (state == Switch3State::UP) {
+            buttons |= (1U << bit_index);
+        }
+
+        bit_index++;
+    }
+
+    return buttons;
+}
