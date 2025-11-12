@@ -575,7 +575,7 @@ void AP_Periph_FW::update()
     const AirBoss_Joystick::JoystickState js_state = airboss_joystick.get_state();
     
     static uint32_t last_status_ms;
-    if (now - last_status_ms > 20) {
+    if (now - last_status_ms > 50) {
         last_status_ms = now;
         airboss_networking.send_airboss_state(js_state);
     //     bool temp_switches[NUM_SWITCHES];

@@ -15,7 +15,7 @@ AirBoss_Switches::AirBoss_Switches() {
         function_map[i] = {255, 255}; // unused
     }
 
-    function_map[(uint8_t)Function::KILL_SWITCH]   = {8, 9};   // GPIO1, GPIO2
+    function_map[(uint8_t)Function::KILL_SWITCH]   = {9, 8};   // GPIO1, GPIO2
     function_map[(uint8_t)Function::MODE_SELECT]   = {4, 5};   // GPIO3, GPIO4
     function_map[(uint8_t)Function::CAM_MODE]      = {11, 255}; // GPIO5
     function_map[(uint8_t)Function::REC]           = {3, 255}; // GPIO6
@@ -117,7 +117,7 @@ AirBoss_Switches::get_switch_state(Function f) const {
         Switch3State kill_active = get_switch_state(Function::KILL_SWITCH);
         Switch3State behind_right = get_switch_state(Function::BEHIND_RIGHT);
         Switch3State behind_left = get_switch_state(Function::BEHIND_LEFT);
-        if (kill_active == Switch3State::UP && (behind_right  == Switch3State::UP || behind_left  == Switch3State::UP)) {
+        if (kill_active == Switch3State::DOWN && (behind_right  == Switch3State::UP || behind_left  == Switch3State::UP)) {
             return Switch3State::UP; // EMERGENCY_KILL active
         } else {
             return Switch3State::DOWN; // EMERGENCY_KILL inactive
