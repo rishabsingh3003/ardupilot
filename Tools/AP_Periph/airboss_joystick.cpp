@@ -150,6 +150,13 @@ const AP_Param::GroupInfo AirBoss_Joystick::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RESET", 33, AirBoss_Joystick, _reset, 0),
 
+    // @Param: RATE_LIM
+    // @DisplayName: Axis Rate Limit
+    // @Description: Maximum rate of change for joystick axes in normalized units per second (0 = no limit)
+    // @Range: 0 1
+    // @User: Standard
+    AP_GROUPINFO("RATE_LIM", 34, AirBoss_Joystick, _rate_limit, 0.0f),
+
     AP_GROUPEND
 };
 
@@ -268,6 +275,7 @@ void AirBoss_Joystick::update()
         static_cast<uint16_t>(rc_trim[7].get()),
         (rc_rev[7].get() != 0)
     );
+    rate_limit_axes(AP_HAL::millis());
 }
 
 // Normalizes a raw ADC joystick input (0–4095) into [-1.0, 1.0] range
@@ -310,6 +318,63 @@ float AirBoss_Joystick::normalize_adc_input(uint16_t raw,
     }
 
     return norm;
+}
+
+void AirBoss_Joystick::rate_limit_axes(float now_ms)
+{
+    if (_rate_limit.get() <= 0.0f) {
+        // No rate limiting
+        return;
+    }
+
+    const float signal_timeout_ms = 500;  // reset after inactivity
+    const float reset_threshold = 1.5f;   // full reset if jump > 0.5 in norm space
+
+    // Flatten access to all 8 normalized channels for simplicity
+    float* axes[8] = {
+        &_state.left_thumb.x.norm,
+        &_state.left_thumb.y.norm,
+        &_state.right_thumb.x.norm,
+        &_state.right_thumb.y.norm,
+        &_state.left_index.x.norm,
+        &_state.left_index.y.norm,
+        &_state.right_index.x.norm,
+        &_state.right_index.y.norm
+    };
+
+    for (int i = 0; i < 8; i++) {
+        float in = *axes[i];
+        float prev = filter_norm_hist[i];
+        float dt = now_ms - last_update_filter_time_ms[i];
+
+        // Reset if first time or timeout
+        if (dt > signal_timeout_ms || dt <= 0 || last_update_filter_time_ms[i] == 0) {
+            filter_norm_hist[i] = in;
+            last_update_filter_time_ms[i] = now_ms;
+            continue;
+        }
+
+        // Reset on sudden jumps
+        if (fabsf(in - prev) > reset_threshold) {
+            filter_norm_hist[i] = in;
+            last_update_filter_time_ms[i] = now_ms;
+            continue;
+        }
+
+        // Rate limiting (clamp delta per dt)
+        float max_delta = _rate_limit * (dt / 1000.0f);  // normalized units per sec
+        if (max_delta < 0.01f) max_delta = 0.01f;
+
+        float delta = in - prev;
+        if (delta > max_delta) {
+            delta = max_delta;
+        } else if (delta < -max_delta) {
+            delta = -max_delta;
+        }
+        filter_norm_hist[i] = prev + delta;
+        *axes[i] = filter_norm_hist[i];  // write filtered value back
+        last_update_filter_time_ms[i] = now_ms;
+    }
 }
 
 void AirBoss_Joystick::adc_timer()

@@ -69,6 +69,11 @@ private:
         uint16_t trim,
         bool rev);
 
+    // For rate limiting
+    float filter_norm_hist[8] = {0};
+    uint32_t last_update_filter_time_ms[8] = {0};
+    void rate_limit_axes(float now_ms);
+    
     bool read_channel(uint16_t cmd, uint16_t &val);
     AP_HAL::OwnPtr<AP_HAL::SPIDevice> dev;
     bool _configured;
@@ -81,6 +86,7 @@ private:
     AP_Int16 rc_trim[8];
     AP_Int8  rc_rev[8];
     AP_Int8  _reset;
+    AP_Float _rate_limit;
 
     // Logical order mapping: [left_thumb.x, left_thumb.y, right_thumb.x, right_thumb.y, left_index.x, left_index.y, right_index.x, right_index.y]
     // Each entry is the ADC channel index (0–7)
