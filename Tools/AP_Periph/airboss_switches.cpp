@@ -15,7 +15,7 @@ AirBoss_Switches::AirBoss_Switches() {
         function_map[i] = {255, 255}; // unused
     }
 
-    function_map[(uint8_t)Function::KILL_SWITCH]   = {9, 8};   // GPIO1, GPIO2
+    function_map[(uint8_t)Function::KILL_SWITCH]   = {8, 9};   // GPIO1, GPIO2
     function_map[(uint8_t)Function::MODE_SELECT]   = {4, 5};   // GPIO3, GPIO4
     function_map[(uint8_t)Function::CAM_MODE]      = {11, 255}; // GPIO5
     function_map[(uint8_t)Function::REC]           = {3, 255}; // GPIO6
@@ -117,7 +117,7 @@ AirBoss_Switches::get_switch_state(Function f) const {
         Switch3State kill_active = get_switch_state(Function::KILL_SWITCH);
         Switch3State behind_right = get_switch_state(Function::BEHIND_RIGHT);
         Switch3State behind_left = get_switch_state(Function::BEHIND_LEFT);
-        if (kill_active == Switch3State::DOWN && (behind_right  == Switch3State::UP || behind_left  == Switch3State::UP)) {
+        if (kill_active == Switch3State::UP && (behind_right  == Switch3State::UP || behind_left  == Switch3State::UP)) {
             return Switch3State::UP; // EMERGENCY_KILL active
         } else {
             return Switch3State::DOWN; // EMERGENCY_KILL inactive
@@ -177,24 +177,88 @@ void AirBoss_Switches::print_states()
 }
 
 // Returns a 14-bit HID-style button mask based on current switch states
-uint16_t AirBoss_Switches::compute_hid_buttons() const {
+uint16_t AirBoss_Switches::compute_hid_buttons() const
+{
     uint16_t buttons = 0;
-    uint8_t bit_index = 0;
 
     for (uint8_t i = 0; i < (uint8_t)Function::COUNT; i++) {
-        if (bit_index >= 14) {
-            break;  // HID joystick supports 14 buttons
-        }
 
         const Function f = static_cast<Function>(i);
         const Switch3State state = get_switch_state(f);
 
-        // Treat UP as pressed (1), everything else as unpressed (0)
-        if (state == Switch3State::UP) {
-            buttons |= (1U << bit_index);
-        }
+        switch (f) {
 
-        bit_index++;
+        // CAM BUTTON → HID 0
+        case Function::CAM_MODE:
+            if (state == Switch3State::UP) {
+                buttons |= (1U << 0);
+            }
+            break;
+
+        // REC BUTTON → HID 1
+        case Function::REC:
+            if (state == Switch3State::UP) {
+                buttons |= (1U << 1);
+            }
+            break;
+
+        // UP switch → HID 2
+        case Function::UP:
+            if (state == Switch3State::UP) {
+                buttons |= (1U << 2);
+            }
+            break;
+
+        // DOWN switch → HID 3
+        case Function::DOWN:
+            if (state == Switch3State::UP) {
+                buttons |= (1U << 3);
+            }
+            break;
+
+        // CENTRE button → HID 4
+        case Function::CENTRE:
+            if (state == Switch3State::UP) {
+                buttons |= (1U << 4);
+            }
+            break;
+
+        // MODE switch:
+        // LEFT  → HID 6
+        // RIGHT → HID 5
+        case Function::MODE_SELECT:
+            if (state == Switch3State::UP) {          // RIGHT
+                buttons |= (1U << 5);
+            } else if (state == Switch3State::DOWN) { // LEFT
+                buttons |= (1U << 6);
+            }
+            break;
+
+        // LIGHTS → HID 9
+        case Function::LIGHTS:
+            if (state == Switch3State::UP) {
+                buttons |= (1U << 9);
+            }
+            break;
+
+        // KILL SWITCH LEFT → HID 7
+        case Function::KILL_SWITCH:
+            if (state == Switch3State::DOWN) {
+                buttons |= (1U << 7);
+            }
+            break;
+
+        // EMERGENCY KILL → HID 8
+        case Function::EMERGENCY_KILL:
+            if (state == Switch3State::UP) {
+                buttons |= (1U << 8);
+            }
+            break;
+
+        // Ignored functions
+        default:
+            break;
+        }
     }
 
     return buttons;

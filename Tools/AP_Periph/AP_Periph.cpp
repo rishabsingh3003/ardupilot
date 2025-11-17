@@ -597,15 +597,15 @@ void AP_Periph_FW::update()
         auto *uart = hal.serial(0);
         if (uart != nullptr) {
             uart->usb_hid_send_joystick(
-                (uint16_t)((js_state.left_index.x.norm * 2047.5f) + 2047.5f),
-                (uint16_t)((js_state.left_index.y.norm * 2047.5f) + 2047.5f),
-                (uint16_t)((js_state.right_thumb.y.norm  * 2047.5f) + 2047.5f),
+                (uint16_t)((js_state.left_thumb.x.norm * 2047.5f) + 2047.5f),
+                (uint16_t)((js_state.left_thumb.y.norm * 2047.5f) + 2047.5f),
                 (uint16_t)((js_state.right_thumb.x.norm  * 2047.5f) + 2047.5f),
-                airboss_joystick.compute_hat_direction(js_state.right_index.x.norm ,js_state.right_index.y.norm),        // hat neutral (0–7 valid directions, 8 = null)
+                (uint16_t)((js_state.right_thumb.y.norm  * 2047.5f) + 2047.5f),
+                airboss_joystick.compute_hat_direction(js_state.left_index.x.norm ,js_state.left_index.y.norm),        // hat neutral (0–7 valid directions, 8 = null)
                 airboss_switches.compute_hid_buttons()    // example 14-bit button mask (your 62235 decimal = 0xF30B)
             );
         }
-        // airboss_switches.print_states();
+        airboss_switches.print_states();
         // airboss_joystick.print_states();
     }
 

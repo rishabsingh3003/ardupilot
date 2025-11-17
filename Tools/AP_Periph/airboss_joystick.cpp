@@ -157,6 +157,13 @@ const AP_Param::GroupInfo AirBoss_Joystick::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RATE_LIM", 34, AirBoss_Joystick, _rate_limit, 0.0f),
 
+    // @Param: EXPO
+    // @DisplayName: Expo to apply to axes
+    // @Description: Exponential curve to apply to joystick axes (0 = linear, 1 = max expo)
+    // @Range: 0 1
+    // @User: Standard
+    AP_GROUPINFO("EXPO", 35, AirBoss_Joystick, _expo, 0.0f),
+
     AP_GROUPEND
 };
 
@@ -317,7 +324,33 @@ float AirBoss_Joystick::normalize_adc_input(uint16_t raw,
         norm = -norm;
     }
 
+    // Apply expo if set
+    norm = apply_expo(norm, _expo.get());
+
     return norm;
+}
+
+float AirBoss_Joystick::apply_expo(float x, float expo)
+{
+    // Clamp input
+    if (x > 1.0f) {
+        x = 1.0f;
+    }
+    if (x < -1.0f) {
+        x = -1.0f;
+    }
+
+    // Expo must be 0..1
+    if (expo < 0.0f) {
+        expo = 0.0f;
+    }
+
+    if (expo > 1.0f) {
+        expo = 1.0f;
+    }
+
+    // soft center, fast edges
+    return (x * (1.0f - expo) + (x * x * x) * expo);
 }
 
 void AirBoss_Joystick::rate_limit_axes(float now_ms)

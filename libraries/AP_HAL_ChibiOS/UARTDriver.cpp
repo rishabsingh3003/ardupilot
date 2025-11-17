@@ -1853,14 +1853,12 @@ void UARTDriver::usb_hid_send_joystick(uint16_t x, uint16_t y,
     report[4] = ((z >> 8) & 0x0F) | ((rz & 0x0F) << 4);
     report[5] = (rz >> 4) & 0xFF;
 
-    // Hat + 2 bits padding
-    report[6] = (hat & 0x0F) | (0x00 << 4);
+    report[6] = hat;                // full byte hat
+    report[7] = buttons & 0xFF;     // buttons 0–7
+    report[8] = (buttons >> 8);     // buttons 8–13
 
-    // 14 buttons (2 bytes)
-    report[7] = buttons & 0xFF;
-    report[8] = (buttons >> 8) & 0x3F;
-
-    osalSysLock();
+    // ---- Send ----
+    osalSysLock();   // REQUIRED
     if (!usbGetTransmitStatusI(usbp, 3)) {
         usbStartTransmitI(usbp, 3, report, sizeof(report));
     }

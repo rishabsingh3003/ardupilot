@@ -55,54 +55,54 @@ static cdc_linecoding_t linecoding = {
 #define USB_DT_HID                       0x21
 #define USB_DT_REPORT                    0x22
 #define HID_IN_EP                        3   /* HID IN (device->host) EP3    */
-#define HID_IN_SIZE                      0x0010
+#define HID_IN_SIZE                      0x0009
 #define HID_POLL_MS                      0x40
 
-/* HID Report Descriptor: 16 buttons + 2 axes */
 static const uint8_t hid_report_descriptor_data[] = {
-  0x05, 0x01,       // Usage Page (Generic Desktop)
-  0x09, 0x05,       // Usage (Gamepad)
-  0xA1, 0x01,       // Collection (Application)
 
-  // ---- 4 Analog Axes (12-bit each) ----
-  0x09, 0x30,       // Usage (X)
-  0x09, 0x31,       // Usage (Y)
-  0x09, 0x32,       // Usage (Z)
-  0x09, 0x35,       // Usage (Rz)
-  0x15, 0x00,       // Logical Min (0)
-  0x26, 0xFF, 0x0F, // Logical Max (4095)
-  0x75, 0x0C,       // Report Size (12 bits)
-  0x95, 0x04,       // Report Count (4 axes)
-  0x81, 0x02,       // Input (Data, Var, Abs)
+    0x05, 0x01,        // Usage Page (Generic Desktop)
+    0x09, 0x05,        // Usage (Gamepad)
+    0xA1, 0x01,        // Collection (Application)
 
-  // ---- Hat Switch (4 bits) ----
-  0x05, 0x01,       // Usage Page (Generic Desktop)
-  0x09, 0x39,       // Usage (Hat switch)
-  0x15, 0x00,       // Logical Min (0)
-  0x25, 0x07,       // Logical Max (7)
-  0x35, 0x00,       // Physical Min (0)
-  0x46, 0x3B, 0x01, // Physical Max (315°)
-  0x65, 0x14,       // Unit (Degrees)
-  0x75, 0x04,       // Report Size (4 bits)
-  0x95, 0x01,       // Report Count (1)
-  0x81, 0x42,       // Input (Data, Var, Abs, Null State)
+    // ---- Axes (4 × 12-bit) ----
+    0x09, 0x30,        // X
+    0x09, 0x31,        // Y
+    0x09, 0x32,        // Z
+    0x09, 0x35,        // Rz
+    0x15, 0x00,        // Logical Min
+    0x26, 0xFF, 0x0F,  // Logical Max = 4095
+    0x75, 0x0C,        // Report Size = 12 bits
+    0x95, 0x04,        // Report Count = 4
+    0x81, 0x02,        // Input (Data,Var,Abs)
 
-  // ---- Padding (2 bits) ----
-  0x75, 0x02,
-  0x95, 0x01,
-  0x81, 0x01,       // Input (Const)
+    // ---- Hat Switch — FULL BYTE (Android-friendly!) ----
+    0x05, 0x01,        // Usage Page (Generic Desktop)
+    0x09, 0x39,        // Usage (Hat switch)
+    0x15, 0x00,        // Logical Min (0)
+    0x25, 0x07,        // Logical Max (7)
+    0x35, 0x00,        // Physical Min
+    0x46, 0x3B, 0x01,  // Physical Max (315°)
+    0x65, 0x14,        // Unit (Degrees)
+    0x75, 0x08,        // Report Size = 8 bits  <---- FIX
+    0x95, 0x01,        // Report Count = 1
+    0x81, 0x42,        // Input (Data,Var,Abs,Null)
 
-  // ---- 14 Buttons (1 bit each) ----
-  0x05, 0x09,       // Usage Page (Button)
-  0x19, 0x01,       // Usage Min (Button 1)
-  0x29, 0x0E,       // Usage Max (Button 14)
-  0x15, 0x00,       // Logical Min (0)
-  0x25, 0x01,       // Logical Max (1)
-  0x75, 0x01,       // Report Size (1)
-  0x95, 0x0E,       // Report Count (14 buttons)
-  0x81, 0x02,       // Input (Data, Var, Abs)
+    // ---- 14 Buttons (aligned to next byte) ----
+    0x05, 0x09,        // Usage Page (Button)
+    0x19, 0x01,        // Usage Min (Button 1)
+    0x29, 0x0E,        // Usage Max (Button 14)
+    0x15, 0x00,        // Logical Min (0)
+    0x25, 0x01,        // Logical Max (1)
+    0x75, 0x01,        // Report Size = 1 bit
+    0x95, 0x0E,        // Report Count = 14 bits
+    0x81, 0x02,        // Input (Data,Var,Abs)
 
-  0xC0              // End Collection
+    // Padding up to full byte
+    0x75, 0x02,
+    0x95, 0x01,
+    0x81, 0x01,
+
+    0xC0               // End Collection
 };
 
 static const USBDescriptor hid_report_descriptor = {
@@ -230,7 +230,7 @@ static const uint8_t vcom_configuration_descriptor_data[100] = {
   (sizeof(hid_report_descriptor_data) >> 8) & 0xFF,
   USB_DESC_ENDPOINT((HID_IN_EP | 0x80),
                     0x03,
-                    HID_IN_SIZE,
+                    0x0010,
                     HID_POLL_MS)
 };
 
@@ -399,7 +399,7 @@ static USBInEndpointState ep3instate;
 static const USBEndpointConfig ep3config = {
   USB_EP_MODE_TYPE_INTR,
   NULL, NULL, NULL,
-  HID_IN_SIZE, 0x0000,
+  0x0010, 0x0000,
   &ep3instate, NULL,
   1, NULL
 };
