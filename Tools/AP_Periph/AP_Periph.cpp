@@ -595,6 +595,9 @@ void AP_Periph_FW::update()
         // send RC_CHANNELS message at 1Hz
         // airboss_utils.send_rc_channels_mavlink(js_state, airboss_switches);
         auto *uart = hal.serial(0);
+        uint16_t switches_bitmap = airboss_switches.compute_hid_buttons();
+        airboss_joystick.set_zoom_buttons(js_state.right_index, switches_bitmap);
+         // send joystick HID report over USB
         if (uart != nullptr) {
             uart->usb_hid_send_joystick(
                 (uint16_t)((js_state.left_thumb.x.norm * 2047.5f) + 2047.5f),
@@ -602,10 +605,10 @@ void AP_Periph_FW::update()
                 (uint16_t)((js_state.right_thumb.x.norm  * 2047.5f) + 2047.5f),
                 (uint16_t)((js_state.right_thumb.y.norm  * 2047.5f) + 2047.5f),
                 airboss_joystick.compute_hat_direction(js_state.left_index.x.norm ,js_state.left_index.y.norm),        // hat neutral (0–7 valid directions, 8 = null)
-                airboss_switches.compute_hid_buttons()    // example 14-bit button mask (your 62235 decimal = 0xF30B)
+                switches_bitmap
             );
         }
-        airboss_switches.print_states();
+        // airboss_switches.print_states();
         // airboss_joystick.print_states();
     }
 

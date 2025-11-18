@@ -1832,35 +1832,47 @@ void UARTDriver::disable_rxtx(void) const
         palSetLineMode(atx_line, PAL_MODE_INPUT);
     }
 }
-void UARTDriver::usb_hid_send_joystick(uint16_t x, uint16_t y,
-                                       uint16_t z, uint16_t rz,
-                                       uint8_t hat, uint16_t buttons)
+
+struct PACKED SignedJoystickReport_t {
+    uint8_t reportID;              // Byte 0: Report ID
+    unsigned x: 12;                // Bytes 1-2.4: X axis (12 bits)
+    unsigned y: 12;                // Bytes 2.4-4: Y axis (12 bits)
+    unsigned z: 12;                // Bytes 4-5.4: Z axis (12 bits)
+    unsigned rz: 12;               // Bytes 5.4-7: Rz axis (12 bits)
+    unsigned paddingHat: 4;        // Byte 7.4-8: Padding (4 bits)
+    unsigned hat: 4;               // Byte 8: Hat switch (4 bits)
+    unsigned paddingButton: 2;     // Byte 8.4-8.6: Padding (2 bits)
+    unsigned buttons: 14;          // Bytes 8.6-10: Buttons (14 bits)
+};
+
+void UARTDriver::usb_hid_send_joystick(uint16_t x, uint16_t y, uint16_t z, 
+                                       uint16_t rz, uint8_t hat, uint16_t buttons) 
 {
     USBDriver *usbp = serusbcfg1.usbp;
-
+    
     // Ensure USB is configured
     if (usbp == nullptr || usbp->state != USB_ACTIVE) {
         return;
     }
+    
+    // Use the same packed structure as Arduino
+    static SignedJoystickReport_t report;
+    
+    // Fill report matching Arduino structure
+    report.reportID = 0x01;
+    report.x = x & 0x0FFF;          // 12-bit values
+    report.y = y & 0x0FFF;
+    report.z = z & 0x0FFF;
+    report.rz = rz & 0x0FFF;
+    report.paddingHat = 0;           // Must be 0
+    report.hat = (hat > 7) ? 8 : (hat & 0x0F);  // 4-bit hat, 8 = center
+    report.paddingButton = 0;        // Must be 0
+    report.buttons = buttons & 0x3FFF;  // 14 bits
 
-    static uint8_t report[9];  // exactly 9 bytes per HID descriptor
-
-    // Pack 4×12-bit axes (little-endian)
-    report[0] =  x & 0xFF;
-    report[1] = ((x >> 8) & 0x0F) | ((y & 0x0F) << 4);
-    report[2] = (y >> 4) & 0xFF;
-    report[3] =  z & 0xFF;
-    report[4] = ((z >> 8) & 0x0F) | ((rz & 0x0F) << 4);
-    report[5] = (rz >> 4) & 0xFF;
-
-    report[6] = hat;                // full byte hat
-    report[7] = buttons & 0xFF;     // buttons 0–7
-    report[8] = (buttons >> 8);     // buttons 8–13
-
-    // ---- Send ----
-    osalSysLock();   // REQUIRED
+    // Send report
+    osalSysLock();
     if (!usbGetTransmitStatusI(usbp, 3)) {
-        usbStartTransmitI(usbp, 3, report, sizeof(report));
+        usbStartTransmitI(usbp, 3, (uint8_t*)&report, sizeof(report));
     }
     osalSysUnlock();
 }

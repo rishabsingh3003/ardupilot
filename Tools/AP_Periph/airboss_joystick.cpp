@@ -584,3 +584,16 @@ uint8_t AirBoss_Joystick::compute_hat_direction(float x_norm, float y_norm)
 
     return hat;
 }
+
+void AirBoss_Joystick::set_zoom_buttons(const JoystickStick &stick, uint16_t &buttons_bitmask)
+{
+    // Zoom In button (Left Index Y pushed forward)
+    if (stick.x.norm > 0.5f) {
+        buttons_bitmask |= (1U << 13);  // Button 1
+    }
+
+    // Zoom Out button (Left Index Y pulled back)
+    if (stick.x.norm < -0.5f) {
+        buttons_bitmask |= (1U << 12);  // Button 2
+    }
+}

@@ -205,53 +205,64 @@ uint16_t AirBoss_Switches::compute_hid_buttons() const
         // UP switch → HID 2
         case Function::UP:
             if (state == Switch3State::UP) {
-                buttons |= (1U << 2);
+                buttons |= (1U << 3);
             }
             break;
 
         // DOWN switch → HID 3
         case Function::DOWN:
             if (state == Switch3State::UP) {
-                buttons |= (1U << 3);
+                buttons |= (1U << 4);
             }
             break;
 
         // CENTRE button → HID 4
         case Function::CENTRE:
             if (state == Switch3State::UP) {
-                buttons |= (1U << 4);
+                buttons |= (1U << 6);
             }
             break;
 
         // MODE switch:
         // LEFT  → HID 6
         // RIGHT → HID 5
-        case Function::MODE_SELECT:
-            if (state == Switch3State::UP) {          // RIGHT
-                buttons |= (1U << 5);
-            } else if (state == Switch3State::DOWN) { // LEFT
-                buttons |= (1U << 6);
-            }
-            break;
+        // case Function::MODE_SELECT:
+        //     if (state == Switch3State::UP) {          // RIGHT
+        //         buttons |= (1U << 5);
+        //     } else if (state == Switch3State::DOWN) { // LEFT
+        //         buttons |= (1U << 6);
+        //     }
+        //     break;
 
         // LIGHTS → HID 9
         case Function::LIGHTS:
-            if (state == Switch3State::UP) {
-                buttons |= (1U << 9);
+            // joystick just sees the button not the special logic
+            if (is_pressed(Function::LIGHTS)) {
+                buttons |= (1U << 11);
             }
             break;
 
         // KILL SWITCH LEFT → HID 7
         case Function::KILL_SWITCH:
+            // Some weird logic here to map 3-way KILL SWITCH + MODE SELECT into HID buttons. Don't ask Rishabh, this is legacy
             if (state == Switch3State::DOWN) {
-                buttons |= (1U << 7);
+                buttons |= (1U << 9);
+            } else {
+                const Switch3State mode_switch_state = get_switch_state(Function::MODE_SELECT);
+                if (mode_switch_state == Switch3State::DOWN) {
+                    buttons |= (1U << 8); // KILL SWITCH MID + MODE LEFT →
+                } else if (mode_switch_state == Switch3State::UP) {
+                    buttons |= (1U << 7); // KILL SWITCH MID + MODE RIGHT →
+                } else {
+                    buttons |= (1U << 5); // KILL SWITCH MID + MODE MID →
+                }
             }
             break;
 
         // EMERGENCY KILL → HID 8
         case Function::EMERGENCY_KILL:
             if (state == Switch3State::UP) {
-                buttons |= (1U << 8);
+                buttons |= (1U << 10);
             }
             break;
 

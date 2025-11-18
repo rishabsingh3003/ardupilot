@@ -58,6 +58,8 @@ public:
 
     uint8_t compute_hat_direction(float x_norm, float y_norm);
 
+    void set_zoom_buttons(const JoystickStick &stick, uint16_t &buttons_bitmask);
+
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
