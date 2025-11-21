@@ -74,8 +74,26 @@ private:
     UDPChannel rc_out;
     UDPChannel telem_out;
     UDPChannel debug_out;
+    UDPChannel cmd_in;
 
     void send_telem_json();
+    bool process_next_command();
+
+    void read_command_packet();
+    
+    uint16_t compute_crc16(const uint8_t *data, size_t len);
+    
+    struct PACKED CommandPacket {
+        uint32_t magic;         // 0xDDCCBBAA
+        char     cmd_name[16];  // NULL-terminated command name
+        float    value;         // parameter value
+        uint16_t crc;
+    };
+
+    struct CommandQueueItem {
+        CommandPacket cmd;
+    };
+    ObjectArray<CommandQueueItem> *_cmd_queue;
 };
 
 

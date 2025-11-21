@@ -9,6 +9,7 @@
 #include <utility>
 #include <cstdio>
 #include <cstring>
+#include <AP_Param/AP_Param.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -109,6 +110,12 @@ bool AirBoss_Networking::init()
 //         return false;
 //     }
 
+    _cmd_queue = new ObjectArray<CommandQueueItem>(30);
+    if (_cmd_queue == nullptr) {
+        hal.console->printf("cmd_queue alloc failed\n");
+        return false;
+    }
+
     // RC output (UAV -> joystick/GCS)
     if (!telem_out.open_client("192.168.17.9", 14559)) {
         hal.console->printf("telem_out open failed\n");
@@ -124,6 +131,13 @@ bool AirBoss_Networking::init()
     // // Debug output (optional)
     // debug_out.open_client("127.0.0.1", 6000);
 
+    // Command input (Flutter → AirBoss)
+    if (!cmd_in.open_server(14560)) {
+        hal.console->printf("cmd_in open failed\n");
+    } else {
+        hal.console->printf("cmd_in listening OK on port 14560\n");
+    }
+
     hal.console->printf("AirBoss_Networking init OK\n");
     return true;
 }
@@ -132,7 +146,150 @@ void AirBoss_Networking::loop_50hz()
 {
     // send telemetry JSON at 20 Hz – 50 Hz
     // send_airboss_state();
+    read_command_packet();
+    process_next_command();
+}
 
+void AirBoss_Networking::read_command_packet()
+{
+    uint8_t buf[64];
+    uint8_t err = 0;
+
+    const size_t n = cmd_in.read(buf, sizeof(buf), 0, &err);
+    if (n == 0) {
+        return; // nothing received
+    }
+
+    if (n != sizeof(CommandPacket)) {
+        hal.console->printf("Bad command size: %u\n", unsigned(n));
+        return;
+    }
+
+    CommandPacket pkt;
+    memcpy(&pkt, buf, sizeof(pkt));
+
+    if (pkt.magic != 0xDDCCBBAA) {
+        hal.console->printf("Bad command magic: %f\n", (double)pkt.magic);
+        return;
+    }
+
+    uint16_t expected_crc = compute_crc16((uint8_t*)&pkt,
+                                          sizeof(pkt) - sizeof(pkt.crc));
+
+    if (expected_crc != pkt.crc) {
+        hal.console->printf("Bad CRC: got %u expected %u\n", pkt.crc, expected_crc);
+        return;
+    }
+
+    // Push to queue
+    CommandQueueItem item {};
+    item.cmd = pkt;
+
+    if (_cmd_queue == nullptr) {
+        hal.console->printf("cmd_queue is null!\n");
+        return;
+    }
+
+    _cmd_queue->push(item);
+
+    hal.console->printf("Queued command: %s = %.3f\n",
+                        pkt.cmd_name, pkt.value);
+}
+
+uint16_t AirBoss_Networking::compute_crc16(const uint8_t *data, size_t len)
+{
+    uint16_t crc = 0;
+    for (size_t i = 0; i < len; i++) {
+        crc = (crc >> 8) ^ ((crc ^ data[i]) & 0xFFu);
+    }
+    return crc;
+}
+
+bool AirBoss_Networking::process_next_command()
+{
+    if (_cmd_queue == nullptr) {
+        return false;
+    }
+
+    // Pop first item
+    CommandQueueItem item;
+    if (!_cmd_queue->pop(item)) {
+        return false; // queue empty
+    }
+
+    const CommandPacket &cmd = item.cmd;
+
+    // Validate magic
+    if (cmd.magic != 0xDDCCBBAA) {
+        hal.console->printf("CMD: bad magic");
+        return false;
+    }
+
+    // Ensure name is null-terminated
+    char name_buf[17] = {};
+    memcpy(name_buf, cmd.cmd_name, 16);
+    name_buf[16] = '\0';
+
+    // Trim trailing garbage
+    for (int i = 15; i >= 0; i--) {
+        if (name_buf[i] == '\0') break;
+        if ((uint8_t)name_buf[i] < 32 || (uint8_t)name_buf[i] > 126) {
+            name_buf[i] = '\0';
+            break;
+        }
+    }
+
+    // Find AP_Param by name
+    AP_Param::ParamToken token = {};
+    ap_var_type type;
+    AP_Param* param = AP_Param::find_by_name(name_buf, &type, &token);
+
+    if (param == nullptr) {
+        hal.console->printf("CMD: param '%s' not found\n", name_buf);
+        return false;
+    }
+
+    // Write based on param type
+    bool ok = false;
+    switch (type) {
+    case AP_PARAM_FLOAT: {
+        AP_Float *pf = (AP_Float*)param;
+        pf->set_and_save(cmd.value);
+        ok = true;
+        break;
+    }
+
+    case AP_PARAM_INT32: {
+        AP_Int32 *pi = (AP_Int32*)param;
+        pi->set_and_save((int32_t)cmd.value);
+        ok = true;
+        break;
+    }
+
+    case AP_PARAM_INT16: {
+        AP_Int16 *pi = (AP_Int16*)param;
+        pi->set_and_save((int16_t)cmd.value);
+        ok = true;
+        break;
+    }
+
+    case AP_PARAM_INT8: {
+        AP_Int8 *pi = (AP_Int8*)param;
+        pi->set_and_save((int8_t)cmd.value);
+        ok = true;
+        break;
+    }
+
+    default:
+        hal.console->printf("CMD: unsupported type for '%s'\n", name_buf);
+        return false;
+    }
+
+    if (ok) {
+        hal.console->printf("CMD: set %s = %.3f\n", name_buf, (double)cmd.value);
+    }
+
+    return ok;
 }
 
 void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickState& js)
@@ -175,7 +332,7 @@ void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickStat
 
     pkt.healthy = js.healthy ? 1 : 0;
 
-    // Simple CRC16 (optional — can be replaced with your utility)
+    // Simple CRC16 
     uint16_t crc = 0;
     const uint8_t* p = reinterpret_cast<const uint8_t*>(&pkt);
     for (size_t i = 0; i < sizeof(pkt) - sizeof(pkt.crc); i++) {

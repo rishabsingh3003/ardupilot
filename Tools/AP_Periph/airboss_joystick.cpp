@@ -164,6 +164,13 @@ const AP_Param::GroupInfo AirBoss_Joystick::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("EXPO", 35, AirBoss_Joystick, _expo, 0.0f),
 
+    // @Paeam: DISABLE_HID
+    // @DisplayName: Disable HID output
+    // @Description: Disable USB HID joystick output (0 = enabled, 1 = disabled)
+    // @Values: 0:Enabled,1:Disabled
+    // @User: Standard
+    AP_GROUPINFO("DISABLE_HID", 36, AirBoss_Joystick, _disable_hid, 0),
+
     AP_GROUPEND
 };
 
@@ -361,7 +368,7 @@ void AirBoss_Joystick::rate_limit_axes(float now_ms)
     }
 
     const float signal_timeout_ms = 500;  // reset after inactivity
-    const float reset_threshold = 1.5f;   // full reset if jump > 0.5 in norm space
+    // const float reset_threshold = 1.5f;   // full reset if jump > 0.5 in norm space
 
     // Flatten access to all 8 normalized channels for simplicity
     float* axes[8] = {
@@ -387,12 +394,12 @@ void AirBoss_Joystick::rate_limit_axes(float now_ms)
             continue;
         }
 
-        // Reset on sudden jumps
-        if (fabsf(in - prev) > reset_threshold) {
-            filter_norm_hist[i] = in;
-            last_update_filter_time_ms[i] = now_ms;
-            continue;
-        }
+        // // Reset on sudden jumps
+        // if (fabsf(in - prev) > reset_threshold) {
+        //     filter_norm_hist[i] = in;
+        //     last_update_filter_time_ms[i] = now_ms;
+        //     continue;
+        // }
 
         // Rate limiting (clamp delta per dt)
         float max_delta = _rate_limit * (dt / 1000.0f);  // normalized units per sec

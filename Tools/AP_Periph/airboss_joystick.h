@@ -60,6 +60,8 @@ public:
 
     void set_zoom_buttons(const JoystickStick &stick, uint16_t &buttons_bitmask);
 
+    bool is_hid_disabled() const { return _disable_hid.get() != 0; }    
+
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
@@ -91,6 +93,7 @@ private:
     AP_Int8  _reset;
     AP_Float _rate_limit;
     AP_Float _expo;
+    AP_Int8  _disable_hid;
 
     // Logical order mapping: [left_thumb.x, left_thumb.y, right_thumb.x, right_thumb.y, left_index.x, left_index.y, right_index.x, right_index.y]
     // Each entry is the ADC channel index (0–7)

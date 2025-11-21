@@ -571,6 +571,7 @@ void AP_Periph_FW::update()
         airboss_joystick_last_ms = now;
         airboss_joystick.update();
         airboss_switches.update();
+        airboss_networking.loop_50hz();
     }
     const AirBoss_Joystick::JoystickState js_state = airboss_joystick.get_state();
     
@@ -598,7 +599,7 @@ void AP_Periph_FW::update()
         uint16_t switches_bitmap = airboss_switches.compute_hid_buttons();
         airboss_joystick.set_zoom_buttons(js_state.right_index, switches_bitmap);
          // send joystick HID report over USB
-        if (uart != nullptr) {
+        if (uart != nullptr && !airboss_joystick.is_hid_disabled()) {
             uart->usb_hid_send_joystick(
                 (uint16_t)((js_state.left_thumb.x.norm * 2047.5f) + 2047.5f),
                 (uint16_t)((js_state.left_thumb.y.norm * 2047.5f) + 2047.5f),
