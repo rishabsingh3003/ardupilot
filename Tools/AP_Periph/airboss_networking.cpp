@@ -292,7 +292,7 @@ bool AirBoss_Networking::process_next_command()
     return ok;
 }
 
-void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickState& js)
+void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickState& js, const AirBoss_Switches& switches, uint16_t voltage, uint16_t charging_current)
 {
     if (!telem_out.is_open()) {
         return;
@@ -300,12 +300,16 @@ void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickStat
 
     // Define a packed binary frame for network transmission
     struct PACKED JoystickPacket {
-        uint32_t magic;           // 0xAABBCCDD for validation
+        uint32_t magic;
         uint32_t timestamp_us;
-        uint16_t raw[8];          // raw ADCs: LT.x, LT.y, RT.x, RT.y, LI.x, RI.x, LI.y, RI.y
-        float norm[8];            // normalized -1..+1
-        uint8_t healthy;
-        uint8_t reserved[3];      // alignment padding
+        uint16_t raw[8];    // 16 bytes
+        float    norm[8];   // 32 bytes
+        uint8_t  healthy;
+        uint16_t buttons;     // buttons packed in 12 bits (uses 16 bits)
+        uint8_t  switches;    // 2×3-way packed into 4 bits
+        uint16_t batt_mv;     // battery voltage in millivolts
+        uint16_t charge_ma;   // charging current in milliamps
+
         uint16_t crc;
     };
 
@@ -330,9 +334,14 @@ void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickStat
     pkt.norm[6] = js.left_index.y.norm;
     pkt.norm[7] = js.right_index.y.norm;
 
+    pkt.buttons = switches.compute_button_mask();
+    pkt.switches = switches.pack_three_way_switches();
+    pkt.batt_mv = voltage;
+    pkt.charge_ma = charging_current;
+
     pkt.healthy = js.healthy ? 1 : 0;
 
-    // Simple CRC16 
+    // Simple CRC16
     uint16_t crc = 0;
     const uint8_t* p = reinterpret_cast<const uint8_t*>(&pkt);
     for (size_t i = 0; i < sizeof(pkt) - sizeof(pkt.crc); i++) {

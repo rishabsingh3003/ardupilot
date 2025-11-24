@@ -274,3 +274,49 @@ uint16_t AirBoss_Switches::compute_hid_buttons() const
 
     return buttons;
 }
+
+uint16_t AirBoss_Switches::compute_button_mask() const
+{
+    uint16_t mask = 0;
+
+    const Function button_functions[] = {
+        Function::CAM_MODE,
+        Function::REC,
+        Function::CENTRE,
+        Function::UP,
+        Function::DOWN,
+        Function::LIGHTS,
+        Function::BEHIND_RIGHT,
+        Function::BEHIND_LEFT,
+        Function::EMERGENCY_KILL
+        // add others here if they are actual buttons
+    };
+
+    const uint8_t N = sizeof(button_functions) / sizeof(button_functions[0]);
+
+    for (uint8_t i = 0; i < N; i++) {
+        if (is_pressed(button_functions[i])) {
+            mask |= (1u << i);
+        }
+    }
+
+    return mask;
+}
+
+uint8_t AirBoss_Switches::pack_three_way_switches() const
+{
+    auto encode = [&](Function f) {
+        Switch3State s = get_switch_state(f);
+        switch (s) {
+        case Switch3State::DOWN: return 0u;
+        case Switch3State::MID:  return 1u;
+        case Switch3State::UP:   return 2u;
+        default:      return 3u;  // reserved
+        }
+    };
+
+    uint8_t sw1 = encode(Function::KILL_SWITCH);   // bits 0–1
+    uint8_t sw2 = encode(Function::MODE_SELECT);   // bits 2–3
+
+    return (sw1 << 0) | (sw2 << 2);
+}

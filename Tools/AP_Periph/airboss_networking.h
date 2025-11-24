@@ -8,6 +8,7 @@
 #include <AP_HAL/utility/Socket.h>
 #include <AP_Networking/AP_Networking_address.h>
 #include "airboss_joystick.h"
+#include "airboss_switches.h"
 
 #define AP_AIRBOSS_NETWORKING_DEFAULT_UDP_IP_ADDR "192.168.144.2"
 
@@ -66,7 +67,7 @@ public:
     void handle_rc_rx();         // process incoming RC packets
     void send_debug(const char* msg);
 
-    void send_airboss_state(const AirBoss_Joystick::JoystickState& js);
+    void send_airboss_state(const AirBoss_Joystick::JoystickState& js, const AirBoss_Switches& switches, uint16_t voltage, uint16_t charging_current);
     void send_sbus_packet(const uint8_t* sbus_packet, size_t length);
 
 private:
@@ -80,9 +81,9 @@ private:
     bool process_next_command();
 
     void read_command_packet();
-    
+
     uint16_t compute_crc16(const uint8_t *data, size_t len);
-    
+
     struct PACKED CommandPacket {
         uint32_t magic;         // 0xDDCCBBAA
         char     cmd_name[16];  // NULL-terminated command name

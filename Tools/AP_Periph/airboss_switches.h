@@ -45,12 +45,22 @@ public:
     // Get 3-way switch position
     Switch3State get_switch_state(Function f) const;
 
+    // debug
     void print_states();
 
+    // helper function to convert function state to SBUS channel value
     uint16_t function_to_sbus(Function f) const;
-    
-    uint16_t compute_hid_buttons() const ;
 
+    // helper function to compute HID-style button mask - its a bit weird but this is how samsung android tablets expect it
+    uint16_t compute_hid_buttons() const;
+
+    // Helpter to compute button mask - effient way to send multiple button states over network 
+    uint16_t compute_button_mask() const;
+
+    // Helper function to compute three-way switch packed value for network transmission
+    uint8_t pack_three_way_switches() const;
+    
+    
 private:
     struct Switch {
         int pin;               // integer GPIO ID from hwdef
