@@ -11,6 +11,12 @@
 #include <cstring>
 #include <AP_Param/AP_Param.h>
 
+#define MAGIC_SET_PARAM 0xDDCCBBAA
+#define MAGIC_GET_PARAM 0xAABBCCDD
+#define MAGIC_HEARTBEAT 0x11223344
+#define MAGIC_REBOOT    0x77889900
+
+
 extern const AP_HAL::HAL& hal;
 
 bool UDPChannel::open_client(const char* ip_str, uint16_t port)
@@ -117,10 +123,10 @@ bool AirBoss_Networking::init()
     }
 
     // RC output (UAV -> joystick/GCS)
-    if (!telem_out.open_client("192.168.17.9", 14559)) {
-        hal.console->printf("telem_out open failed\n");
-        return false;
-    }
+    // if (!telem_out.open_client("192.168.17.9", 14559)) {
+    //     hal.console->printf("telem_out open failed\n");
+    //     return false;
+    // }
 
     // Telemetry output (UAV -> dashboard)
     if (!rc_out.open_client("192.168.17.202", 14551)) {
@@ -144,11 +150,81 @@ bool AirBoss_Networking::init()
 
 void AirBoss_Networking::loop_50hz()
 {
-    // send telemetry JSON at 20 Hz – 50 Hz
-    // send_airboss_state();
+    // Always read packets FIRST
     read_command_packet();
     process_next_command();
+
+    uint32_t now = AP_HAL::millis();
+    uint32_t dt  = now - _heartbeat.last_ms;
+
+    // --- A) HEARTBEAT LOST (>20s) ----------------------------------------
+    if (dt > 20000 && telem_active) {
+        hal.console->printf("Heartbeat timeout — closing telemetry\n");
+        telem_out.close();
+        telem_active = false;
+    }
+
+    // --- B) HEARTBEAT RECENT (<10s) AND NOT ACTIVE ----------------------
+    if (!telem_active && dt < 10000) {
+        if (_heartbeat.last_ip[0] != '\0') {
+            hal.console->printf("Re-opening telemetry to %s:%u\n",
+                                _heartbeat.last_ip, 14559);
+
+            if (telem_out.open_client(_heartbeat.last_ip, 14559)) {
+                hal.console->printf("Telemetry re-opened\n");
+                telem_active = true;
+            } else {
+                hal.console->printf("Telemetry open failed\n");
+            }
+        }
+    }
 }
+
+// void AirBoss_Networking::read_command_packet()
+// {
+//     uint8_t buf[64];
+//     uint8_t err = 0;
+
+//     const size_t n = cmd_in.read(buf, sizeof(buf), 0, &err);
+//     if (n == 0) {
+//         return; // nothing received
+//     }
+
+//     if (n != sizeof(CommandPacket)) {
+//         hal.console->printf("Bad command size: %u\n", unsigned(n));
+//         return;
+//     }
+
+//     CommandPacket pkt;
+//     memcpy(&pkt, buf, sizeof(pkt));
+
+//     if (pkt.magic != 0xDDCCBBAA) {
+//         hal.console->printf("Bad command magic: %f\n", (double)pkt.magic);
+//         return;
+//     }
+
+//     uint16_t expected_crc = compute_crc16((uint8_t*)&pkt,
+//                                           sizeof(pkt) - sizeof(pkt.crc));
+
+//     if (expected_crc != pkt.crc) {
+//         hal.console->printf("Bad CRC: got %u expected %u\n", pkt.crc, expected_crc);
+//         return;
+//     }
+
+//     // Push to queue
+//     CommandQueueItem item {};
+//     item.cmd = pkt;
+
+//     if (_cmd_queue == nullptr) {
+//         hal.console->printf("cmd_queue is null!\n");
+//         return;
+//     }
+
+//     _cmd_queue->push(item);
+
+//     hal.console->printf("Queued command: %s = %.3f\n",
+//                         pkt.cmd_name, pkt.value);
+// }
 
 void AirBoss_Networking::read_command_packet()
 {
@@ -157,9 +233,8 @@ void AirBoss_Networking::read_command_packet()
 
     const size_t n = cmd_in.read(buf, sizeof(buf), 0, &err);
     if (n == 0) {
-        return; // nothing received
+        return;
     }
-
     if (n != sizeof(CommandPacket)) {
         hal.console->printf("Bad command size: %u\n", unsigned(n));
         return;
@@ -168,32 +243,75 @@ void AirBoss_Networking::read_command_packet()
     CommandPacket pkt;
     memcpy(&pkt, buf, sizeof(pkt));
 
-    if (pkt.magic != 0xDDCCBBAA) {
-        hal.console->printf("Bad command magic: %f\n", (double)pkt.magic);
-        return;
-    }
-
+    // Validate CRC
     uint16_t expected_crc = compute_crc16((uint8_t*)&pkt,
                                           sizeof(pkt) - sizeof(pkt.crc));
 
     if (expected_crc != pkt.crc) {
-        hal.console->printf("Bad CRC: got %u expected %u\n", pkt.crc, expected_crc);
+        hal.console->printf("Bad CRC\n");
         return;
     }
 
-    // Push to queue
-    CommandQueueItem item {};
-    item.cmd = pkt;
+    // Dispatch by magic
+    switch (pkt.magic) {
 
-    if (_cmd_queue == nullptr) {
+    case MAGIC_SET_PARAM:
+        queue_param_set(pkt);
+        break;
+
+    case MAGIC_GET_PARAM:
+        // handle_param_get(pkt);
+        break;
+
+    case MAGIC_HEARTBEAT:
+        handle_heartbeat(pkt);
+        break;
+
+    case MAGIC_REBOOT:
+        // handle_reboot(pkt);
+        break;
+
+    default:
+        hal.console->printf("Bad command magic: %f\n", (double)pkt.magic);
+        break;
+    }
+}
+
+void AirBoss_Networking::queue_param_set(const CommandPacket& pkt)
+{
+    if (!_cmd_queue) {
         hal.console->printf("cmd_queue is null!\n");
         return;
     }
 
+    CommandQueueItem item {};
+    item.cmd = pkt;
+
     _cmd_queue->push(item);
 
-    hal.console->printf("Queued command: %s = %.3f\n",
-                        pkt.cmd_name, pkt.value);
+    hal.console->printf("Queued SET %s = %.3f\n",
+                        pkt.cmd_name,
+                        (double)pkt.value);
+}
+
+void AirBoss_Networking::handle_heartbeat(const CommandPacket& pkt)
+{
+    _heartbeat.last_ms = AP_HAL::millis();
+
+    const char* ip = nullptr;
+    uint16_t port = 0;
+    cmd_in.last_recv_address(ip, port);
+
+    if (ip) {
+        strncpy(_heartbeat.last_ip, ip, sizeof(_heartbeat.last_ip)-1);
+        _heartbeat.last_ip[sizeof(_heartbeat.last_ip)-1] = '\0';
+    }
+
+    _heartbeat.last_port = port;
+    // Optional debug print:
+    hal.console->printf("Heartbeat from %s:%u at %u ms\n",
+        _heartbeat.last_ip, (unsigned)_heartbeat.last_port,
+        (unsigned)_heartbeat.last_ms);
 }
 
 uint16_t AirBoss_Networking::compute_crc16(const uint8_t *data, size_t len)
@@ -294,7 +412,7 @@ bool AirBoss_Networking::process_next_command()
 
 void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickState& js, const AirBoss_Switches& switches, uint16_t voltage, uint16_t charging_current)
 {
-    if (!telem_out.is_open()) {
+    if (!telem_out.is_open() || !telem_active) {
         return;
     }
 

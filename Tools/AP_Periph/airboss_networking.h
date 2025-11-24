@@ -32,6 +32,16 @@ public:
     bool open_server(uint16_t port);
     void close();
 
+    //---Connectivity --------------------------------------------------------
+    void last_recv_address(const char *&ip_addr, uint16_t &port) const {
+        if (sock != nullptr) {
+            sock->last_recv_address(ip_addr, port);
+        } else {
+            ip_addr = nullptr;
+            port = 0;
+        }
+    }
+
     // --- I/O ---------------------------------------------------------------
     size_t write(const uint8_t* buf, size_t len, uint8_t* error = nullptr);
     size_t read(uint8_t* buf, size_t len, int timeout_ms = 0, uint8_t* error = nullptr);
@@ -76,11 +86,18 @@ private:
     UDPChannel telem_out;
     UDPChannel debug_out;
     UDPChannel cmd_in;
+    bool telem_active = false;
 
     void send_telem_json();
     bool process_next_command();
 
     void read_command_packet();
+
+    struct HeartbeatInfo {
+        uint32_t last_ms = 0;
+        char     last_ip[32] = {0};
+        uint16_t last_port = 0;
+    } _heartbeat;
 
     uint16_t compute_crc16(const uint8_t *data, size_t len);
 
@@ -95,6 +112,9 @@ private:
         CommandPacket cmd;
     };
     ObjectArray<CommandQueueItem> *_cmd_queue;
+
+    void queue_param_set(const CommandPacket& pkt);
+    void handle_heartbeat(const CommandPacket& pkt);
 };
 
 
