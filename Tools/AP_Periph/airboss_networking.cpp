@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <AP_Param/AP_Param.h>
+#include <AP_Common/AP_FWVersion.h>
 
 #define MAGIC_SET_PARAM 0xDDCCBBAA
 #define MAGIC_GET_PARAM 0xAABBCCDD
@@ -427,7 +428,11 @@ void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickStat
         uint8_t  switches;    // 2×3-way packed into 4 bits
         uint16_t batt_mv;     // battery voltage in millivolts
         uint16_t charge_ma;   // charging current in milliamps
-
+        uint8_t  uid[12];      //Board UID
+        uint32_t sw_version;   // Firmware version (major.minor.patch.type)
+        int16_t mcu_temp_c;      // from STM32 internal sensor
+        int16_t board_temp_c;   // placeholder for board temp sensor
+        uint16_t internal_voltage_mv; // 3.3V bus measurement
         uint16_t crc;
     };
 
@@ -458,6 +463,22 @@ void AirBoss_Networking::send_airboss_state(const AirBoss_Joystick::JoystickStat
     pkt.charge_ma = charging_current;
 
     pkt.healthy = js.healthy ? 1 : 0;
+
+    uint8_t uid_buf[12];
+    uint8_t uid_len = sizeof(uid_buf);
+    hal.util->get_system_id_unformatted(uid_buf, uid_len);
+
+    memcpy(pkt.uid, uid_buf, 12);
+
+    const AP_FWVersion &v = AP::fwversion();
+    pkt.sw_version = (uint32_t(v.major) << 24) |
+           (uint32_t(v.minor) << 16) |
+           (uint32_t(v.patch) <<  8) |
+           uint32_t(v.fw_type);
+
+    pkt.board_temp_c = -32768; // Placeholder for board temperature
+    pkt.mcu_temp_c = (int16_t)(hal.analogin->mcu_temperature() * 100.0f);
+    pkt.internal_voltage_mv = (uint16_t)(hal.analogin->mcu_voltage() * 1000.0f);
 
     // Simple CRC16
     uint16_t crc = 0;
