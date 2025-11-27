@@ -310,9 +310,9 @@ void AirBoss_Networking::handle_heartbeat(const CommandPacket& pkt)
 
     _heartbeat.last_port = port;
     // Optional debug print:
-    hal.console->printf("Heartbeat from %s:%u at %u ms\n",
-        _heartbeat.last_ip, (unsigned)_heartbeat.last_port,
-        (unsigned)_heartbeat.last_ms);
+    // hal.console->printf("Heartbeat from %s:%u at %u ms\n",
+    //     _heartbeat.last_ip, (unsigned)_heartbeat.last_port,
+    //     (unsigned)_heartbeat.last_ms);
 }
 
 uint16_t AirBoss_Networking::compute_crc16(const uint8_t *data, size_t len)
