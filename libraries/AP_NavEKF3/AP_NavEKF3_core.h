@@ -888,7 +888,8 @@ private:
     void InitialiseVariablesMag();
 
     // reset the horizontal position states uing the last GPS measurement
-    void ResetPosition(resetDataSource posResetSource);
+    // returns false and changes nothing if in absolute aiding with no fresh measurement to reset to
+    bool ResetPosition(resetDataSource posResetSource);
 
     // reset the stateStruct's NE position to the specified position
     void ResetPositionNE(ftype posN, ftype posE);

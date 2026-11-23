@@ -82,7 +82,7 @@ void NavEKF3_core::ResetVelocity(resetDataSource velResetSource)
 }
 
 // resets position states to last GPS measurement or to zero if in constant position mode
-void NavEKF3_core::ResetPosition(resetDataSource posResetSource)
+bool NavEKF3_core::ResetPosition(resetDataSource posResetSource)
 {
     // if reset source is not specified thenn use the user defined position source
     if (posResetSource == resetDataSource::DEFAULT) {
@@ -104,6 +104,21 @@ void NavEKF3_core::ResetPosition(resetDataSource posResetSource)
         }
     }
 
+    const bool gpsFresh = (imuSampleTime_ms - lastTimeGpsReceived_ms < 250) && (posResetSource == resetDataSource::DEFAULT || posResetSource == resetDataSource::GPS);
+#if EK3_FEATURE_BEACON_FUSION
+    const bool rngBcnFresh = (imuSampleTime_ms - rngBcn.last3DmeasTime_ms < 250) && (posResetSource == resetDataSource::DEFAULT || posResetSource == resetDataSource::RNGBCN);
+#else
+    const bool rngBcnFresh = false;
+#endif
+#if EK3_FEATURE_EXTERNAL_NAV
+    const bool extNavFresh = (imuSampleTime_ms - extNav.dataDelayed.time_ms < 250) && (posResetSource == resetDataSource::DEFAULT || posResetSource == resetDataSource::EXTNAV);
+#else
+    const bool extNavFresh = false;
+#endif
+    if (PV_AidingMode == AID_ABSOLUTE && !gpsFresh && !rngBcnFresh && !extNavFresh) {
+        return false;
+    }
+
     // Store the position before the reset so that we can record the reset delta
     posResetNE.x = stateStruct.position.x;
     posResetNE.y = stateStruct.position.y;
@@ -119,7 +134,7 @@ void NavEKF3_core::ResetPosition(resetDataSource posResetSource)
         Pmut[7][7] = Pmut[8][8] = sq(frontend->_gpsHorizPosNoise);
     } else  {
         // Use GPS data as first preference if fresh data is available
-        if ((imuSampleTime_ms - lastTimeGpsReceived_ms < 250) && (posResetSource == resetDataSource::DEFAULT || posResetSource == resetDataSource::GPS)) {
+        if (gpsFresh) {
             // correct for antenna position
             gps_elements gps_corrected = gpsDataNew;
             CorrectGPSForAntennaOffset(gps_corrected);
@@ -135,7 +150,7 @@ void NavEKF3_core::ResetPosition(resetDataSource posResetSource)
             // set the variances using the position measurement noise parameter
             Pmut[7][7] = Pmut[8][8] = sq(MAX(gpsPosAccuracy,frontend->_gpsHorizPosNoise));
 #if EK3_FEATURE_BEACON_FUSION
-        } else if ((imuSampleTime_ms - rngBcn.last3DmeasTime_ms < 250) && (posResetSource == resetDataSource::DEFAULT || posResetSource == resetDataSource::RNGBCN)) {
+        } else if (rngBcnFresh) {
             // use the range beacon data as a second preference
             stateStruct.position.x = rngBcn.receiverPos.x;
             stateStruct.position.y = rngBcn.receiverPos.y;
@@ -144,7 +159,7 @@ void NavEKF3_core::ResetPosition(resetDataSource posResetSource)
             Pmut[8][8] = rngBcn.receiverPosCov[1][1];
 #endif
 #if EK3_FEATURE_EXTERNAL_NAV
-        } else if ((imuSampleTime_ms - extNav.dataDelayed.time_ms < 250) && (posResetSource == resetDataSource::DEFAULT || posResetSource == resetDataSource::EXTNAV)) {
+        } else if (extNavFresh) {
             // use external nav data as the third preference
             stateStruct.position.x = extNav.dataDelayed.pos.x;
             stateStruct.position.y = extNav.dataDelayed.pos.y;
@@ -171,6 +186,8 @@ void NavEKF3_core::ResetPosition(resetDataSource posResetSource)
     // clear the timeout flags and counters
     posTimeout = false;
     lastGpsPosPassTime_ms = imuSampleTime_ms;
+
+    return true;
 }
 
 #if EK3_FEATURE_POSITION_RESET
@@ -930,7 +947,12 @@ void NavEKF3_core::FuseVelPosNED()
                 const bool posVarianceIsTooLarge = (frontend->_gpsGlitchRadiusMax > 0) && (P[8][8] + P[7][7]) > sq(ftype(frontend->_gpsGlitchRadiusMax));
                 if ((posTimeout || posVarianceIsTooLarge) && (!velAiding || gpsGoodToAlign)) {
                     // reset the position to the current external sensor position
-                    ResetPosition(resetDataSource::DEFAULT);
+                    if (!ResetPosition(resetDataSource::DEFAULT)) {
+                        // fall back to the measurement we were about to fuse
+                        ResetPositionNE(velPosObs[3], velPosObs[4]);
+                        posTimeout = false;
+                        lastGpsPosPassTime_ms = imuSampleTime_ms;
+                    }
 
                     // Don't fuse the same data we have used to reset states.
                     fusePosData = false;
