@@ -6801,6 +6801,82 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         # self.install_messageprinter_handlers_context(['SIMSTATE', 'GLOBAL_POSITION_INT'])
         self.wait_disarmed(timeout=200)
 
+    def EKF3ExtNavPosTimeoutReset(self):
+        """Check EKF3 resets to ext nav after a position timeout."""
+        self.customise_SITL_commandline(["--serial5=sim:vicon:"])
+        self.change_mode('LOITER')
+        self.wait_ready_to_arm()
+        old_pos = self.assert_receive_message('GLOBAL_POSITION_INT')
+
+        # position-only ext nav.  With this delay the sample being
+        # fused is too old for ResetPosition to use
+        self.set_parameters({
+            "EK3_SRC1_POSXY": 6,
+            "EK3_SRC1_VELXY": 0,
+            "EK3_SRC1_VELZ": 0,
+            "GPS1_TYPE": 0,
+            "VISO_TYPE": 1,
+            "SERIAL5_PROTOCOL": 1,
+            "VISO_DELAY_MS": 250,
+        })
+        self.reboot_sitl()
+        # without a GPS or some sort of external prompting, AP
+        # doesn't send system_time messages.  So prompt it:
+        self.mav.mav.system_time_send(int(time.time() * 1000000), 0)
+        self.set_origin(old_pos)
+
+        self.takeoff(10, mode='LOITER')
+
+        def ekf_error_m():
+            vicon = self.assert_receive_message('VISION_POSITION_ESTIMATE')
+            ekf = self.assert_receive_message('LOCAL_POSITION_NED')
+            return math.hypot(ekf.x - vicon.x, ekf.y - vicon.y)
+
+        err = ekf_error_m()
+        if err > 2:
+            raise NotAchievedException(f"EKF is {err:.1f}m from ext nav before the glitch")
+
+        start_loc = self.get_location(location_source='SIMSTATE')
+        start_x = self.assert_receive_message('LOCAL_POSITION_NED').x
+        glitch_m = 30
+        self.set_parameter("SIM_VICON_GLIT_X", glitch_m)
+
+        # the position controller must be told about the jump or the
+        # vehicle chases it, so watch the true position from the glitch
+        # until 10 seconds after the EKF has moved
+        tstart = self.get_sim_time()
+        reset_time = None
+        while reset_time is None or self.get_sim_time_cached() - reset_time < 10:
+            moved_m = self.get_distance(start_loc, self.get_location(location_source='SIMSTATE'))
+            if moved_m > 2:
+                raise NotAchievedException(f"Vehicle moved {moved_m:.1f}m")
+            if reset_time is not None:
+                continue
+            if self.get_sim_time_cached() - tstart > 30:
+                raise AutoTestTimeoutException("EKF did not move to ext nav")
+            x = self.assert_receive_message('LOCAL_POSITION_NED').x
+            if abs(x - start_x - glitch_m) < 2:
+                reset_time = self.get_sim_time_cached()
+
+        self.assert_mode('LOITER')
+        err = ekf_error_m()
+        if err > 2:
+            raise NotAchievedException(f"EKF is {err:.1f}m from ext nav after the reset")
+
+        self.change_mode('LAND')
+        self.wait_disarmed(timeout=200)
+
+        # the EKF must have got there with a reset, not by fusing the jump
+        dfreader = self.dfreader_for_current_onboard_log()
+        max_reset_m = 0
+        while True:
+            m = dfreader.recv_match(type='XKF4')
+            if m is None:
+                break
+            max_reset_m = max(max_reset_m, m.OFN)
+        if abs(max_reset_m - glitch_m) > 2:
+            raise NotAchievedException(f"Expected a {glitch_m}m position reset, got {max_reset_m:.1f}m")
+
     def BodyFrameOdom(self):
         """Disable GPS navigation, enable input of VISION_POSITION_DELTA."""
 
@@ -21401,6 +21477,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             self.FlowGyroZBiasNoYawReference,
             self.FlowAidingRestartsWithoutYawFusion,
             self.VisionPosition,
+            self.EKF3ExtNavPosTimeoutReset,
             self.Mount,
             self.MountPOIFromAuxFunction,
             self.MaxBotixI2CXL,
